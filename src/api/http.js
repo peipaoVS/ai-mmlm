@@ -1,6 +1,6 @@
 import { clearSession, getToken } from '../stores/session'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '123'
 
 export async function request(url, options = {}) {
   const token = getToken()
