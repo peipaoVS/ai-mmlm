@@ -100,7 +100,7 @@ async function sendMessage(preset) {
     const newSession = {
       id: createId(),
       title,
-      preview: content,
+      content: content,
       model: selectedModelLabel.value,
       messages: cloneMessages(messages.value),
       updatedAt: Date.now()
@@ -116,6 +116,8 @@ async function sendMessage(preset) {
     sessionId = newSession.id
   }
 
+  const currentModel = selectedModel.value
+
   messages.value.push({
     role: 'user',
     content
@@ -128,11 +130,39 @@ async function sendMessage(preset) {
   await scrollMessagesToBottom()
 
   try {
-    console.log('sendMessage', selectedModel.value)
+    console.log('sendMessage', currentModel)
     // 先添加一个空的助手消息，用于流式填充
-    const assistantMessage = { role: 'assistant', content: '' }
+    const assistantMessage = { role: 'assistant', content: '', model: currentModel }
     messages.value.push(assistantMessage)
     if(selectedModel.value ==='规则答疑') {
+      const stream = api.stream(API_PATHS.SESSION.RULE_QA, {
+        threadId: "rule_thread001",
+          runId: "rule_run001",
+          parentRunId: "",
+          variant: 'both',
+          state: {
+            branch: session.user?.role || '南京分行',
+            action: "query",
+            agent: 'visit_assistant_agent',
+          },
+          messages: [
+            { id: "m1", role: "user", content: content }
+          ],
+          tools: [],
+          context: [],
+          forwardedProps: {},
+          additionalProp1: {}
+      })
+
+      for await (const eventData of stream) {
+        // 处理不同类型的 SSE 事件
+        if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
+          assistantMessage.content += eventData.delta
+        }
+      }
+    }
+    // 访客辅助
+    else {
       const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
         threadId: "thread_001",
         runId: "run_abc123",
@@ -151,16 +181,22 @@ async function sendMessage(preset) {
         additionalProp1: {}
       })
 
+      let jsonContent = ''
       for await (const eventData of stream) {
-        // 处理不同类型的 SSE 事件
+        // 收集 TEXT_MESSAGE_CONTENT 的内容
         if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
-          assistantMessage.content += eventData.delta
+          jsonContent += eventData.delta
         }
       }
-    } else {
-      // 模拟一个简单的助手回复，实际使用时替换为真实接口
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      assistantMessage.content = `这是模型 "${selectedModel.value}" 的模拟回复：你刚才说的是 "${content}"。后续替换成真实接口后，这里会返回模型的实际回答。`
+
+      // 尝试解析 JSON 并格式化为 Markdown
+      try {
+        const data = JSON.parse(jsonContent)
+        assistantMessage.content = formatToFriendlyMarkdown(data)
+      } catch (e) {
+        // 如果不是 JSON，直接显示原始内容
+        assistantMessage.content = jsonContent
+      }
     }
   } catch (error) {
     messages.value.push({
@@ -282,6 +318,78 @@ function importTask() {
 function exportTask(task) {
   window.alert(`导出功能占位：${task.name}`)
 }
+function formatToFriendlyMarkdown(data) {
+  const fieldMap = {
+    visit_time: '拜访时间',
+    visit_location: '拜访地点',
+    person: '联系人',
+    report_send_time: '报告提交时间',
+    remark: '备注',
+    report_id: '报告ID',
+    version: '版本',
+    report_content: '报告内容',
+    full_report_content: '完整报告内容',
+    brief_report_content: '简略报告内容',
+    report_title: '报告标题',
+    updated_at: '更新时间',
+    created_at: '创建时间',
+    action: '操作',
+  }
+  let md = '拜访安排详情\n'
+  Object.entries(data).forEach(([key, value]) => {
+    const label = fieldMap[key] || key
+    md += `${label}: ${value}\n`
+  })
+  return md
+}
+
+// 确认拜访安排
+async function handleConfirm(message) {
+  const assistantMessage = { role: 'assistant', content: '', model: '' }
+  messages.value.push(assistantMessage)
+  console.log('确认拜访安排:', message)
+  const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
+    threadId: "thread_001",
+    runId: "run_abc123",
+    parentRunId: "",
+    variant: 'both',
+    state: { 
+      branch: "南京分行", 
+      agent: "visit_assistant_agent",
+      action: "confirm",
+      task_payload: message,
+    },
+    messages: [{ id: "m1", role: "user", content: 'content' }],
+    tools: [],
+    context: [],
+    forwardedProps: {},
+    additionalProp1: {}
+  })
+
+  let jsonContent = ''
+  for await (const eventData of stream) {
+    // 收集 TEXT_MESSAGE_CONTENT 的内容
+    if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
+      jsonContent += eventData.delta
+    }
+  }
+
+  // 尝试解析 JSON 并格式化为 Markdown
+  try {
+    const data = JSON.parse(jsonContent)
+    assistantMessage.content = formatToFriendlyMarkdown(data)
+  } catch (e) {
+    // 如果不是 JSON，直接显示原始内容
+    assistantMessage.content = jsonContent
+  }
+}
+
+// 取消拜访安排
+async function handleCancel(message) {
+  // TODO: 调用取消接口或删除消息
+  console.log('取消拜访安排:', message)
+  window.alert('取消功能待实现')
+}
 </script>
 
 <template>
@@ -398,6 +506,16 @@ function exportTask(task) {
               {{ item.role === 'assistant' ? '智能助理' : session.user?.nickname || '当前用户' }}
             </span>
             <p>{{ item.content }}</p>
+            <div v-if="item.role === 'assistant' && item.model === '访客辅助'" style="margin-top: 12px;">
+              <button
+                style="padding:6px 16px; background:#1677ff; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px;"
+                @click="handleConfirm(item)"
+              >确认</button>
+              <button
+                style="padding:6px 16px; margin-left:10px; border:1px solid #e5e6eb; border-radius:8px; background:#fff; cursor:pointer; font-size:12px;"
+                @click="handleCancel(item)"
+              >取消</button>
+            </div>
           </div>
         </article>
 
