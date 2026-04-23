@@ -231,6 +231,10 @@ function deleteTask(task) {
   window.alert(`删除功能占位：${task.name}`)
 }
 
+function importTask() {
+  window.alert('导入功能占位')
+}
+
 function exportTask(task) {
   window.alert(`导出功能占位：${task.name}`)
 }
@@ -245,7 +249,9 @@ function exportTask(task) {
 
       <section class="side-section">
         <div class="section-head">
-          <span class="side-label">最近会话</span>
+          <div class="section-head-main">
+            <span class="side-label">最近会话</span>
+          </div>
           <button
             v-if="recentSessionList.length > 3"
             type="button"
@@ -278,7 +284,12 @@ function exportTask(task) {
 
       <section class="side-section">
         <div class="section-head">
-          <span class="side-label">定时任务</span>
+          <div class="section-head-main">
+            <span class="side-label">定时任务</span>
+            <button type="button" class="head-action-button" @click="importTask">
+              导入
+            </button>
+          </div>
           <button
             v-if="taskJobs.length > 2"
             type="button"
@@ -439,20 +450,40 @@ function exportTask(task) {
   gap: 12px;
 }
 
+.section-head-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 .side-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.head-action-button {
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--brand-alt);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .toggle-button {
-  border: none;
-  padding: 4px 10px;
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(29, 35, 52, 0.08);
+  background: rgba(255, 255, 255, 0.76);
   color: var(--text-main);
   font-size: 12px;
+  font-weight: 600;
 }
 
 .capability-card,
