@@ -49,10 +49,14 @@ const modelOptions = [
 const selectedModel = ref(modelOptions[0].label)
 
 const promptCards = [
-  '帮我整理一下今天的重点工作安排',
-  '写一段适合运营同学使用的活动通知文案',
-  '基于用户反馈总结 3 条产品优化建议',
-  '把下面这段内容改成更正式的汇报语气'
+  '我明天上午9:30需要去招商银行北京分行营业部办理一笔大额跨境汇款,请在上午8:45前准备好所有必需的申请材料清单、合规问卷以及预计费用明细。',
+  // '明天下午2:00,我约了工商银行支行的客户经理,在其VIP室洽谈企业综合授信方案,请在下午1:15前将我方最新的财务报表、融资需求及核心谈判要点整理成简报。',
+  // '我明早10:15要去建设银行总行,参加一个关于数字人民币对公钱包业务的内部研讨会,请在上午9:30前生成一份参会指引,包含会议议程、核心议题和我行关注点。',
+  // '明天下午4:45,我需要在线上面试一位应聘我行风险控制岗的候选人,请在下午4:00前准备好该候选人的详细简历分析、结构化面试问题及岗位能力评估表。',
+  // '我明天中午1:00要去浦发银行数据中心进行季度性安全检查,请在上午12:00前生成检查清单,重点包含网络安全、机房物理安全及上次整改项的复核。',
+  // '明天下午3:30,我需要在农业银行的线上对公服务平台提交年度监管报告,请在下午2:45前完成报告终稿的复核,并生成一份分步提交操作指南。',
+  // '我明早8:50要去本地银保监局报送一项创新业务的事后报告,请在今晚8:00前,将报告定稿、监管条文对应索引及可能的问答预案准备完毕。',
+  // '明天上午11:00,我与摩根士丹利分析师有关于银行业未来趋势的电话会议,请在上午10:20前准备好业绩亮点、行业对标数据及可讨论方向。',
 ]
 
 const recentSessionList = computed(() =>
@@ -92,7 +96,7 @@ async function sendMessage(preset) {
     const newSession = {
       id: createId(),
       title,
-      preview: content,
+      content: content,
       model: selectedModel.value,
       messages: cloneMessages(messages.value),
       updatedAt: Date.now()
@@ -118,14 +122,40 @@ async function sendMessage(preset) {
   loading.value = true
 
   try {
-    const data = await api.post('/api/chat/completions', {
-      message: content,
-      model: selectedModel.value
-    })
-    messages.value.push({
-      role: 'assistant',
-      content: data.answer
-    })
+    console.log('sendMessage', selectedModel.value)
+    // 先添加一个空的助手消息，用于流式填充
+    const assistantMessage = { role: 'assistant', content: '' }
+    messages.value.push(assistantMessage)
+    if(selectedModel.value ==='规则答疑') {
+      const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
+        threadId: "thread_001",
+        runId: "run_abc123",
+        parentRunId: "",
+        variant: 'both',
+        state: {
+          branch: "南京分行",
+          agent: "visit_assistant_agent",
+          action: "parse",
+          task_payload: {},
+        },
+        messages: [{ id: "m1", role: "user", content: content }],
+        tools: [],
+        context: [],
+        forwardedProps: {},
+        additionalProp1: {}
+      })
+
+      for await (const eventData of stream) {
+        // 处理不同类型的 SSE 事件
+        if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
+          assistantMessage.content += eventData.delta
+        }
+      }
+    } else {
+      // 模拟一个简单的助手回复，实际使用时替换为真实接口
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      assistantMessage.content = `这是模型 "${selectedModel.value}" 的模拟回复：你刚才说的是 "${content}"。后续替换成真实接口后，这里会返回模型的实际回答。`
+    }
   } catch (error) {
     messages.value.push({
       role: 'assistant',
@@ -257,7 +287,7 @@ function exportTask(task) {
             @click="switchSession(item)"
           >
             <div class="topic-title-row">
-              <strong :title="item.preview">{{ item.preview }}</strong>
+              <strong :title="item.content">{{ item.content }}</strong>
               <span v-if="item.active" class="active-badge">当前</span>
             </div>
           </button>
