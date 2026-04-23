@@ -24,7 +24,7 @@ async function startFreshConver() {
   loading.value = true
   try {
     const response = await api.get(API_PATHS.SESSION.LIST)
-      recentSessions.value = response.messages.filter(item => item.role === 'user')
+    recentSessions.value = response.messages.filter(item => item.role === 'user')
   } finally {
     loading.value = false
   }

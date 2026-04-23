@@ -3,6 +3,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSelect from '../components/AppSelect.vue'
 import { formatDateTime } from '../utils/format'
+import { api } from '../api/http'
+import { API_PATHS } from '../config/aiApi';
 
 const route = useRoute()
 
@@ -123,6 +125,13 @@ function resetForm() {
 
 async function loadData() {
   loading.value = true
+  // try {
+  //   const stream = await api.get(`${API_PATHS.SESSION.products}?_=${Date.now()}`)
+  //   console.log('查询接口返回的流对象:', stream)
+  //   // state.products = stream.products || [];
+  // } finally {
+  //   loading.value = false
+  // }
   try {
     const source = [...(mockStore[currentKey()] || [])]
     const keyword = filters.keyword.trim().toLowerCase()
