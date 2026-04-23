@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession } from '../stores/session'
 import { API_PATHS } from '../config/aiApi';
@@ -34,6 +34,7 @@ const showAllSessions = ref(false)
 const showAllTasks = ref(false)
 const modelMenuVisible = ref(false)
 const modelMenuRef = ref(null)
+const messagePanelRef = ref(null)
 const defaultModelLabel = '规则答疑'
 
 const modelOptions = [
@@ -115,10 +116,12 @@ async function sendMessage(preset) {
     role: 'user',
     content
   })
+  await scrollMessagesToBottom()
   syncActiveSession(sessionId)
 
   inputValue.value = ''
   loading.value = true
+  await scrollMessagesToBottom()
 
   try {
     const data = await api.post('/api/chat/completions', {
@@ -129,11 +132,13 @@ async function sendMessage(preset) {
       role: 'assistant',
       content: data.answer
     })
+    await scrollMessagesToBottom()
   } catch (error) {
     messages.value.push({
       role: 'assistant',
       content: `请求失败：${error.message}`
     })
+    await scrollMessagesToBottom()
   } finally {
     syncActiveSession(sessionId)
     loading.value = false
@@ -152,6 +157,7 @@ function startFreshConversation() {
     }
   ]
   inputValue.value = ''
+  scrollMessagesToBottom()
 }
 
 function switchSession(item) {
@@ -160,6 +166,7 @@ function switchSession(item) {
   selectedModel.value = item.model || defaultModelLabel
   modelMenuVisible.value = false
   messages.value = cloneMessages(item.messages)
+  scrollMessagesToBottom()
 }
 
 function syncActiveSession(sessionId) {
@@ -220,6 +227,14 @@ function selectModel(label) {
 function handleDocumentClick(event) {
   if (modelMenuRef.value && !modelMenuRef.value.contains(event.target)) {
     modelMenuVisible.value = false
+  }
+}
+
+async function scrollMessagesToBottom() {
+  await nextTick()
+
+  if (messagePanelRef.value) {
+    messagePanelRef.value.scrollTop = messagePanelRef.value.scrollHeight
   }
 }
 
@@ -339,7 +354,7 @@ function exportTask(task) {
         </div>
       </div>
 
-      <div class="message-panel">
+      <div ref="messagePanelRef" class="message-panel">
         <article
           v-for="(item, index) in messages"
           :key="index"
@@ -415,20 +430,25 @@ function exportTask(task) {
 <style scoped>
 .chat-layout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: clamp(16rem, 24vw, 20rem) minmax(0, 1fr);
+  gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
+  align-items: stretch;
+  min-height: calc(100dvh - 10.5rem);
 }
 
 .chat-sidebar,
 .chat-main {
-  border-radius: 30px;
-  padding: 20px;
+  border-radius: calc(30px * var(--ui-scale));
+  padding: clamp(1rem, 0.6rem + 1vw, 1.25rem);
+  min-height: 0;
 }
 
 .chat-sidebar {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: calc(18px * var(--ui-scale));
+  height: 100%;
+  overflow: auto;
   background:
     linear-gradient(180deg, rgba(249, 241, 230, 0.92), rgba(255, 255, 255, 0.84));
 }
@@ -440,26 +460,26 @@ function exportTask(task) {
 .side-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: calc(12px * var(--ui-scale));
 }
 
 .section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: calc(12px * var(--ui-scale));
 }
 
 .section-head-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: calc(10px * var(--ui-scale));
   min-width: 0;
   flex-wrap: wrap;
 }
 
 .side-label {
-  font-size: 18px;
+  font-size: calc(18px * var(--ui-scale));
   font-weight: 700;
   color: var(--text-main);
   line-height: 1.2;
@@ -468,35 +488,35 @@ function exportTask(task) {
 .head-action-button {
   border: 1px solid rgba(27, 37, 54, 0.08);
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   background: rgba(255, 255, 255, 0.84);
   color: var(--brand-alt);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   font-weight: 600;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
 }
 
 .toggle-button {
   border: 1px solid rgba(27, 37, 54, 0.08);
-  padding: 6px 12px;
+  padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.76);
   color: var(--text-main);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   font-weight: 600;
 }
 
 .capability-card,
 .task-card {
-  border-radius: 22px;
-  padding: 18px;
+  border-radius: calc(22px * var(--ui-scale));
+  padding: calc(18px * var(--ui-scale));
   background: rgba(255, 255, 255, 0.74);
   border: 1px solid var(--line);
 }
 
 .capability-card strong {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: calc(10px * var(--ui-scale));
 }
 
 .topic-empty,
@@ -510,15 +530,15 @@ function exportTask(task) {
 .task-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: calc(10px * var(--ui-scale));
 }
 
 .topic-chip {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.74);
   color: var(--text-main);
-  border-radius: 18px;
-  padding: 14px;
+  border-radius: calc(18px * var(--ui-scale));
+  padding: calc(14px * var(--ui-scale));
   text-align: left;
 }
 
@@ -533,12 +553,12 @@ function exportTask(task) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: calc(10px * var(--ui-scale));
 }
 
 .topic-title-row strong,
 .task-head strong {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-scale));
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -548,37 +568,38 @@ function exportTask(task) {
 
 .active-badge,
 .task-status {
-  padding: 4px 8px;
+  padding: calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale));
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.18);
   color: var(--brand-alt);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 700;
   white-space: nowrap;
 }
 
 
 .task-meta {
-  margin: 8px 0 0;
+  margin: calc(8px * var(--ui-scale)) 0 0;
 }
 
 .task-actions {
   display: flex;
-  gap: 8px;
+  gap: calc(8px * var(--ui-scale));
   flex-wrap: wrap;
-  margin-top: 14px;
+  margin-top: calc(14px * var(--ui-scale));
 }
 
 .capability-card ul {
-  padding-left: 18px;
+  padding-left: calc(18px * var(--ui-scale));
   margin: 0;
 }
 
 .chat-main {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  min-height: calc(100vh - 160px);
+  gap: calc(18px * var(--ui-scale));
+  height: 100%;
+  overflow: hidden;
   background:
     radial-gradient(circle at top right, rgba(255, 225, 194, 0.56), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 254, 0.88));
@@ -586,22 +607,23 @@ function exportTask(task) {
 
 .chat-hero {
   display: grid;
-  gap: 16px;
+  gap: calc(16px * var(--ui-scale));
+  flex-shrink: 0;
 }
 
 .hero-label {
   display: inline-flex;
-  padding: 8px 12px;
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.12);
   color: var(--brand-alt);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   font-weight: 700;
 }
 
 .chat-hero h2 {
-  margin: 16px 0 10px;
-  font-size: clamp(24px, 2.6vw, 38px);
+  margin: calc(16px * var(--ui-scale)) 0 calc(10px * var(--ui-scale));
+  font-size: calc(clamp(24px, 2.6vw, 38px) * var(--ui-scale));
 }
 
 .chat-hero p {
@@ -613,32 +635,33 @@ function exportTask(task) {
 
 .prompt-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: calc(12px * var(--ui-scale));
 }
 
 .prompt-card {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.74);
-  border-radius: 22px;
-  padding: 18px;
+  border-radius: calc(22px * var(--ui-scale));
+  padding: calc(18px * var(--ui-scale));
   text-align: left;
   color: var(--text-main);
-  min-height: 92px;
+  min-height: calc(92px * var(--ui-scale));
 }
 
 .message-panel {
   flex: 1;
+  min-height: 0;
   overflow: auto;
-  padding-right: 4px;
+  padding-right: calc(4px * var(--ui-scale));
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: calc(18px * var(--ui-scale));
 }
 
 .message-item {
   display: flex;
-  gap: 12px;
+  gap: calc(12px * var(--ui-scale));
   align-items: flex-start;
 }
 
@@ -647,9 +670,9 @@ function exportTask(task) {
 }
 
 .message-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 16px;
+  width: calc(42px * var(--ui-scale));
+  height: calc(42px * var(--ui-scale));
+  border-radius: calc(16px * var(--ui-scale));
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -663,9 +686,9 @@ function exportTask(task) {
 }
 
 .message-bubble {
-  max-width: min(760px, calc(100% - 54px));
-  border-radius: 24px;
-  padding: 18px;
+  max-width: min(46rem, calc(100% - 3.375rem));
+  border-radius: calc(24px * var(--ui-scale));
+  padding: calc(18px * var(--ui-scale));
   background: rgba(255, 255, 255, 0.84);
   border: 1px solid var(--line);
 }
@@ -676,27 +699,29 @@ function exportTask(task) {
 
 .message-role {
   display: block;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   color: var(--text-muted);
-  margin-bottom: 8px;
+  margin-bottom: calc(8px * var(--ui-scale));
 }
 
 .message-bubble p {
   margin: 0;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.8;
 }
 
 .composer {
-  border-radius: 26px;
-  padding: 14px 16px;
+  border-radius: calc(26px * var(--ui-scale));
+  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  flex-shrink: 0;
 }
 
 .composer textarea {
   width: 100%;
   border: none;
-  min-height: 64px;
-  max-height: 140px;
+  min-height: calc(64px * var(--ui-scale));
+  max-height: calc(140px * var(--ui-scale));
   resize: vertical;
   background: transparent;
   outline: none;
@@ -708,14 +733,14 @@ function exportTask(task) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  margin-top: 12px;
+  gap: calc(16px * var(--ui-scale));
+  margin-top: calc(12px * var(--ui-scale));
 }
 
 .composer-left {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: calc(14px * var(--ui-scale));
   flex-wrap: wrap;
 }
 
@@ -726,8 +751,8 @@ function exportTask(task) {
 .model-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: calc(10px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
   border: 1px solid rgba(27, 37, 54, 0.1);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
@@ -737,16 +762,16 @@ function exportTask(task) {
 
 .model-trigger-label {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 
 .model-trigger strong {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-scale));
 }
 
 .model-trigger-arrow {
   color: var(--text-muted);
-  font-size: 16px;
+  font-size: calc(16px * var(--ui-scale));
   transition: transform 0.18s ease;
 }
 
@@ -757,10 +782,10 @@ function exportTask(task) {
 .model-menu {
   position: absolute;
   left: 0;
-  bottom: calc(100% + 10px);
-  width: 280px;
-  padding: 10px;
-  border-radius: 22px;
+  bottom: calc(100% + calc(10px * var(--ui-scale)));
+  width: min(18rem, calc(100vw - 3rem));
+  padding: calc(10px * var(--ui-scale));
+  border-radius: calc(22px * var(--ui-scale));
   border: 1px solid rgba(27, 37, 54, 0.08);
   background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 18px 36px rgba(27, 37, 54, 0.12);
@@ -772,17 +797,17 @@ function exportTask(task) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 12px 14px;
+  gap: calc(14px * var(--ui-scale));
+  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
   border: 1px solid transparent;
-  border-radius: 18px;
+  border-radius: calc(18px * var(--ui-scale));
   background: transparent;
   color: var(--text-main);
   text-align: left;
 }
 
 .model-option + .model-option {
-  margin-top: 8px;
+  margin-top: calc(8px * var(--ui-scale));
 }
 
 .model-option.active {
@@ -792,48 +817,65 @@ function exportTask(task) {
 
 .model-option-copy strong {
   display: block;
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-scale));
 }
 
 .model-option-copy span {
   display: block;
-  margin-top: 6px;
+  margin-top: calc(6px * var(--ui-scale));
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   line-height: 1.5;
 }
 
 .model-option em {
   font-style: normal;
-  padding: 4px 8px;
+  padding: calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale));
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.16);
   color: var(--brand-alt);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   font-weight: 700;
   white-space: nowrap;
 }
 
 .composer-actions span {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
 }
 
-@media (max-width: 1080px) {
+@media (max-width: 1280px) {
   .chat-layout {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .chat-main {
-    min-height: auto;
+    height: calc(100dvh - 9rem);
+  }
+}
+
+@media (max-width: 900px) {
+  .section-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .topic-title-row strong,
+  .task-head strong {
+    white-space: normal;
   }
 }
 
 @media (max-width: 640px) {
   .chat-sidebar,
   .chat-main {
-    padding: 16px;
-    border-radius: 24px;
+    padding: 1rem;
+    border-radius: calc(24px * var(--ui-scale));
+  }
+
+  .chat-main {
+    height: calc(100dvh - 7.5rem);
   }
 
   .composer-actions {

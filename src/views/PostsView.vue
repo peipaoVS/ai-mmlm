@@ -108,14 +108,6 @@ async function removeRow(row) {
 
 <template>
   <div>
-    <div class="section-title">
-      <div>
-        <h2>岗位管理</h2>
-        <p>岗位作为组织维度补充，用来描述用户在业务中的职责定位。</p>
-      </div>
-      <button class="pill-button" @click="openCreate">新增岗位</button>
-    </div>
-
     <div class="stats-grid">
       <article class="stats-card">
         <span>岗位总数</span>
@@ -150,6 +142,8 @@ async function removeRow(row) {
         >
           重置
         </button>
+        <span class="toolbar-spacer"></span>
+        <button class="pill-button" @click="openCreate">新增</button>
       </div>
 
       <div v-if="loading" class="empty-state">数据加载中...</div>
@@ -197,7 +191,7 @@ async function removeRow(row) {
           <div class="modal-header">
             <div>
               <h3 style="margin: 0">{{ editingId ? '编辑岗位' : '新增岗位' }}</h3>
-              <p style="margin: 8px 0 0; color: var(--text-muted)">
+              <p class="modal-subtext">
                 岗位编码建议简洁明确，便于后续和组织架构同步。
               </p>
             </div>

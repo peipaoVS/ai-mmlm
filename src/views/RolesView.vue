@@ -108,14 +108,6 @@ async function removeRow(row) {
 
 <template>
   <div>
-    <div class="section-title">
-      <div>
-        <h2>角色管理</h2>
-        <p>角色用于定义用户能力边界，当前版本重点保留基础配置能力。</p>
-      </div>
-      <button class="pill-button" @click="openCreate">新增角色</button>
-    </div>
-
     <div class="stats-grid">
       <article class="stats-card">
         <span>角色总数</span>
@@ -150,6 +142,8 @@ async function removeRow(row) {
         >
           重置
         </button>
+        <span class="toolbar-spacer"></span>
+        <button class="pill-button" @click="openCreate">新增</button>
       </div>
 
       <div v-if="loading" class="empty-state">数据加载中...</div>
@@ -197,7 +191,7 @@ async function removeRow(row) {
           <div class="modal-header">
             <div>
               <h3 style="margin: 0">{{ editingId ? '编辑角色' : '新增角色' }}</h3>
-              <p style="margin: 8px 0 0; color: var(--text-muted)">
+              <p class="modal-subtext">
                 角色编码建议使用全大写英文，便于后续扩展权限。
               </p>
             </div>
