@@ -65,6 +65,10 @@ const visibleLogMenus = computed(() =>
   logMenus.filter((item) => !item.observerOnly || isObserverUser(session.user))
 )
 
+function isMenuActive(name, menus) {
+  return activeMenu.value === name || menus.some((item) => route.path === item.path)
+}
+
 function toggleMenu(name) {
   activeMenu.value = activeMenu.value === name ? '' : name
 }
@@ -119,7 +123,7 @@ onBeforeUnmount(() => {
             <div class="menu-anchor">
               <button
                 class="top-action glass-card"
-                :class="{ active: activeMenu === 'ai' }"
+                :class="{ active: isMenuActive('ai', aiMenus) }"
                 type="button"
                 @click="toggleMenu('ai')"
               >
@@ -146,7 +150,7 @@ onBeforeUnmount(() => {
             <div class="menu-anchor">
               <button
                 class="top-action glass-card"
-                :class="{ active: activeMenu === 'knowledge' }"
+                :class="{ active: isMenuActive('knowledge', knowledgeMenus) }"
                 type="button"
                 @click="toggleMenu('knowledge')"
               >
@@ -173,7 +177,7 @@ onBeforeUnmount(() => {
             <div class="menu-anchor">
               <button
                 class="top-action glass-card"
-                :class="{ active: activeMenu === 'logs' }"
+                :class="{ active: isMenuActive('logs', logMenus) }"
                 type="button"
                 @click="toggleMenu('logs')"
               >
@@ -200,7 +204,7 @@ onBeforeUnmount(() => {
             <div class="menu-anchor">
               <button
                 class="top-action glass-card"
-                :class="{ active: activeMenu === 'permission' }"
+                :class="{ active: isMenuActive('permission', permissionMenus) }"
                 type="button"
                 @click="toggleMenu('permission')"
               >
@@ -236,8 +240,6 @@ onBeforeUnmount(() => {
 
               <div v-if="activeMenu === 'user'" class="menu-popover user-popover glass-card">
                 <div class="menu-section">
-                  <span class="menu-title">当前账号</span>
-
                   <div class="menu-meta-card">
                     <span class="menu-meta-label">当前用户</span>
                     <strong class="menu-meta-value">{{ displayUsername }}</strong>
@@ -349,8 +351,7 @@ onBeforeUnmount(() => {
   min-width: calc(112px * var(--ui-scale));
 }
 
-.top-action:hover,
-.user-button:hover {
+.top-action:hover {
   transform: translateY(-1px);
   border-color: rgba(237, 124, 71, 0.2);
   box-shadow:
@@ -358,20 +359,59 @@ onBeforeUnmount(() => {
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
-.top-action.active,
-.user-button.active {
+.top-action.active {
   border-color: rgba(237, 124, 71, 0.22);
   background:
     linear-gradient(135deg, rgba(255, 243, 234, 0.94), rgba(241, 248, 246, 0.92)),
     rgba(255, 255, 255, 0.84);
 }
 
+.user-button {
+  position: relative;
+  gap: calc(10px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  border-radius: 999px;
+  border-color: transparent;
+  background: linear-gradient(135deg, #2f8374 0%, #6eb6ab 100%);
+  color: #fff;
+  box-shadow:
+    0 16px 30px rgba(47, 131, 116, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.user-button::before {
+  content: '';
+  display: block;
+  width: calc(8px * var(--ui-scale));
+  height: calc(8px * var(--ui-scale));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 calc(4px * var(--ui-scale)) rgba(255, 255, 255, 0.14);
+  flex-shrink: 0;
+}
+
+.user-button:hover {
+  transform: translateY(-1px);
+  border-color: transparent;
+  box-shadow:
+    0 18px 34px rgba(47, 131, 116, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.user-button.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, #256d61 0%, #5aa89c 100%);
+  box-shadow:
+    0 18px 34px rgba(47, 131, 116, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
 .user-mark {
-  min-width: calc(52px * var(--ui-scale));
+  min-width: 0;
   max-width: calc(140px * var(--ui-scale));
-  padding: calc(9px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
-  background: linear-gradient(135deg, #f39a61, #2f8374);
+  padding: 0;
+  border-radius: 0;
+  background: none;
   color: #fff;
   font-size: calc(14px * var(--ui-scale));
   font-weight: 700;
@@ -379,7 +419,8 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 16px 26px rgba(47, 131, 116, 0.22);
+  box-shadow: none;
+  letter-spacing: 0.02em;
 }
 
 .menu-popover {
