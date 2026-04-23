@@ -114,7 +114,7 @@ onBeforeUnmount(() => {
     <main class="shell-main">
       <header class="shell-header glass-card">
         <div class="header-left">
-          <h2>{{ currentSection }}</h2>
+          <h3>{{ currentSection }}</h3>
           <p>{{ today }}</p>
         </div>
 
@@ -303,7 +303,11 @@ onBeforeUnmount(() => {
   font-size: clamp(1.6rem, 1.1rem + 1vw, 2rem);
   line-height: 1.1;
 }
-
+.header-left {
+  display: flex;           /* 启用Flex布局 */
+  align-items: center;     /* 垂直居中对齐 */
+  gap: 10px;              /* 元素之间的间距 */
+}
 .header-left p {
   margin: calc(8px * var(--ui-scale)) 0 0;
   color: var(--text-muted);
