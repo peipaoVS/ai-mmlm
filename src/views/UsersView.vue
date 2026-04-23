@@ -244,93 +244,95 @@ async function removeRow(row) {
       <div v-else class="empty-state">暂无用户数据。</div>
     </section>
 
-    <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
-      <div class="modal-panel glass-card">
-        <div class="modal-header">
-          <div>
-            <h3 style="margin: 0">{{ editingId ? '编辑用户' : '新增用户' }}</h3>
-            <p style="margin: 8px 0 0; color: var(--text-muted)">
-              {{ editingId ? '更新基础资料与角色岗位绑定。' : '创建新用户，默认密码为空时使用 admin123。' }}
-            </p>
-          </div>
-          <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
-        </div>
-
-        <div class="form-grid">
-          <label class="field">
-            <span>用户名</span>
-            <input v-model="form.username" placeholder="请输入用户名" />
-          </label>
-          <label class="field">
-            <span>姓名</span>
-            <input v-model="form.nickname" placeholder="请输入姓名" />
-          </label>
-          <label class="field">
-            <span>密码</span>
-            <input
-              v-model="form.password"
-              type="password"
-              :placeholder="editingId ? '留空则不修改密码' : '留空默认 admin123'"
-            />
-          </label>
-          <label class="field">
-            <span>状态</span>
-            <select v-model.number="form.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>手机号</span>
-            <input v-model="form.phone" placeholder="请输入手机号" />
-          </label>
-          <label class="field">
-            <span>邮箱</span>
-            <input v-model="form.email" placeholder="请输入邮箱" />
-          </label>
-          <label class="field full">
-            <span>头像地址</span>
-            <input v-model="form.avatar" placeholder="可选，填写头像 URL" />
-          </label>
-          <div class="field full">
-            <span>角色</span>
-            <div class="checkbox-grid">
-              <label
-                v-for="item in roleOptions"
-                :key="item.id"
-                class="checkbox-chip"
-              >
-                <input v-model="form.roleIds" type="checkbox" :value="item.id" />
-                <span>{{ item.name }}</span>
-              </label>
+    <Teleport to="body">
+      <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
+        <div class="modal-panel glass-card">
+          <div class="modal-header">
+            <div>
+              <h3 style="margin: 0">{{ editingId ? '编辑用户' : '新增用户' }}</h3>
+              <p style="margin: 8px 0 0; color: var(--text-muted)">
+                {{ editingId ? '更新基础资料与角色岗位绑定。' : '创建新用户，默认密码为空时使用 admin123。' }}
+              </p>
             </div>
+            <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
           </div>
-          <div class="field full">
-            <span>岗位</span>
-            <div class="checkbox-grid">
-              <label
-                v-for="item in postOptions"
-                :key="item.id"
-                class="checkbox-chip"
-              >
-                <input v-model="form.postIds" type="checkbox" :value="item.id" />
-                <span>{{ item.name }}</span>
-              </label>
-            </div>
-          </div>
-          <label class="field full">
-            <span>备注</span>
-            <textarea v-model="form.remark" placeholder="补充说明"></textarea>
-          </label>
-        </div>
 
-        <div class="modal-actions">
-          <button class="pill-button ghost" @click="dialogVisible = false">取消</button>
-          <button class="pill-button" :disabled="submitting" @click="submitForm">
-            {{ submitting ? '提交中...' : '保存' }}
-          </button>
+          <div class="form-grid">
+            <label class="field">
+              <span>用户名</span>
+              <input v-model="form.username" placeholder="请输入用户名" />
+            </label>
+            <label class="field">
+              <span>姓名</span>
+              <input v-model="form.nickname" placeholder="请输入姓名" />
+            </label>
+            <label class="field">
+              <span>密码</span>
+              <input
+                v-model="form.password"
+                type="password"
+                :placeholder="editingId ? '留空则不修改密码' : '留空默认 admin123'"
+              />
+            </label>
+            <label class="field">
+              <span>状态</span>
+              <select v-model.number="form.status">
+                <option :value="1">启用</option>
+                <option :value="0">停用</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>手机号</span>
+              <input v-model="form.phone" placeholder="请输入手机号" />
+            </label>
+            <label class="field">
+              <span>邮箱</span>
+              <input v-model="form.email" placeholder="请输入邮箱" />
+            </label>
+            <label class="field full">
+              <span>头像地址</span>
+              <input v-model="form.avatar" placeholder="可选，填写头像 URL" />
+            </label>
+            <div class="field full">
+              <span>角色</span>
+              <div class="checkbox-grid">
+                <label
+                  v-for="item in roleOptions"
+                  :key="item.id"
+                  class="checkbox-chip"
+                >
+                  <input v-model="form.roleIds" type="checkbox" :value="item.id" />
+                  <span>{{ item.name }}</span>
+                </label>
+              </div>
+            </div>
+            <div class="field full">
+              <span>岗位</span>
+              <div class="checkbox-grid">
+                <label
+                  v-for="item in postOptions"
+                  :key="item.id"
+                  class="checkbox-chip"
+                >
+                  <input v-model="form.postIds" type="checkbox" :value="item.id" />
+                  <span>{{ item.name }}</span>
+                </label>
+              </div>
+            </div>
+            <label class="field full">
+              <span>备注</span>
+              <textarea v-model="form.remark" placeholder="补充说明"></textarea>
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button class="pill-button ghost" @click="dialogVisible = false">取消</button>
+            <button class="pill-button" :disabled="submitting" @click="submitForm">
+              {{ submitting ? '提交中...' : '保存' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>

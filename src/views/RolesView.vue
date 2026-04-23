@@ -191,47 +191,49 @@ async function removeRow(row) {
       <div v-else class="empty-state">暂无角色数据。</div>
     </section>
 
-    <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
-      <div class="modal-panel glass-card">
-        <div class="modal-header">
-          <div>
-            <h3 style="margin: 0">{{ editingId ? '编辑角色' : '新增角色' }}</h3>
-            <p style="margin: 8px 0 0; color: var(--text-muted)">
-              角色编码建议使用全大写英文，便于后续扩展权限。
-            </p>
+    <Teleport to="body">
+      <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
+        <div class="modal-panel glass-card">
+          <div class="modal-header">
+            <div>
+              <h3 style="margin: 0">{{ editingId ? '编辑角色' : '新增角色' }}</h3>
+              <p style="margin: 8px 0 0; color: var(--text-muted)">
+                角色编码建议使用全大写英文，便于后续扩展权限。
+              </p>
+            </div>
+            <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
           </div>
-          <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
-        </div>
 
-        <div class="form-grid">
-          <label class="field">
-            <span>角色名称</span>
-            <input v-model="form.name" placeholder="请输入角色名称" />
-          </label>
-          <label class="field">
-            <span>角色编码</span>
-            <input v-model="form.code" placeholder="例如 ADMIN" />
-          </label>
-          <label class="field">
-            <span>状态</span>
-            <select v-model.number="form.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <label class="field full">
-            <span>备注</span>
-            <textarea v-model="form.remark" placeholder="补充角色说明"></textarea>
-          </label>
-        </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>角色名称</span>
+              <input v-model="form.name" placeholder="请输入角色名称" />
+            </label>
+            <label class="field">
+              <span>角色编码</span>
+              <input v-model="form.code" placeholder="例如 ADMIN" />
+            </label>
+            <label class="field">
+              <span>状态</span>
+              <select v-model.number="form.status">
+                <option :value="1">启用</option>
+                <option :value="0">停用</option>
+              </select>
+            </label>
+            <label class="field full">
+              <span>备注</span>
+              <textarea v-model="form.remark" placeholder="补充角色说明"></textarea>
+            </label>
+          </div>
 
-        <div class="modal-actions">
-          <button class="pill-button ghost" @click="dialogVisible = false">取消</button>
-          <button class="pill-button" :disabled="submitting" @click="submitForm">
-            {{ submitting ? '提交中...' : '保存' }}
-          </button>
+          <div class="modal-actions">
+            <button class="pill-button ghost" @click="dialogVisible = false">取消</button>
+            <button class="pill-button" :disabled="submitting" @click="submitForm">
+              {{ submitting ? '提交中...' : '保存' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>

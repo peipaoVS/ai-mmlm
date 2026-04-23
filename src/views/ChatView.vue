@@ -23,10 +23,11 @@ const showAllSessions = ref(false)
 const showAllTasks = ref(false)
 const modelMenuVisible = ref(false)
 const modelMenuRef = ref(null)
+const defaultModelLabel = '规则答疑'
 
 const modelOptions = [
   {
-    label: '规则答疑',
+    label: defaultModelLabel,
     description: '适合制度、流程、规范类问题'
   },
   {
@@ -35,7 +36,7 @@ const modelOptions = [
   }
 ]
 
-const selectedModel = ref(modelOptions[0].label)
+const selectedModel = ref(defaultModelLabel)
 
 const promptCards = [
   '帮我整理一下今天的重点工作安排',
@@ -59,6 +60,8 @@ const visibleTaskJobs = computed(() =>
   showAllTasks.value ? taskJobs.value : taskJobs.value.slice(0, 2)
 )
 
+const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
+
 onMounted(() => {
   startFreshConversation()
   document.addEventListener('click', handleDocumentClick)
@@ -81,7 +84,7 @@ async function sendMessage(preset) {
       id: createId(),
       title,
       preview: content,
-      model: selectedModel.value,
+      model: selectedModelLabel.value,
       messages: cloneMessages(messages.value),
       updatedAt: Date.now()
     }
@@ -108,7 +111,7 @@ async function sendMessage(preset) {
   try {
     const data = await api.post('/api/chat/completions', {
       message: content,
-      model: selectedModel.value
+      model: selectedModelLabel.value
     })
     messages.value.push({
       role: 'assistant',
@@ -128,11 +131,12 @@ async function sendMessage(preset) {
 function startFreshConversation() {
   activeSessionId.value = ''
   conversationTitle.value = '新会话'
-  selectedModel.value = modelOptions[0].label
+  selectedModel.value = defaultModelLabel
+  modelMenuVisible.value = false
   messages.value = [
     {
       role: 'assistant',
-      content: `你好，${session.user?.nickname || session.user?.username || '管理员'}。我是当前系统里的大模型问答占位页。你后续只需要把后端 mock 接口替换成真实模型接口即可。`
+      content: `你好，${session.user?.nickname || session.user?.username || '管理员'}。我是智能助理，可以帮你处理规则答疑、内容整理和日常工作问题。`
     }
   ]
   inputValue.value = ''
@@ -141,7 +145,8 @@ function startFreshConversation() {
 function switchSession(item) {
   activeSessionId.value = item.id
   conversationTitle.value = item.title
-  selectedModel.value = item.model || modelOptions[0].label
+  selectedModel.value = item.model || defaultModelLabel
+  modelMenuVisible.value = false
   messages.value = cloneMessages(item.messages)
 }
 
@@ -151,7 +156,7 @@ function syncActiveSession(sessionId) {
       item.id === sessionId
         ? {
             ...item,
-            model: selectedModel.value,
+            model: selectedModelLabel.value,
             preview: getSessionPreview(messages.value),
             messages: cloneMessages(messages.value),
             updatedAt: Date.now()
@@ -194,6 +199,9 @@ function toggleModelMenu() {
 
 function selectModel(label) {
   selectedModel.value = label
+  if (activeSessionId.value) {
+    syncActiveSession(activeSessionId.value)
+  }
   modelMenuVisible.value = false
 }
 
@@ -292,11 +300,8 @@ function exportTask(task) {
     <section class="chat-main glass-card">
       <div class="chat-hero">
         <div>
-          <span class="hero-label">LLM Workspace</span>
+          <span class="hero-label">{{ selectedModelLabel }}</span>
           <h2>今天想让模型帮你完成什么？</h2>
-          <p>
-            页面结构已经为多轮对话预留好。现在返回的是 mock 内容，后端替换接口之后前端无需重写。
-          </p>
         </div>
 
         <div class="prompt-grid">
@@ -341,7 +346,7 @@ function exportTask(task) {
       <form class="composer glass-card" @submit.prevent="sendMessage()">
         <textarea
           v-model="inputValue"
-          placeholder="输入你的问题，当前会调用后端 mock 接口。后续对接真实大模型时，继续走这个入口即可。"
+          placeholder="输入你的问题，尽量补充背景、目标和限制条件。"
           @keydown="handleComposerKeydown"
         />
 
