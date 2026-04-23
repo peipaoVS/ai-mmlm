@@ -42,6 +42,7 @@ async function handleLogin() {
             <span class="logo-core"></span>
           </div>
         </div>
+        <h2 class="login-title">大模型登录</h2>
 
         <form class="login-form" @submit.prevent="handleLogin">
           <label class="field">
@@ -180,6 +181,15 @@ async function handleLogin() {
   display: flex;
   justify-content: center;
   margin-bottom: calc(18px * var(--ui-scale));
+}
+
+.login-title {
+  margin: 0 0 calc(22px * var(--ui-scale));
+  text-align: center;
+  font-size: calc(clamp(24px, 2.8vw, 34px) * var(--ui-scale));
+  line-height: 1.1;
+  color: var(--text-main);
+  letter-spacing: 0.04em;
 }
 
 .login-logo {
