@@ -17,6 +17,10 @@ function parseUser() {
   }
 }
 
+function normalizeRoleName(value) {
+  return String(value || '').trim().toUpperCase()
+}
+
 export function useSession() {
   return state
 }
@@ -37,4 +41,16 @@ export function clearSession() {
 
 export function getToken() {
   return state.token
+}
+
+export function getUser() {
+  return state.user
+}
+
+export function isObserverUser(user) {
+  const roles = user?.roleNames || []
+  return roles.some((roleName) => {
+    const normalized = normalizeRoleName(roleName)
+    return normalized === '观察员' || normalized === 'OBSERVER' || normalized.includes('观察员')
+  })
 }

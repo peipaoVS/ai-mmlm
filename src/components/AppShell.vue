@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/http'
-import { clearSession, useSession } from '../stores/session'
+import { clearSession, isObserverUser, useSession } from '../stores/session'
 
 const route = useRoute()
 const router = useRouter()
@@ -20,6 +20,15 @@ const knowledgeMenus = [
   { label: '产品库', path: '/knowledge/products' },
   { label: '企业画像', path: '/knowledge/portraits' },
   { label: '行业动态', path: '/knowledge/trends' }
+]
+
+const logMenus = [
+  { label: 'Badcase', path: '/logs/badcase', observerOnly: true },
+  { label: '观测认证', path: '/logs/observation-auth', observerOnly: true },
+  { label: '回归评测', path: '/logs/regression-review', observerOnly: true },
+  { label: '修复队列', path: '/logs/fix-queue', observerOnly: true },
+  { label: '规则库', path: '/logs/rule-library', observerOnly: false },
+  { label: '说明', path: '/logs/instructions', observerOnly: false }
 ]
 
 const permissionMenus = [
@@ -51,6 +60,10 @@ const currentPosts = computed(() => {
   const posts = session.user?.postNames || []
   return posts.length ? posts.join('、') : '--'
 })
+
+const visibleLogMenus = computed(() =>
+  logMenus.filter((item) => !item.observerOnly || isObserverUser(session.user))
+)
 
 function toggleMenu(name) {
   activeMenu.value = activeMenu.value === name ? '' : name
@@ -145,6 +158,33 @@ onBeforeUnmount(() => {
                   <span class="menu-title">AI知识库</span>
                   <button
                     v-for="item in knowledgeMenus"
+                    :key="item.path"
+                    type="button"
+                    class="menu-item"
+                    :class="{ active: route.path === item.path }"
+                    @click="goTo(item.path)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="menu-anchor">
+              <button
+                class="top-action glass-card"
+                :class="{ active: activeMenu === 'logs' }"
+                type="button"
+                @click="toggleMenu('logs')"
+              >
+                <span>日志</span>
+              </button>
+
+              <div v-if="activeMenu === 'logs'" class="menu-popover glass-card">
+                <div class="menu-section">
+                  <span class="menu-title">日志</span>
+                  <button
+                    v-for="item in visibleLogMenus"
                     :key="item.path"
                     type="button"
                     class="menu-item"

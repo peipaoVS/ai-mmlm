@@ -4,10 +4,11 @@ import LoginView from '../views/LoginView.vue'
 import ChatView from '../views/ChatView.vue'
 import AgentConfigView from '../views/AgentConfigView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
+import LogModuleView from '../views/LogModuleView.vue'
 import UsersView from '../views/UsersView.vue'
 import RolesView from '../views/RolesView.vue'
 import PostsView from '../views/PostsView.vue'
-import { getToken } from '../stores/session'
+import { getToken, getUser, isObserverUser } from '../stores/session'
 
 const routes = [
   {
@@ -91,6 +92,64 @@ const routes = [
         }
       },
       {
+        path: '/logs/badcase',
+        name: 'logs-badcase',
+        component: LogModuleView,
+        meta: {
+          title: 'Badcase',
+          observerOnly: true,
+          description: '预留 Badcase 管理页，后续可接问题样本、失败案例和归档接口。'
+        }
+      },
+      {
+        path: '/logs/observation-auth',
+        name: 'logs-observation-auth',
+        component: LogModuleView,
+        meta: {
+          title: '观测认证',
+          observerOnly: true,
+          description: '预留观测认证管理页，后续可接观测数据、认证流程和审核接口。'
+        }
+      },
+      {
+        path: '/logs/regression-review',
+        name: 'logs-regression-review',
+        component: LogModuleView,
+        meta: {
+          title: '回归评测',
+          observerOnly: true,
+          description: '预留回归评测管理页，后续可接回归任务、评测结果和趋势接口。'
+        }
+      },
+      {
+        path: '/logs/fix-queue',
+        name: 'logs-fix-queue',
+        component: LogModuleView,
+        meta: {
+          title: '修复队列',
+          observerOnly: true,
+          description: '预留修复队列管理页，后续可接问题流转、修复状态和负责人接口。'
+        }
+      },
+      {
+        path: '/logs/rule-library',
+        name: 'logs-rule-library',
+        component: LogModuleView,
+        meta: {
+          title: '规则库',
+          description: '预留规则库页面，后续可接规则配置、版本管理和发布接口。'
+        }
+      },
+      {
+        path: '/logs/instructions',
+        name: 'logs-instructions',
+        component: LogModuleView,
+        meta: {
+          title: '说明',
+          description: '预留说明页面，后续可接文档、操作手册和说明内容接口。'
+        }
+      },
+      {
         path: '/users',
         name: 'users',
         component: UsersView,
@@ -130,6 +189,10 @@ router.beforeEach((to, from, next) => {
     return
   }
   if (to.path === '/login' && token) {
+    next('/chat')
+    return
+  }
+  if (to.meta.observerOnly && !isObserverUser(getUser())) {
     next('/chat')
     return
   }
