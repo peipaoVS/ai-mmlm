@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession } from '../stores/session'
+import { API_PATHS } from '../config/aiApi';
 
 const session = useSession()
 const loading = ref(false)
@@ -18,6 +19,16 @@ const taskJobs = ref([
     remark: '前端写死的测试数据，后续再切换为真实接口。'
   }
 ])
+// 最近会话接口
+async function startFreshConver() {
+  loading.value = true
+  try {
+    const response = await api.get(API_PATHS.SESSION.LIST)
+      recentSessions.value = response.messages.filter(item => item.role === 'user')
+  } finally {
+    loading.value = false
+  }
+}
 const activeSessionId = ref('')
 const showAllSessions = ref(false)
 const showAllTasks = ref(false)
@@ -64,6 +75,7 @@ const selectedModelLabel = computed(() => selectedModel.value || defaultModelLab
 
 onMounted(() => {
   startFreshConversation()
+  startFreshConver()
   document.addEventListener('click', handleDocumentClick)
 })
 
