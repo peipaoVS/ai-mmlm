@@ -36,7 +36,7 @@ async function handleLogin() {
       <div class="login-panel glass-card">
         <div class="panel-head">
           <span class="eyebrow warm">大模型登录</span>
-          <h1>大模型登录</h1>
+          <h2>大模型登录</h2>
           <p>
             输入账号密码后进入系统，默认进入大模型问答工作台。
           </p>
@@ -128,7 +128,7 @@ async function handleLogin() {
   position: relative;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: clamp(1rem, 0.55rem + 1.2vw, 1.5rem);
 }
 
 .login-page::before,
@@ -141,16 +141,16 @@ async function handleLogin() {
 }
 
 .login-page::before {
-  width: 320px;
-  height: 320px;
+  width: clamp(14rem, 26vw, 20rem);
+  height: clamp(14rem, 26vw, 20rem);
   left: 8%;
   top: 10%;
   background: rgba(237, 124, 71, 0.18);
 }
 
 .login-page::after {
-  width: 280px;
-  height: 280px;
+  width: clamp(12rem, 22vw, 17.5rem);
+  height: clamp(12rem, 22vw, 17.5rem);
   right: 10%;
   bottom: 12%;
   background: rgba(47, 131, 116, 0.14);
@@ -166,8 +166,8 @@ async function handleLogin() {
 
 .login-panel {
   width: min(560px, 100%);
-  border-radius: 36px;
-  padding: 36px;
+  border-radius: calc(36px * var(--ui-scale));
+  padding: clamp(1.25rem, 0.75rem + 1.6vw, 2.25rem);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 247, 239, 0.62)),
     rgba(255, 255, 255, 0.58);
@@ -175,9 +175,9 @@ async function handleLogin() {
   backdrop-filter: blur(28px);
 }
 
-.panel-head h1 {
-  margin: 18px 0 12px;
-  font-size: clamp(26px, 3.2vw, 40px);
+.panel-head h2 {
+  margin: calc(18px * var(--ui-scale)) 0 calc(12px * var(--ui-scale));
+  font-size: calc(clamp(26px, 3.2vw, 40px) * var(--ui-scale));
   line-height: 1.1;
 }
 
@@ -189,11 +189,11 @@ async function handleLogin() {
 
 .eyebrow {
   display: inline-block;
-  padding: 8px 12px;
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.12);
   color: var(--brand-alt);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.06em;
 }
@@ -206,41 +206,46 @@ async function handleLogin() {
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 26px;
+  gap: calc(16px * var(--ui-scale));
+  margin-top: calc(26px * var(--ui-scale));
+}
+
+.login-form .field {
+  grid-template-columns: 5rem minmax(0, 1fr);
+  align-items: center;
 }
 
 .login-hint {
-  border-radius: 18px;
-  padding: 16px;
+  border-radius: calc(18px * var(--ui-scale));
+  padding: calc(16px * var(--ui-scale));
   background: rgba(29, 35, 52, 0.06);
   color: var(--text-muted);
   line-height: 1.7;
 }
 
 .error-box {
-  border-radius: 16px;
-  padding: 12px 14px;
+  border-radius: calc(16px * var(--ui-scale));
+  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
   background: rgba(207, 76, 76, 0.12);
   color: var(--danger);
 }
 
 .login-actions {
   display: grid;
-  grid-template-columns: 1fr 126px;
-  gap: 12px;
+  grid-template-columns: 1fr calc(126px * var(--ui-scale));
+  gap: calc(12px * var(--ui-scale));
 }
 
 .submit-button {
-  margin-top: 10px;
-  padding-top: 14px;
-  padding-bottom: 14px;
+  margin-top: calc(10px * var(--ui-scale));
+  padding-top: calc(14px * var(--ui-scale));
+  padding-bottom: calc(14px * var(--ui-scale));
 }
 
 .about-panel {
   width: min(920px, 100%);
-  border-radius: 32px;
-  padding: 28px;
+  border-radius: calc(32px * var(--ui-scale));
+  padding: clamp(1rem, 0.55rem + 1.2vw, 1.75rem);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(248, 250, 254, 0.56)),
     rgba(255, 255, 255, 0.42);
@@ -252,14 +257,14 @@ async function handleLogin() {
 .about-header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: calc(16px * var(--ui-scale));
   align-items: flex-start;
-  margin-bottom: 22px;
+  margin-bottom: calc(22px * var(--ui-scale));
 }
 
 .about-header h2 {
-  margin: 14px 0 8px;
-  font-size: 26px;
+  margin: calc(14px * var(--ui-scale)) 0 calc(8px * var(--ui-scale));
+  font-size: calc(26px * var(--ui-scale));
 }
 
 .about-header p {
@@ -269,19 +274,19 @@ async function handleLogin() {
 
 .about-copy {
   display: grid;
-  gap: 16px;
+  gap: calc(16px * var(--ui-scale));
 }
 
 .hero-card {
-  border-radius: 24px;
-  padding: 24px;
+  border-radius: calc(24px * var(--ui-scale));
+  padding: calc(24px * var(--ui-scale));
   background: rgba(255, 246, 235, 0.5);
   border: 1px solid var(--line);
 }
 
 .hero-card h3 {
-  margin: 0 0 12px;
-  font-size: 21px;
+  margin: 0 0 calc(12px * var(--ui-scale));
+  font-size: calc(21px * var(--ui-scale));
 }
 
 .hero-card p {
@@ -293,20 +298,20 @@ async function handleLogin() {
 .copy-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: calc(14px * var(--ui-scale));
 }
 
 .copy-card {
-  border-radius: 22px;
-  padding: 20px;
+  border-radius: calc(22px * var(--ui-scale));
+  padding: calc(20px * var(--ui-scale));
   background: rgba(255, 255, 255, 0.46);
   border: 1px solid var(--line);
 }
 
 .copy-card strong {
   display: block;
-  margin-bottom: 10px;
-  font-size: 16px;
+  margin-bottom: calc(10px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
 }
 
 .copy-card span {
@@ -316,7 +321,7 @@ async function handleLogin() {
 
 @media (max-width: 768px) {
   .login-panel {
-    padding: 24px;
+    padding: 1.5rem;
   }
 
   .login-actions {

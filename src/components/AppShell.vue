@@ -55,7 +55,7 @@ async function handleLogout() {
     <main class="shell-main">
       <header class="shell-header glass-card">
         <div class="header-left">
-          <h1>{{ currentSection }}</h1>
+          <h2>{{ currentSection }}</h2>
           <p>{{ today }}</p>
         </div>
 
@@ -119,49 +119,52 @@ async function handleLogout() {
 <style scoped>
 .app-shell {
   min-height: 100vh;
-  padding: 22px;
+  padding: clamp(0.875rem, 0.5rem + 1vw, 1.375rem);
 }
 
 .shell-main {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
 }
 
 .shell-header {
   position: relative;
   z-index: 40;
-  border-radius: 28px;
-  padding: 24px 28px;
+  border-radius: calc(28px * var(--ui-scale));
+  padding: clamp(1rem, 0.55rem + 1.2vw, 1.5rem) clamp(1rem, 0.4rem + 1.5vw, 1.75rem);
   display: flex;
   justify-content: space-between;
-  gap: 18px;
+  gap: 1rem;
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.header-left h1 {
+.header-left h2 {
   margin: 0;
-  font-size: 28px;
+  font-size: clamp(1.6rem, 1.1rem + 1vw, 2rem);
   line-height: 1.1;
 }
 
 .header-left p {
-  margin: 8px 0 0;
+  margin: calc(8px * var(--ui-scale)) 0 0;
   color: var(--text-muted);
 }
 
 .header-right {
   position: relative;
+  min-width: 0;
 }
 
 .control-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-width: 320px;
-  padding: 14px 16px;
+  gap: calc(14px * var(--ui-scale));
+  width: min(100%, 24rem);
+  min-width: min(100%, 18rem);
+  padding: 0.875rem 1rem;
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: calc(24px * var(--ui-scale));
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(247, 250, 255, 0.72)),
     rgba(255, 255, 255, 0.7);
@@ -170,14 +173,14 @@ async function handleLogout() {
 }
 
 .brand-mark {
-  width: 46px;
-  height: 46px;
-  border-radius: 18px;
+  width: calc(46px * var(--ui-scale));
+  height: calc(46px * var(--ui-scale));
+  border-radius: calc(18px * var(--ui-scale));
   background: linear-gradient(135deg, #f39a61, #2f8374);
   color: #fff;
   display: grid;
   place-items: center;
-  font-size: 20px;
+  font-size: calc(20px * var(--ui-scale));
   font-weight: 700;
   box-shadow: 0 16px 26px rgba(47, 131, 116, 0.22);
   flex-shrink: 0;
@@ -190,20 +193,20 @@ async function handleLogout() {
 
 .control-copy strong {
   display: block;
-  font-size: 16px;
+  font-size: calc(16px * var(--ui-scale));
   line-height: 1.2;
 }
 
 .control-copy span {
   display: block;
-  margin-top: 6px;
+  margin-top: calc(6px * var(--ui-scale));
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-scale));
   white-space: nowrap;
 }
 
 .control-arrow {
-  font-size: 20px;
+  font-size: calc(20px * var(--ui-scale));
   color: var(--text-muted);
   transition: transform 0.18s ease;
 }
@@ -214,11 +217,11 @@ async function handleLogout() {
 
 .menu-popover {
   position: absolute;
-  top: calc(100% + 14px);
+  top: calc(100% + calc(14px * var(--ui-scale)));
   right: 0;
-  width: min(360px, calc(100vw - 72px));
-  border-radius: 26px;
-  padding: 16px;
+  width: min(22.5rem, calc(100vw - 3rem));
+  border-radius: calc(26px * var(--ui-scale));
+  padding: calc(16px * var(--ui-scale));
   z-index: 80;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(247, 250, 255, 0.74)),
@@ -227,13 +230,13 @@ async function handleLogout() {
 
 .menu-section {
   display: grid;
-  gap: 10px;
+  gap: calc(10px * var(--ui-scale));
 }
 
 .menu-title {
-  padding: 4px 6px;
+  padding: calc(4px * var(--ui-scale)) calc(6px * var(--ui-scale));
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-scale));
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -241,15 +244,15 @@ async function handleLogout() {
 .menu-divider {
   height: 1px;
   background: var(--line);
-  margin: 12px 0;
+  margin: calc(12px * var(--ui-scale)) 0;
 }
 
 .menu-item {
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  border-radius: 18px;
-  padding: 14px 16px;
+  border-radius: calc(18px * var(--ui-scale));
+  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
   background: rgba(255, 255, 255, 0.58);
   color: var(--text-main);
   text-align: left;
@@ -279,7 +282,6 @@ async function handleLogout() {
 
 @media (max-width: 1080px) {
   .shell-header {
-    flex-direction: column;
     align-items: stretch;
   }
 
@@ -295,15 +297,15 @@ async function handleLogout() {
 
 @media (max-width: 640px) {
   .app-shell {
-    padding: 14px;
+    padding: 0.875rem;
   }
 
   .shell-header {
-    padding: 18px;
+    padding: 1rem;
   }
 
-  .header-left h1 {
-    font-size: 24px;
+  .header-left h2 {
+    font-size: 1.5rem;
   }
 
   .control-copy span {

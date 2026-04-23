@@ -108,14 +108,6 @@ async function removeRow(row) {
 
 <template>
   <div>
-    <div class="section-title">
-      <div>
-        <h2>岗位管理</h2>
-        <p>岗位作为组织维度补充，用来描述用户在业务中的职责定位。</p>
-      </div>
-      <button class="pill-button" @click="openCreate">新增岗位</button>
-    </div>
-
     <div class="stats-grid">
       <article class="stats-card">
         <span>岗位总数</span>
@@ -150,6 +142,8 @@ async function removeRow(row) {
         >
           重置
         </button>
+        <span class="toolbar-spacer"></span>
+        <button class="pill-button" @click="openCreate">新增</button>
       </div>
 
       <div v-if="loading" class="empty-state">数据加载中...</div>
@@ -191,47 +185,49 @@ async function removeRow(row) {
       <div v-else class="empty-state">暂无岗位数据。</div>
     </section>
 
-    <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
-      <div class="modal-panel glass-card">
-        <div class="modal-header">
-          <div>
-            <h3 style="margin: 0">{{ editingId ? '编辑岗位' : '新增岗位' }}</h3>
-            <p style="margin: 8px 0 0; color: var(--text-muted)">
-              岗位编码建议简洁明确，便于后续和组织架构同步。
-            </p>
+    <Teleport to="body">
+      <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
+        <div class="modal-panel glass-card">
+          <div class="modal-header">
+            <div>
+              <h3 style="margin: 0">{{ editingId ? '编辑岗位' : '新增岗位' }}</h3>
+              <p class="modal-subtext">
+                岗位编码建议简洁明确，便于后续和组织架构同步。
+              </p>
+            </div>
+            <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
           </div>
-          <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
-        </div>
 
-        <div class="form-grid">
-          <label class="field">
-            <span>岗位名称</span>
-            <input v-model="form.name" placeholder="请输入岗位名称" />
-          </label>
-          <label class="field">
-            <span>岗位编码</span>
-            <input v-model="form.code" placeholder="例如 PM" />
-          </label>
-          <label class="field">
-            <span>状态</span>
-            <select v-model.number="form.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <label class="field full">
-            <span>备注</span>
-            <textarea v-model="form.remark" placeholder="补充岗位说明"></textarea>
-          </label>
-        </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>岗位名称</span>
+              <input v-model="form.name" placeholder="请输入岗位名称" />
+            </label>
+            <label class="field">
+              <span>岗位编码</span>
+              <input v-model="form.code" placeholder="例如 PM" />
+            </label>
+            <label class="field">
+              <span>状态</span>
+              <select v-model.number="form.status">
+                <option :value="1">启用</option>
+                <option :value="0">停用</option>
+              </select>
+            </label>
+            <label class="field full">
+              <span>备注</span>
+              <textarea v-model="form.remark" placeholder="补充岗位说明"></textarea>
+            </label>
+          </div>
 
-        <div class="modal-actions">
-          <button class="pill-button ghost" @click="dialogVisible = false">取消</button>
-          <button class="pill-button" :disabled="submitting" @click="submitForm">
-            {{ submitting ? '提交中...' : '保存' }}
-          </button>
+          <div class="modal-actions">
+            <button class="pill-button ghost" @click="dialogVisible = false">取消</button>
+            <button class="pill-button" :disabled="submitting" @click="submitForm">
+              {{ submitting ? '提交中...' : '保存' }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
