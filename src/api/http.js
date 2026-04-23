@@ -1,7 +1,16 @@
 import { clearSession, getToken } from '../stores/session'
 import { API_CONFIG } from '../config/api';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
+const SYSTEM_API_PREFIXES = ['/api/auth/', '/api/users', '/api/roles', '/api/posts']
+
+function resolveApiBase(url) {
+  if (import.meta.env.DEV) {
+    return ''
+  }
+
+  const isSystemApi = SYSTEM_API_PREFIXES.some((prefix) => url.startsWith(prefix))
+  return isSystemApi ? API_CONFIG.AUTH : API_CONFIG.MAIN
+}
 
 export async function request(url, options = {}) {
   const token = getToken()
@@ -16,10 +25,9 @@ export async function request(url, options = {}) {
 
   // 根据路径判断使用哪个 base URL
   // 登录相关接口使用 AUTH，其他接口使用 MAIN
-  const useAuth = url.startsWith('/api/auth/')
-  const API_BASE = useAuth ? API_CONFIG.AUTH : API_CONFIG.MAIN
+  const apiBase = resolveApiBase(url)
 
-  const response = await fetch(`${API_BASE}${url}`, {
+  const response = await fetch(`${apiBase}${url}`, {
     ...options,
     headers
   })
@@ -54,10 +62,9 @@ export async function* streamRequest(url, body) {
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   }
 
-  const useAuth = url.startsWith('/api/auth/')
-  const API_BASE = useAuth ? API_CONFIG.AUTH : API_CONFIG.MAIN
+  const apiBase = resolveApiBase(url)
 
-  const response = await fetch(`${API_BASE}${url}`, {
+  const response = await fetch(`${apiBase}${url}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body)
