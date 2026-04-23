@@ -34,12 +34,13 @@ async function handleLogin() {
   <div class="login-page page-shell">
     <div class="login-center">
       <div class="login-panel glass-card">
-        <div class="panel-head">
-          <span class="eyebrow warm">大模型登录</span>
-          <h2>大模型登录</h2>
-          <p>
-            输入账号密码后进入系统，默认进入大模型问答工作台。
-          </p>
+        <div class="login-mark" aria-hidden="true">
+          <div class="login-logo">
+            <span class="logo-ring ring-a"></span>
+            <span class="logo-ring ring-b"></span>
+            <span class="logo-ring ring-c"></span>
+            <span class="logo-core"></span>
+          </div>
         </div>
 
         <form class="login-form" @submit.prevent="handleLogin">
@@ -175,16 +176,24 @@ async function handleLogin() {
   backdrop-filter: blur(28px);
 }
 
-.panel-head h2 {
-  margin: calc(18px * var(--ui-scale)) 0 calc(12px * var(--ui-scale));
-  font-size: calc(clamp(26px, 3.2vw, 40px) * var(--ui-scale));
-  line-height: 1.1;
+.login-mark {
+  display: flex;
+  justify-content: center;
+  margin-bottom: calc(18px * var(--ui-scale));
 }
 
-.panel-head p {
-  margin: 0;
-  color: var(--text-muted);
-  line-height: 1.8;
+.login-logo {
+  position: relative;
+  width: calc(112px * var(--ui-scale));
+  height: calc(112px * var(--ui-scale));
+  border-radius: calc(30px * var(--ui-scale));
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.92), transparent 38%),
+    linear-gradient(145deg, rgba(20, 30, 46, 0.92), rgba(72, 79, 91, 0.98));
+  box-shadow:
+    0 24px 46px rgba(27, 37, 54, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  overflow: hidden;
 }
 
 .eyebrow {
@@ -203,11 +212,58 @@ async function handleLogin() {
   color: var(--brand);
 }
 
+.logo-ring {
+  position: absolute;
+  display: block;
+  border-radius: 999px;
+  border: calc(2px * var(--ui-scale)) solid rgba(255, 255, 255, 0.78);
+  opacity: 0.92;
+}
+
+.ring-a {
+  width: calc(56px * var(--ui-scale));
+  height: calc(56px * var(--ui-scale));
+  left: calc(18px * var(--ui-scale));
+  top: calc(18px * var(--ui-scale));
+  transform: rotate(18deg);
+}
+
+.ring-b {
+  width: calc(66px * var(--ui-scale));
+  height: calc(30px * var(--ui-scale));
+  right: calc(10px * var(--ui-scale));
+  top: calc(26px * var(--ui-scale));
+  border-color: rgba(237, 124, 71, 0.92);
+  transform: rotate(-32deg);
+}
+
+.ring-c {
+  width: calc(72px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  left: calc(18px * var(--ui-scale));
+  bottom: calc(18px * var(--ui-scale));
+  border-color: rgba(122, 221, 193, 0.82);
+  transform: rotate(28deg);
+}
+
+.logo-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(20px * var(--ui-scale));
+  height: calc(20px * var(--ui-scale));
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fff4e9, #ed7c47);
+  box-shadow:
+    0 0 0 calc(8px * var(--ui-scale)) rgba(255, 255, 255, 0.1),
+    0 10px 18px rgba(237, 124, 71, 0.34);
+  transform: translate(-50%, -50%);
+}
+
 .login-form {
   display: flex;
   flex-direction: column;
   gap: calc(16px * var(--ui-scale));
-  margin-top: calc(26px * var(--ui-scale));
 }
 
 .login-form .field {
