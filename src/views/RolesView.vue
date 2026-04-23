@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
+import AppSelect from '../components/AppSelect.vue'
 import { formatDateTime } from '../utils/format'
 
 const rows = ref([])
@@ -15,6 +16,17 @@ const filters = reactive({
 })
 
 const form = reactive(createEmptyForm())
+
+const filterStatusOptions = [
+  { label: '全部状态', value: '' },
+  { label: '启用', value: '1' },
+  { label: '停用', value: '0' }
+]
+
+const statusOptions = [
+  { label: '启用', value: 1 },
+  { label: '停用', value: 0 }
+]
 
 const summary = computed(() => ({
   total: rows.value.length,
@@ -126,11 +138,7 @@ async function removeRow(row) {
     <section class="data-panel glass-card">
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索角色名称 / 编码" />
-        <select v-model="filters.status">
-          <option value="">全部状态</option>
-          <option value="1">启用</option>
-          <option value="0">停用</option>
-        </select>
+        <AppSelect v-model="filters.status" :options="filterStatusOptions" placeholder="全部状态" />
         <button class="pill-button secondary" @click="loadData">查询</button>
         <button
           class="pill-button ghost"
@@ -209,10 +217,7 @@ async function removeRow(row) {
             </label>
             <label class="field">
               <span>状态</span>
-              <select v-model.number="form.status">
-                <option :value="1">启用</option>
-                <option :value="0">停用</option>
-              </select>
+              <AppSelect v-model="form.status" :options="statusOptions" placeholder="请选择状态" />
             </label>
             <label class="field full">
               <span>备注</span>
