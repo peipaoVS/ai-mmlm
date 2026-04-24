@@ -14,7 +14,8 @@ const SYSTEM_API_PREFIXES = [
   '/api/roles',
   '/api/posts',
   '/api/menus',
-  '/api/companies'
+  '/api/companies',
+  '/api/agent-modules'
 ]
 
 function isSystemApi(url) {
