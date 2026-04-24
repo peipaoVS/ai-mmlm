@@ -6,8 +6,6 @@ import { formatDateTime } from '../utils/format'
 
 const rows = ref([])
 const roleOptions = ref([])
-const postOptions = ref([])
-const companyOptions = ref([])
 const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
@@ -31,40 +29,12 @@ const statusOptions = [
   { label: '停用', value: 0 }
 ]
 
-const roleSelectOptions = computed(() =>
-  roleOptions.value.map((item) => ({
-    label: item.name,
-    value: item.id
-  }))
-)
-
-const postSelectOptions = computed(() =>
-  postOptions.value.map((item) => ({
-    label: item.name,
-    value: item.id
-  }))
-)
-
-const companySelectOptions = computed(() =>
-  companyOptions.value.map((item) => ({
-    label: item.name,
-    value: item.id
-  }))
-)
-
-const selectedRoleId = computed({
-  get: () => form.roleIds[0] ?? '',
-  set: (value) => {
-    form.roleIds = value === '' ? [] : [value]
-  }
-})
-
-const selectedPostId = computed({
-  get: () => form.postIds[0] ?? '',
-  set: (value) => {
-    form.postIds = value === '' ? [] : [value]
-  }
-})
+const sectionOptions = [
+  { label: 'AI配置', value: 'ai' },
+  { label: 'AI知识库', value: 'knowledge' },
+  { label: '日志', value: 'logs' },
+  { label: '权限配置', value: 'permission' }
+]
 
 const summary = computed(() => ({
   total: rows.value.length,
@@ -78,23 +48,36 @@ onMounted(() => {
 
 function createEmptyForm() {
   return {
-    username: '',
-    nickname: '',
-    password: '',
-    phone: '',
-    email: '',
-    avatar: '',
-    companyId: '',
+    name: '',
+    code: '',
+    section: 'permission',
+    path: '',
+    sortOrder: 10,
     status: 1,
     remark: '',
-    roleIds: [],
-    postIds: []
+    roleIds: []
   }
 }
 
 function resetForm() {
   Object.assign(form, createEmptyForm())
   editingId.value = null
+}
+
+function sectionLabel(value) {
+  return sectionOptions.find((item) => item.value === value)?.label || value
+}
+
+function hasRole(roleId) {
+  return form.roleIds.includes(roleId)
+}
+
+function toggleRole(roleId) {
+  if (hasRole(roleId)) {
+    form.roleIds = form.roleIds.filter((id) => id !== roleId)
+    return
+  }
+  form.roleIds = [...form.roleIds, roleId]
 }
 
 async function loadAll() {
@@ -109,17 +92,13 @@ async function loadAll() {
     }
     const suffix = query.toString() ? `?${query.toString()}` : ''
 
-    const [users, roles, posts, companies] = await Promise.all([
-      api.get(`/api/users${suffix}`),
-      api.get('/api/roles'),
-      api.get('/api/posts'),
-      api.get('/api/companies')
+    const [menus, roles] = await Promise.all([
+      api.get(`/api/menus${suffix}`),
+      api.get('/api/roles')
     ])
 
-    rows.value = users
+    rows.value = menus
     roleOptions.value = roles
-    postOptions.value = posts
-    companyOptions.value = companies
   } catch (error) {
     window.alert(error.message)
   } finally {
@@ -135,17 +114,14 @@ function openCreate() {
 function openEdit(row) {
   editingId.value = row.id
   Object.assign(form, {
-    username: row.username,
-    nickname: row.nickname,
-    password: '',
-    phone: row.phone || '',
-    email: row.email || '',
-    avatar: row.avatar || '',
-    companyId: row.companyId ?? '',
+    name: row.name,
+    code: row.code,
+    section: row.section,
+    path: row.path,
+    sortOrder: row.sortOrder,
     status: row.status,
     remark: row.remark || '',
-    roleIds: row.roleIds?.length ? [row.roleIds[0]] : [],
-    postIds: row.postIds?.length ? [row.postIds[0]] : []
+    roleIds: [...(row.roleIds || [])]
   })
   dialogVisible.value = true
 }
@@ -155,15 +131,14 @@ async function submitForm() {
   try {
     const payload = {
       ...form,
-      companyId: form.companyId === '' ? null : form.companyId,
-      roleIds: [...form.roleIds],
-      postIds: [...form.postIds]
+      sortOrder: Number(form.sortOrder) || 0,
+      roleIds: [...form.roleIds]
     }
 
     if (editingId.value) {
-      await api.put(`/api/users/${editingId.value}`, payload)
+      await api.put(`/api/menus/${editingId.value}`, payload)
     } else {
-      await api.post('/api/users', payload)
+      await api.post('/api/menus', payload)
     }
 
     dialogVisible.value = false
@@ -177,12 +152,11 @@ async function submitForm() {
 }
 
 async function removeRow(row) {
-  if (!window.confirm(`确认删除用户「${row.nickname}」吗？`)) {
+  if (!window.confirm(`确认删除菜单「${row.name}」吗？`)) {
     return
   }
-
   try {
-    await api.delete(`/api/users/${row.id}`)
+    await api.delete(`/api/menus/${row.id}`)
     await loadAll()
   } catch (error) {
     window.alert(error.message)
@@ -194,22 +168,22 @@ async function removeRow(row) {
   <div>
     <div class="stats-grid">
       <article class="stats-card">
-        <span>用户总数</span>
+        <span>菜单总数</span>
         <strong>{{ summary.total }}</strong>
       </article>
       <article class="stats-card">
-        <span>启用用户</span>
+        <span>启用菜单</span>
         <strong>{{ summary.active }}</strong>
       </article>
       <article class="stats-card">
-        <span>停用用户</span>
+        <span>停用菜单</span>
         <strong>{{ summary.inactive }}</strong>
       </article>
     </div>
 
     <section class="data-panel glass-card">
       <div class="toolbar">
-        <input v-model="filters.keyword" placeholder="搜索用户名 / 姓名 / 手机 / 邮箱" />
+        <input v-model="filters.keyword" placeholder="搜索菜单名称 / 编码 / 路径" />
         <AppSelect v-model="filters.status" :options="filterStatusOptions" placeholder="全部状态" />
         <button class="pill-button secondary" @click="loadAll">查询</button>
         <button
@@ -232,25 +206,25 @@ async function removeRow(row) {
         <table class="data-table">
           <thead>
             <tr>
-              <th>用户名</th>
-              <th>姓名</th>
-              <th>联系方式</th>
-              <th>角色</th>
-              <th>岗位</th>
-              <th>所属公司</th>
+              <th>菜单名称</th>
+              <th>菜单编码</th>
+              <th>所属栏目</th>
+              <th>路由路径</th>
+              <th>可见角色</th>
               <th>状态</th>
+              <th>排序</th>
               <th>创建时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in rows" :key="row.id">
-              <td>{{ row.username }}</td>
-              <td>{{ row.nickname }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.code }}</td>
               <td>
-                <div>{{ row.phone || '--' }}</div>
-                <div class="table-subtext">{{ row.email || '--' }}</div>
+                <span class="tag section-tag">{{ sectionLabel(row.section) }}</span>
               </td>
+              <td>{{ row.path }}</td>
               <td>
                 <div class="tag-list">
                   <span v-for="name in row.roleNames" :key="name" class="tag">
@@ -260,19 +234,11 @@ async function removeRow(row) {
                 </div>
               </td>
               <td>
-                <div class="tag-list">
-                  <span v-for="name in row.postNames" :key="name" class="tag">
-                    {{ name }}
-                  </span>
-                  <span v-if="!row.postNames?.length">--</span>
-                </div>
-              </td>
-              <td>{{ row.companyName || '--' }}</td>
-              <td>
                 <span class="status-tag" :class="row.status === 1 ? 'active' : 'inactive'">
                   {{ row.status === 1 ? '启用' : '停用' }}
                 </span>
               </td>
+              <td>{{ row.sortOrder }}</td>
               <td>{{ formatDateTime(row.createdAt) }}</td>
               <td>
                 <div class="action-group">
@@ -285,7 +251,7 @@ async function removeRow(row) {
         </table>
       </div>
 
-      <div v-else class="empty-state">暂无用户数据。</div>
+      <div v-else class="empty-state">暂无菜单数据。</div>
     </section>
 
     <Teleport to="body">
@@ -293,74 +259,59 @@ async function removeRow(row) {
         <div class="modal-panel glass-card">
           <div class="modal-header">
             <div>
-              <h3 style="margin: 0">{{ editingId ? '编辑用户' : '新增用户' }}</h3>
-              <p class="modal-subtext">
-                {{ editingId ? '更新基础资料、公司归属与角色岗位绑定。' : '创建新用户，密码留空时默认使用 admin123。' }}
-              </p>
+              <h3 style="margin: 0">{{ editingId ? '编辑菜单' : '新增菜单' }}</h3>
+              <p class="modal-subtext">为菜单配置所属栏目和可见角色，顶部导航会按当前登录用户实时过滤。</p>
             </div>
             <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
           </div>
 
           <div class="form-grid">
             <label class="field">
-              <span>用户名</span>
-              <input v-model="form.username" placeholder="请输入用户名" />
+              <span>菜单名称</span>
+              <input v-model="form.name" placeholder="请输入菜单名称" />
             </label>
             <label class="field">
-              <span>姓名</span>
-              <input v-model="form.nickname" placeholder="请输入姓名" />
+              <span>菜单编码</span>
+              <input v-model="form.code" placeholder="例如 USER_MANAGE" />
+            </label>
+            <div class="field">
+              <span>所属栏目</span>
+              <AppSelect v-model="form.section" :options="sectionOptions" placeholder="请选择栏目" />
+            </div>
+            <label class="field">
+              <span>路由路径</span>
+              <input v-model="form.path" placeholder="例如 /users" />
             </label>
             <label class="field">
-              <span>密码</span>
-              <input
-                v-model="form.password"
-                type="password"
-                :placeholder="editingId ? '留空则不修改密码' : '留空默认 admin123'"
-              />
+              <span>排序值</span>
+              <input v-model="form.sortOrder" type="number" min="0" placeholder="例如 10" />
             </label>
-            <label class="field">
+            <div class="field">
               <span>状态</span>
               <AppSelect v-model="form.status" :options="statusOptions" placeholder="请选择状态" />
-            </label>
-            <label class="field">
-              <span>手机号</span>
-              <input v-model="form.phone" placeholder="请输入手机号" />
-            </label>
-            <label class="field">
-              <span>邮箱</span>
-              <input v-model="form.email" placeholder="请输入邮箱" />
-            </label>
-            <label class="field full">
-              <span>头像地址</span>
-              <input v-model="form.avatar" placeholder="可选，填写头像 URL" />
-            </label>
-            <div class="field full">
-              <span>所属公司</span>
-              <AppSelect
-                v-model="form.companyId"
-                :options="companySelectOptions"
-                placeholder="请选择所属公司"
-              />
             </div>
             <div class="field full">
-              <span>角色</span>
-              <AppSelect
-                v-model="selectedRoleId"
-                :options="roleSelectOptions"
-                placeholder="请选择角色"
-              />
-            </div>
-            <div class="field full">
-              <span>岗位</span>
-              <AppSelect
-                v-model="selectedPostId"
-                :options="postSelectOptions"
-                placeholder="请选择岗位"
-              />
+              <span>可见角色</span>
+              <div class="role-picker">
+                <div v-if="roleOptions.length" class="role-option-grid">
+                  <button
+                    v-for="role in roleOptions"
+                    :key="role.id"
+                    type="button"
+                    class="role-option"
+                    :class="{ active: hasRole(role.id) }"
+                    :aria-pressed="hasRole(role.id)"
+                    @click="toggleRole(role.id)"
+                  >
+                    <span>{{ role.name }}</span>
+                  </button>
+                </div>
+                <div v-else class="field-hint">暂无角色数据，请先在角色管理中新增角色。</div>
+              </div>
             </div>
             <label class="field full">
               <span>备注</span>
-              <textarea v-model="form.remark" placeholder="补充说明"></textarea>
+              <textarea v-model="form.remark" placeholder="补充菜单说明"></textarea>
             </label>
           </div>
 
@@ -375,3 +326,62 @@ async function removeRow(row) {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.role-picker {
+  display: grid;
+  gap: calc(10px * var(--ui-scale));
+}
+
+.role-option-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(12px * var(--ui-scale));
+}
+
+.role-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(46px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  border-radius: calc(16px * var(--ui-scale));
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-main);
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+
+.role-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(47, 131, 116, 0.22);
+  box-shadow: 0 12px 26px rgba(47, 131, 116, 0.08);
+}
+
+.role-option.active {
+  border-color: rgba(47, 131, 116, 0.26);
+  background: linear-gradient(135deg, rgba(47, 131, 116, 0.16), rgba(237, 124, 71, 0.14));
+  color: #1f5e53;
+  box-shadow:
+    0 12px 24px rgba(47, 131, 116, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.field-hint {
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.section-tag {
+  background: rgba(237, 124, 71, 0.12);
+  color: var(--brand-dark);
+}
+</style>

@@ -2,7 +2,8 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/http'
-import { setSession } from '../stores/session'
+import { API_CONFIG } from '../config/api'
+import { setAiSession, setSession } from '../stores/session'
 
 const router = useRouter()
 const loading = ref(false)
@@ -14,6 +15,126 @@ const form = reactive({
   password: 'admin123'
 })
 
+function normalizeRoleText(value) {
+  return String(value || '').trim().toUpperCase()
+}
+
+function hasObserverRole(user) {
+  const roles = user?.roleNames || []
+  return roles.some((roleName) => {
+    const normalized = normalizeRoleText(roleName)
+    const text = String(roleName || '')
+    return normalized.includes('OBSERVER') || text.includes('观察员')
+  })
+}
+
+function hasAdminRole(user) {
+  const roles = user?.roleNames || []
+  return roles.some((roleName) => {
+    const normalized = normalizeRoleText(roleName)
+    const text = String(roleName || '')
+    return normalized.includes('ADMIN') || text.includes('管理员')
+  })
+}
+
+function collectIdentityHints(user, typedUsername) {
+  return [
+    String(typedUsername || '').toLowerCase(),
+    String(user?.username || '').toLowerCase(),
+    String(user?.nickname || ''),
+    ...(user?.roleNames || []),
+    ...(user?.postNames || [])
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function pickAiFallbackUsername(user, typedUsername) {
+  const hintText = collectIdentityHints(user, typedUsername)
+
+  if (hasObserverRole(user)) {
+    return 'observer_ops'
+  }
+
+  if (hintText.includes('南京') || hintText.includes('nj')) {
+    return hasAdminRole(user) ? 'nj_admin' : 'gz_rm'
+  }
+
+  if (hintText.includes('深圳') || hintText.includes('sz')) {
+    return hasAdminRole(user) ? 'sz_admin' : 'gz_rm'
+  }
+
+  if (hintText.includes('苏州') || hintText.includes('su')) {
+    return 'su_rm'
+  }
+
+  if (hintText.includes('广州') || hintText.includes('gz')) {
+    return 'gz_rm'
+  }
+
+  if (hasAdminRole(user)) {
+    return 'hq_admin'
+  }
+
+  return 'gz_rm'
+}
+
+async function fetchAiUsers() {
+  const response = await fetch(`${API_CONFIG.MAIN}/api/auth/users?_=${Date.now()}`)
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || 'AI 侧账号目录加载失败')
+  }
+
+  return Array.isArray(payload.users) ? payload.users : []
+}
+
+async function requestAiLogin(username, password) {
+  const response = await fetch(`${API_CONFIG.MAIN}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ username, password })
+  })
+
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || 'AI 侧登录失败')
+  }
+
+  const token = payload.access_token || payload.token || ''
+  if (!token) {
+    throw new Error('AI 侧未返回登录凭证')
+  }
+
+  return {
+    token,
+    user: payload.user || null
+  }
+}
+
+async function resolveAiSession(systemUser) {
+  try {
+    return await requestAiLogin(form.username, form.password)
+  } catch (directError) {
+    const aiUsers = await fetchAiUsers()
+    const fallbackUsername = pickAiFallbackUsername(systemUser, form.username)
+    const matchedUser = aiUsers.find((item) => item.username === fallbackUsername)
+
+    if (!matchedUser) {
+      throw new Error(`AI 侧未找到可映射账号：${fallbackUsername}`)
+    }
+
+    return requestAiLogin(
+      matchedUser.username,
+      matchedUser.password_hint || '123456'
+    )
+  }
+}
+
 async function handleLogin() {
   errorMessage.value = ''
   loading.value = true
@@ -21,6 +142,14 @@ async function handleLogin() {
   try {
     const data = await api.post('/api/auth/login', form)
     setSession(data.token, data.user)
+
+    try {
+      const aiSession = await resolveAiSession(data.user)
+      setAiSession(aiSession.token, aiSession.user)
+    } catch (aiError) {
+      console.warn('AI side login skipped:', aiError)
+    }
+
     router.replace('/chat')
   } catch (error) {
     errorMessage.value = error.message
@@ -42,7 +171,7 @@ async function handleLogin() {
             <span class="logo-core"></span>
           </div>
         </div>
-        <h2 class="login-title">大模型登录</h2>
+        <h3 class="login-title">大模型登录</h3>
 
         <form class="login-form" @submit.prevent="handleLogin">
           <label class="field">
@@ -90,7 +219,7 @@ async function handleLogin() {
         <div class="about-header">
           <div>
             <span class="eyebrow">关于系统</span>
-            <h2>AI 用户管理系统</h2>
+            <h3>AI 用户管理系统</h3>
             <p>这里展示系统说明内容，弹窗支持关闭，并保留半透明玻璃效果。</p>
           </div>
           <button class="pill-button ghost" @click="aboutVisible = false">关闭</button>
@@ -186,7 +315,7 @@ async function handleLogin() {
 .login-title {
   margin: 0 0 calc(22px * var(--ui-scale));
   text-align: center;
-  font-size: calc(clamp(24px, 2.8vw, 34px) * var(--ui-scale));
+  font-size: calc(clamp(24px, 2.8vw, 4px) * var(--ui-scale));
   line-height: 1.1;
   color: var(--text-main);
   letter-spacing: 0.04em;

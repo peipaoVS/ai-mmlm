@@ -1,19 +1,185 @@
-import { clearSession, getToken } from '../stores/session'
-import { API_CONFIG } from '../config/api';
+import {
+  clearAiSession,
+  clearSession,
+  getAiToken,
+  getToken,
+  getUser,
+  setAiSession
+} from '../stores/session'
+import { API_CONFIG } from '../config/api'
 
-const SYSTEM_API_PREFIXES = ['/api/auth/', '/api/users', '/api/roles', '/api/posts']
+const SYSTEM_API_PREFIXES = [
+  '/api/auth/',
+  '/api/users',
+  '/api/roles',
+  '/api/posts',
+  '/api/menus',
+  '/api/companies'
+]
+
+function isSystemApi(url) {
+  return SYSTEM_API_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
+
+function normalizeRoleText(value) {
+  return String(value || '').trim().toUpperCase()
+}
+
+function hasObserverRole(user) {
+  const roles = user?.roleNames || []
+  return roles.some((roleName) => {
+    const normalized = normalizeRoleText(roleName)
+    const text = String(roleName || '')
+    return normalized.includes('OBSERVER') || text.includes('观察员')
+  })
+}
+
+function hasAdminRole(user) {
+  const roles = user?.roleNames || []
+  return roles.some((roleName) => {
+    const normalized = normalizeRoleText(roleName)
+    const text = String(roleName || '')
+    return normalized.includes('ADMIN') || text.includes('管理员')
+  })
+}
+
+function collectIdentityHints(user) {
+  return [
+    String(user?.username || '').toLowerCase(),
+    String(user?.nickname || ''),
+    String(user?.companyName || ''),
+    ...(user?.roleNames || []),
+    ...(user?.postNames || [])
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function pickAiFallbackUsername(user) {
+  const hintText = collectIdentityHints(user)
+
+  if (hasObserverRole(user)) {
+    return 'observer_ops'
+  }
+
+  if (hintText.includes('南京') || hintText.includes('nj')) {
+    return hasAdminRole(user) ? 'nj_admin' : 'gz_rm'
+  }
+
+  if (hintText.includes('深圳') || hintText.includes('sz')) {
+    return hasAdminRole(user) ? 'sz_admin' : 'gz_rm'
+  }
+
+  if (hintText.includes('苏州') || hintText.includes('su')) {
+    return 'su_rm'
+  }
+
+  if (hintText.includes('广州') || hintText.includes('gz')) {
+    return 'gz_rm'
+  }
+
+  if (hasAdminRole(user)) {
+    return 'hq_admin'
+  }
+
+  return 'gz_rm'
+}
+
+async function fetchAiUsers() {
+  const response = await fetch(`${API_CONFIG.MAIN}/api/auth/users?_=${Date.now()}`)
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || 'AI side user catalog load failed')
+  }
+
+  return Array.isArray(payload.users) ? payload.users : []
+}
+
+async function requestAiLogin(username, password) {
+  const response = await fetch(`${API_CONFIG.MAIN}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ username, password })
+  })
+
+  const payload = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    throw new Error(payload.detail || payload.message || 'AI side login failed')
+  }
+
+  const token = payload.access_token || payload.token || ''
+  if (!token) {
+    throw new Error('AI side login token is missing')
+  }
+
+  return {
+    token,
+    user: payload.user || null
+  }
+}
+
+async function ensureAiSession(url) {
+  if (isSystemApi(url) || getAiToken()) {
+    return
+  }
+
+  const systemUser = getUser()
+  if (!systemUser) {
+    return
+  }
+
+  const aiUsers = await fetchAiUsers()
+  const fallbackUsername = pickAiFallbackUsername(systemUser)
+  const matchedUser = aiUsers.find((item) => item.username === fallbackUsername)
+
+  if (!matchedUser) {
+    throw new Error(`AI side account mapping not found: ${fallbackUsername}`)
+  }
+
+  const aiSession = await requestAiLogin(
+    matchedUser.username,
+    matchedUser.password_hint || '123456'
+  )
+  setAiSession(aiSession.token, aiSession.user)
+}
 
 function resolveApiBase(url) {
   if (import.meta.env.DEV) {
     return ''
   }
 
-  const isSystemApi = SYSTEM_API_PREFIXES.some((prefix) => url.startsWith(prefix))
-  return isSystemApi ? API_CONFIG.AUTH : API_CONFIG.MAIN
+  return isSystemApi(url) ? API_CONFIG.AUTH : API_CONFIG.MAIN
+}
+
+function resolveAuthToken(url) {
+  return isSystemApi(url) ? getToken() : getAiToken()
+}
+
+function resolveErrorMessage(result, fallback) {
+  return result?.message || result?.detail || fallback
+}
+
+function handleUnauthorized(url, result, fallbackMessage) {
+  if (isSystemApi(url)) {
+    clearSession()
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login'
+    }
+    throw new Error(resolveErrorMessage(result, fallbackMessage))
+  }
+
+  clearAiSession()
+  throw new Error(resolveErrorMessage(result, 'AI side session expired, please login again'))
 }
 
 export async function request(url, options = {}) {
-  const token = getToken()
+  await ensureAiSession(url)
+
+  const token = resolveAuthToken(url)
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {})
@@ -23,8 +189,6 @@ export async function request(url, options = {}) {
     headers.Authorization = `Bearer ${token}`
   }
 
-  // 根据路径判断使用哪个 base URL
-  // 登录相关接口使用 AUTH，其他接口使用 MAIN
   const apiBase = resolveApiBase(url)
 
   const response = await fetch(`${apiBase}${url}`, {
@@ -34,29 +198,28 @@ export async function request(url, options = {}) {
 
   const result = await response.json().catch(() => ({
     success: false,
-    message: '服务返回内容不可解析'
+    message: 'Service response is not valid JSON'
   }))
 
   if (response.status === 401) {
-    clearSession()
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login'
-    }
-    throw new Error(result.message || '登录状态已失效')
+    handleUnauthorized(url, result, 'Login state has expired')
   }
 
-  // 如果响应格式包含 success 字段且为 false，则视为失败
+  if (!response.ok) {
+    throw new Error(resolveErrorMessage(result, `Request failed (${response.status})`))
+  }
+
   if (result.success === false) {
-    throw new Error(result.message || `请求失败 (状态码: ${response.status})`)
+    throw new Error(resolveErrorMessage(result, `Request failed (${response.status})`))
   }
 
-  // 如果响应格式包含 success 字段且为 true，返回 data 字段
-  // 否则直接返回整个 result（兼容无 success 字段的响应格式）
   return result.success === true ? result.data : result
 }
 
 export async function* streamRequest(url, body) {
-  const token = getToken()
+  await ensureAiSession(url)
+
+  const token = resolveAuthToken(url)
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -71,15 +234,11 @@ export async function* streamRequest(url, body) {
   })
 
   if (response.status === 401) {
-    clearSession()
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login'
-    }
-    throw new Error('登录状态已失效')
+    handleUnauthorized(url, null, 'Login state has expired')
   }
 
   if (!response.ok) {
-    throw new Error(`请求失败 (状态码: ${response.status})`)
+    throw new Error(`Request failed (${response.status})`)
   }
 
   const reader = response.body.getReader()
@@ -101,14 +260,13 @@ export async function* streamRequest(url, body) {
         if (data === '[DONE]') return
         try {
           yield JSON.parse(data)
-        } catch (e) {
+        } catch (error) {
           yield { type: 'RAW', data }
         }
       }
     }
   }
 
-  // 处理剩余 buffer
   if (buffer.trim()) {
     const trimmed = buffer.trim()
     if (trimmed.startsWith('data: ')) {
@@ -116,7 +274,7 @@ export async function* streamRequest(url, body) {
       if (data !== '[DONE]') {
         try {
           yield JSON.parse(data)
-        } catch (e) {
+        } catch (error) {
           yield { type: 'RAW', data }
         }
       }

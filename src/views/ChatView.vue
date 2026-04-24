@@ -658,7 +658,7 @@ async function handleCancel(message) {
       <div class="chat-hero">
         <div>
           <span class="hero-label">{{ selectedModelLabel }}</span>
-          <h2>今天想让模型帮你完成什么？</h2>
+          <h4>今天想让模型帮你完成什么？</h4>
         </div>
 
         <div class="prompt-grid">

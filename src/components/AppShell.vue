@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/http'
-import { clearSession, isObserverUser, useSession } from '../stores/session'
+import { clearSession, hasMenuSnapshot, useSession } from '../stores/session'
 
 const route = useRoute()
 const router = useRouter()
@@ -11,30 +11,31 @@ const session = useSession()
 const headerToolsRef = ref(null)
 const activeMenu = ref('')
 
-const aiMenus = [
-  { label: 'AI工作台', path: '/chat' },
-  { label: '智能体配置', path: '/agents' }
-]
+const sectionOrder = ['ai', 'knowledge', 'logs', 'permission']
+const sectionTitles = {
+  ai: 'AI配置',
+  knowledge: 'AI知识库',
+  logs: '日志',
+  permission: '权限配置'
+}
 
-const knowledgeMenus = [
-  { label: '产品库', path: '/knowledge/products' },
-  { label: '企业画像', path: '/knowledge/portraits' },
-  { label: '行业动态', path: '/knowledge/trends' }
-]
-
-const logMenus = [
-  { label: 'Badcase', path: '/logs/badcase', observerOnly: true },
-  { label: '观测认证', path: '/logs/observation-auth', observerOnly: true },
-  { label: '回归评测', path: '/logs/regression-review', observerOnly: true },
-  { label: '修复队列', path: '/logs/fix-queue', observerOnly: true },
-  { label: '规则库', path: '/logs/rule-library', observerOnly: false },
-  { label: '说明', path: '/logs/instructions', observerOnly: false }
-]
-
-const permissionMenus = [
-  { label: '角色管理', path: '/roles' },
-  { label: '用户管理', path: '/users' },
-  { label: '岗位管理', path: '/posts' }
+const legacyMenus = [
+  { name: 'AI工作台', section: 'ai', path: '/chat', sortOrder: 10 },
+  { name: '智能体配置', section: 'ai', path: '/agents', sortOrder: 20 },
+  { name: '产品库', section: 'knowledge', path: '/knowledge/products', sortOrder: 10 },
+  { name: '企业画像', section: 'knowledge', path: '/knowledge/portraits', sortOrder: 20 },
+  { name: '行业动态', section: 'knowledge', path: '/knowledge/trends', sortOrder: 30 },
+  { name: 'Badcase', section: 'logs', path: '/logs/badcase', sortOrder: 10 },
+  { name: '观测认证', section: 'logs', path: '/logs/observation-auth', sortOrder: 20 },
+  { name: '回归评测', section: 'logs', path: '/logs/regression-review', sortOrder: 30 },
+  { name: '修复队列', section: 'logs', path: '/logs/fix-queue', sortOrder: 40 },
+  { name: '规则库', section: 'logs', path: '/logs/rule-library', sortOrder: 50 },
+  { name: '说明', section: 'logs', path: '/logs/instructions', sortOrder: 60 },
+  { name: '角色管理', section: 'permission', path: '/roles', sortOrder: 10 },
+  { name: '用户管理', section: 'permission', path: '/users', sortOrder: 20 },
+  { name: '岗位管理', section: 'permission', path: '/posts', sortOrder: 30 },
+  { name: '菜单管理', section: 'permission', path: '/menus', sortOrder: 40 },
+  { name: '所属公司', section: 'permission', path: '/companies', sortOrder: 50 }
 ]
 
 const currentSection = computed(() => route.meta.title || 'AI工作台')
@@ -48,7 +49,7 @@ const today = computed(() =>
 )
 
 const displayUsername = computed(
-  () => session.user?.username || session.user?.nickname || '管理员'
+  () => session.user?.nickname || session.user?.username || '管理员'
 )
 
 const currentRoles = computed(() => {
@@ -61,12 +62,34 @@ const currentPosts = computed(() => {
   return posts.length ? posts.join('、') : '--'
 })
 
-const visibleLogMenus = computed(() =>
-  logMenus.filter((item) => !item.observerOnly || isObserverUser(session.user))
+const currentCompany = computed(() => session.user?.companyName || '--')
+
+const effectiveMenus = computed(() => {
+  if (hasMenuSnapshot(session.user)) {
+    return (session.user?.menus || []).map((item, index) => ({
+      name: item.name,
+      section: item.section,
+      path: item.path,
+      sortOrder: item.sortOrder ?? index + 1
+    }))
+  }
+  return legacyMenus
+})
+
+const groupedMenus = computed(() =>
+  sectionOrder
+    .map((key) => ({
+      key,
+      title: sectionTitles[key],
+      items: effectiveMenus.value
+        .filter((item) => item.section === key)
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+    }))
+    .filter((group) => group.items.length)
 )
 
-function isMenuActive(name, menus) {
-  return activeMenu.value === name || menus.some((item) => route.path === item.path)
+function isMenuActive(group) {
+  return activeMenu.value === group.key || group.items.some((item) => route.path === item.path)
 }
 
 function toggleMenu(name) {
@@ -92,7 +115,7 @@ async function handleLogout() {
   try {
     await api.post('/api/auth/logout', {})
   } catch (error) {
-    // ignore logout request failure and clear the client session anyway
+    // Ignore logout failures and clear local session anyway.
   } finally {
     closeMenu()
     clearSession()
@@ -114,115 +137,38 @@ onBeforeUnmount(() => {
     <main class="shell-main">
       <header class="shell-header glass-card">
         <div class="header-left">
-          <h2>{{ currentSection }}</h2>
+          <h3>{{ currentSection }}</h3>
           <p>{{ today }}</p>
         </div>
 
         <div ref="headerToolsRef" class="header-right">
           <div class="header-tool-group">
-            <div class="menu-anchor">
+            <div
+              v-for="group in groupedMenus"
+              :key="group.key"
+              class="menu-anchor"
+            >
               <button
                 class="top-action glass-card"
-                :class="{ active: isMenuActive('ai', aiMenus) }"
+                :class="{ active: isMenuActive(group) }"
                 type="button"
-                @click="toggleMenu('ai')"
+                @click="toggleMenu(group.key)"
               >
-                <span>AI配置</span>
+                <span>{{ group.title }}</span>
               </button>
 
-              <div v-if="activeMenu === 'ai'" class="menu-popover glass-card">
+              <div v-if="activeMenu === group.key" class="menu-popover glass-card">
                 <div class="menu-section">
-                  <span class="menu-title">AI配置</span>
+                  <span class="menu-title">{{ group.title }}</span>
                   <button
-                    v-for="item in aiMenus"
+                    v-for="item in group.items"
                     :key="item.path"
                     type="button"
                     class="menu-item"
                     :class="{ active: route.path === item.path }"
                     @click="goTo(item.path)"
                   >
-                    {{ item.label }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="menu-anchor">
-              <button
-                class="top-action glass-card"
-                :class="{ active: isMenuActive('knowledge', knowledgeMenus) }"
-                type="button"
-                @click="toggleMenu('knowledge')"
-              >
-                <span>AI知识库</span>
-              </button>
-
-              <div v-if="activeMenu === 'knowledge'" class="menu-popover glass-card">
-                <div class="menu-section">
-                  <span class="menu-title">AI知识库</span>
-                  <button
-                    v-for="item in knowledgeMenus"
-                    :key="item.path"
-                    type="button"
-                    class="menu-item"
-                    :class="{ active: route.path === item.path }"
-                    @click="goTo(item.path)"
-                  >
-                    {{ item.label }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="menu-anchor">
-              <button
-                class="top-action glass-card"
-                :class="{ active: isMenuActive('logs', logMenus) }"
-                type="button"
-                @click="toggleMenu('logs')"
-              >
-                <span>日志</span>
-              </button>
-
-              <div v-if="activeMenu === 'logs'" class="menu-popover glass-card">
-                <div class="menu-section">
-                  <span class="menu-title">日志</span>
-                  <button
-                    v-for="item in visibleLogMenus"
-                    :key="item.path"
-                    type="button"
-                    class="menu-item"
-                    :class="{ active: route.path === item.path }"
-                    @click="goTo(item.path)"
-                  >
-                    {{ item.label }}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="menu-anchor">
-              <button
-                class="top-action glass-card"
-                :class="{ active: isMenuActive('permission', permissionMenus) }"
-                type="button"
-                @click="toggleMenu('permission')"
-              >
-                <span>权限配置</span>
-              </button>
-
-              <div v-if="activeMenu === 'permission'" class="menu-popover glass-card">
-                <div class="menu-section">
-                  <span class="menu-title">权限配置</span>
-                  <button
-                    v-for="item in permissionMenus"
-                    :key="item.path"
-                    type="button"
-                    class="menu-item"
-                    :class="{ active: route.path === item.path }"
-                    @click="goTo(item.path)"
-                  >
-                    {{ item.label }}
+                    {{ item.name }}
                   </button>
                 </div>
               </div>
@@ -254,12 +200,17 @@ onBeforeUnmount(() => {
                     <span class="menu-meta-label">岗位</span>
                     <strong class="menu-meta-value">{{ currentPosts }}</strong>
                   </div>
+
+                  <div class="menu-meta-card">
+                    <span class="menu-meta-label">所属公司</span>
+                    <strong class="menu-meta-value">{{ currentCompany }}</strong>
+                  </div>
                 </div>
 
                 <div class="menu-divider"></div>
 
                 <button type="button" class="menu-item logout-item" @click="handleLogout">
-                  退出
+                  退出登录
                 </button>
               </div>
             </div>
@@ -298,6 +249,13 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .header-left h2 {
   margin: 0;
   font-size: clamp(1.6rem, 1.1rem + 1vw, 2rem);
@@ -332,7 +290,6 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
   padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
   border: 1px solid var(--line);
   border-radius: calc(22px * var(--ui-scale));
@@ -367,7 +324,6 @@ onBeforeUnmount(() => {
 }
 
 .user-button {
-  position: relative;
   gap: calc(10px * var(--ui-scale));
   padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
   border-radius: 999px;
@@ -392,14 +348,12 @@ onBeforeUnmount(() => {
 
 .user-button:hover {
   transform: translateY(-1px);
-  border-color: transparent;
   box-shadow:
     0 18px 34px rgba(47, 131, 116, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .user-button.active {
-  border-color: transparent;
   background: linear-gradient(135deg, #256d61 0%, #5aa89c 100%);
   box-shadow:
     0 18px 34px rgba(47, 131, 116, 0.32),
@@ -409,9 +363,6 @@ onBeforeUnmount(() => {
 .user-mark {
   min-width: 0;
   max-width: calc(140px * var(--ui-scale));
-  padding: 0;
-  border-radius: 0;
-  background: none;
   color: #fff;
   font-size: calc(14px * var(--ui-scale));
   font-weight: 700;
@@ -419,8 +370,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: none;
-  letter-spacing: 0.02em;
 }
 
 .menu-popover {
@@ -437,7 +386,7 @@ onBeforeUnmount(() => {
 }
 
 .user-popover {
-  width: min(15rem, calc(100vw - 3rem));
+  width: min(18rem, calc(100vw - 3rem));
 }
 
 .menu-section {
