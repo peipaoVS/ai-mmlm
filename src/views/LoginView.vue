@@ -212,7 +212,7 @@ async function handleLogin() {
         </div>
 
         <span class="eyebrow login-eyebrow">统一登录</span>
-        <h3 class="login-title">大模型登录</h3>
+        <h3 class="login-title">模型一体化平台</h3>
         <p class="login-subtitle">登录后默认进入 AI 问答工作台</p>
 
         <form class="login-form" @submit.prevent="handleLogin">
@@ -418,6 +418,7 @@ async function handleLogin() {
 }
 
 .login-panel {
+  position: relative;
   width: min(432px, 100%);
   justify-self: end;
   border-radius: calc(36px * var(--ui-scale));
@@ -435,6 +436,7 @@ async function handleLogin() {
 .login-mark {
   display: flex;
   justify-content: center;
+  margin-top: calc(28px * var(--ui-scale));
   margin-bottom: calc(18px * var(--ui-scale));
 }
 
@@ -454,8 +456,10 @@ async function handleLogin() {
 }
 
 .login-eyebrow {
-  display: table;
-  margin: 0 auto;
+  position: absolute;
+  left: clamp(1.25rem, 0.75rem + 1.6vw, 2.25rem);
+  top: clamp(1.25rem, 0.75rem + 1.6vw, 2.25rem);
+  margin: 0;
 }
 
 .login-logo {
