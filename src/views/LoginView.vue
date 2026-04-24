@@ -315,7 +315,7 @@ async function handleLogin() {
 .login-title {
   margin: 0 0 calc(22px * var(--ui-scale));
   text-align: center;
-  font-size: calc(clamp(24px, 2.8vw, 34px) * var(--ui-scale));
+  font-size: calc(clamp(24px, 2.8vw, 4px) * var(--ui-scale));
   line-height: 1.1;
   color: var(--text-main);
   letter-spacing: 0.04em;

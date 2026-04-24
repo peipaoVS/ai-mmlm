@@ -137,7 +137,7 @@ onBeforeUnmount(() => {
     <main class="shell-main">
       <header class="shell-header glass-card">
         <div class="header-left">
-          <h2>{{ currentSection }}</h2>
+          <h3>{{ currentSection }}</h3>
           <p>{{ today }}</p>
         </div>
 
