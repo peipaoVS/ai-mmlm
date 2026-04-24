@@ -576,7 +576,7 @@ async function loadRuleLibrary() {
   <section class="data-panel glass-card log-panel">
     <div class="section-title page-head">
       <div>
-        <h2>{{ pageTitle }}</h2>
+        <h3>{{ pageTitle }}</h3>
         <p>{{ pageDescription }}</p>
       </div>
 

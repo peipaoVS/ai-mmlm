@@ -165,7 +165,7 @@ async function handleLogin() {
             <span class="logo-core"></span>
           </div>
         </div>
-        <h2 class="login-title">大模型登录</h2>
+        <h3 class="login-title">大模型登录</h3>
 
         <form class="login-form" @submit.prevent="handleLogin">
           <label class="field">
@@ -213,7 +213,7 @@ async function handleLogin() {
         <div class="about-header">
           <div>
             <span class="eyebrow">关于系统</span>
-            <h2>AI 用户管理系统</h2>
+            <h3>AI 用户管理系统</h3>
             <p>这里展示系统说明内容，弹窗支持关闭，并保留半透明玻璃效果。</p>
           </div>
           <button class="pill-button ghost" @click="aboutVisible = false">关闭</button>

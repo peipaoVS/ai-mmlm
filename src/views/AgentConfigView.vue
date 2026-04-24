@@ -2,7 +2,7 @@
   <section class="data-panel glass-card agent-panel">
     <div class="section-title">
       <div>
-        <h2>智能体配置</h2>
+        <h3>智能体配置</h3>
         <p>这里预留智能体配置入口，后续接入真实配置表单或列表即可继续扩展。</p>
       </div>
     </div>
