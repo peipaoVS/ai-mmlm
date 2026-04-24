@@ -11,6 +11,30 @@ const conversationTitle = ref('新会话')
 const messages = ref([])
 const visitTaskPayload  = ref([])
 const recentSessions = ref([])
+const visitThreadId = ref('')
+const ruleThreadId = ref('')
+
+function genThreadId(prefix) {
+  const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(16).slice(2, 10)
+  return `${prefix}_${Date.now()}_${rand}`
+}
+function genRunId() {
+  return `run_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
+}
+function ensureVisitThreadId() {
+  if (!visitThreadId.value) visitThreadId.value = genThreadId('visit')
+  return visitThreadId.value
+}
+function ensureRuleThreadId() {
+  if (!ruleThreadId.value) ruleThreadId.value = genThreadId('rule')
+  return ruleThreadId.value
+}
+function resetAgentThreads() {
+  visitThreadId.value = ''
+  ruleThreadId.value = ''
+}
 const taskJobs = ref([
   {
     id: 1,
@@ -149,8 +173,8 @@ async function sendMessage(preset) {
     messages.value.push(assistantMessage)
     if(selectedModel.value === '规则答疑') {
       const stream = api.stream(API_PATHS.SESSION.RULE_QA, {
-        threadId: "rule_thread001",
-          runId: "rule_run001",
+        threadId: ensureRuleThreadId(),
+          runId: genRunId(),
           parentRunId: "",
           variant: 'both',
           state: {
@@ -191,8 +215,8 @@ async function sendMessage(preset) {
     // 访客辅助
     else {
       const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
-        threadId: "thread_001",
-        runId: "run_abc123",
+        threadId: ensureVisitThreadId(),
+        runId: genRunId(),
         parentRunId: "",
         variant: 'both',
         state: {
@@ -244,6 +268,8 @@ function startFreshConversation() {
   conversationTitle.value = '新会话'
   selectedModel.value = defaultModelLabel
   modelMenuVisible.value = false
+  resetAgentThreads()
+  visitTaskPayload.value = []
   messages.value = [
     {
       role: 'assistant',
@@ -337,6 +363,27 @@ function editTask(task) {
   if (newTitle && newTitle.trim() !== task.title) {
     updateTask({ ...task, title: newTitle.trim() })
   }
+}
+async function yopfnsjnf(task) {
+  const assistantMessage = { role: 'assistant', content: '正在查询报告...', model: '' }
+  messages.value.push(assistantMessage)
+  await scrollMessagesToBottom()
+  
+  try {
+    const response = await api.get(API_PATHS.SESSION.QUERYREPORTS + task.id)
+    console.log('查询报告接口返回的数据：', response)
+    const data = response || {}
+    const index = messages.value.indexOf(assistantMessage)
+    if (index !== -1) {
+      messages.value[index] = { ...assistantMessage, content: formatToFriendlyMarkdown(data) }
+    }
+  } catch (error) {
+    const index = messages.value.indexOf(assistantMessage)
+    if (index !== -1) {
+      messages.value[index] = { ...assistantMessage, content: '报告查询失败：' + error.message }
+    }
+  }
+  await scrollMessagesToBottom()
 }
 
 async function updateTask(task) {
@@ -443,6 +490,17 @@ function formatRuleQaResponse(data) {
   return md || data.raw_final_answer || '暂无答案'
 }
 function formatToFriendlyMarkdown(data) {
+  // 如果有 report_content 或 full_report_content，直接返回 Markdown 内容
+  if (data.report_content) {
+    return data.report_content
+  }
+  if (data.full_report_content) {
+    return data.full_report_content
+  }
+  if (data.brief_report_content) {
+    return data.brief_report_content
+  }
+  
   let md = '拜访安排详情\n\n'
   
   // 基础字段映射
@@ -455,9 +513,6 @@ function formatToFriendlyMarkdown(data) {
     person: '拜访人',
     report_send_time: '报告提交时间',
     remark: '备注',
-    report_content: '报告内容',
-    full_report_content: '完整报告内容',
-    brief_report_content: '简略报告内容',
     report_title: '报告标题',
     updated_at: '更新时间',
     created_at: '创建时间',
@@ -478,18 +533,6 @@ function formatToFriendlyMarkdown(data) {
     const statusMap = { preparing: '准备中', generating: '生成中', completed: '已完成', failed: '失败' }
     md += `**生成状态**: ${statusMap[data.generation_status] || data.generation_status}\n`
   }
-  
-  // 处理 report_content / full_report_content / brief_report_content
-  const contentFields = [
-    { key: 'report_content', label: '报告内容' },
-    { key: 'full_report_content', label: '完整报告' },
-    { key: 'brief_report_content', label: '简略报告' }
-  ]
-  contentFields.forEach(({ key, label }) => {
-    if (data[key]) {
-      md += `\n**${label}**\n${data[key]}\n`
-    }
-  })
   
   // 处理 sections
   if (data.sections && data.sections.length > 0) {
@@ -533,15 +576,16 @@ async function handleConfirm(message) {
   messages.value.push(assistantMessage)
   console.log('确认拜访安排:', message)
   const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
-    threadId: "thread_001",
-    runId: "run_abc123",
+    threadId: ensureVisitThreadId(),
+    runId: genRunId(),
     parentRunId: "",
     state: { 
+      agent: "visit_assistant_agent",
       action: "confirm",
       task_payload: visitTaskPayload .value,
       report_variant: 'full',
     },
-    messages: [{ id: "m1", role: "user", content: 'content' }],
+    messages: [{ id: "m1", role: "user", content: '确认' }],
     tools: [],
     context: [],
     forwardedProps: {},
@@ -636,16 +680,18 @@ async function handleCancel(message) {
 
         <div v-if="taskJobs.length" class="task-list">
           <article v-for="task in visibleTaskJobs" :key="task.id" class="task-card">
-            <div class="task-head">
-              <strong>{{ task.title }}</strong>
-              <span class="task-status">{{ task.status }}</span>
-            </div>
-            <p class="task-meta">{{ task.visit_time }}</p>
-            <!-- <p class="task-meta">{{ task.remark || '接口占位任务' }}</p> -->
-            <div class="task-actions">
-              <button type="button" class="tiny-button" @click="editTask(task)">编辑</button>
-              <button type="button" class="tiny-button danger" @click="deleteTask(task)">删除</button>
-              <button type="button" class="tiny-button" @click="exportTask(task)">导出</button>
+            <div @click="yopfnsjnf(task)">
+              <div class="task-head">
+                <strong>{{ task.title }}</strong>
+                <span class="task-status">{{ task.status }}</span>
+              </div>
+              <p class="task-meta">{{ task.visit_time }}</p>
+              <!-- <p class="task-meta">{{ task.remark || '接口占位任务' }}</p> -->
+              <div class="task-actions">
+                <button type="button" class="tiny-button" @click="editTask(task)">编辑</button>
+                <button type="button" class="tiny-button danger" @click="deleteTask(task)">删除</button>
+                <button type="button" class="tiny-button" @click="exportTask(task)">导出</button>
+              </div>
             </div>
           </article>
         </div>
