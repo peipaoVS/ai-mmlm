@@ -8,7 +8,14 @@ import {
 } from '../stores/session'
 import { API_CONFIG } from '../config/api'
 
-const SYSTEM_API_PREFIXES = ['/api/auth/', '/api/users', '/api/roles', '/api/posts']
+const SYSTEM_API_PREFIXES = [
+  '/api/auth/',
+  '/api/users',
+  '/api/roles',
+  '/api/posts',
+  '/api/menus',
+  '/api/companies'
+]
 
 function isSystemApi(url) {
   return SYSTEM_API_PREFIXES.some((prefix) => url.startsWith(prefix))
@@ -40,6 +47,7 @@ function collectIdentityHints(user) {
   return [
     String(user?.username || '').toLowerCase(),
     String(user?.nickname || ''),
+    String(user?.companyName || ''),
     ...(user?.roleNames || []),
     ...(user?.postNames || [])
   ]
@@ -82,7 +90,7 @@ async function fetchAiUsers() {
   const payload = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(payload.detail || payload.message || 'AI 侧账号目录加载失败')
+    throw new Error(payload.detail || payload.message || 'AI side user catalog load failed')
   }
 
   return Array.isArray(payload.users) ? payload.users : []
@@ -100,12 +108,12 @@ async function requestAiLogin(username, password) {
   const payload = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    throw new Error(payload.detail || payload.message || 'AI 侧登录失败')
+    throw new Error(payload.detail || payload.message || 'AI side login failed')
   }
 
   const token = payload.access_token || payload.token || ''
   if (!token) {
-    throw new Error('AI 侧未返回登录凭证')
+    throw new Error('AI side login token is missing')
   }
 
   return {
@@ -129,7 +137,7 @@ async function ensureAiSession(url) {
   const matchedUser = aiUsers.find((item) => item.username === fallbackUsername)
 
   if (!matchedUser) {
-    throw new Error(`AI 侧未找到可映射账号：${fallbackUsername}`)
+    throw new Error(`AI side account mapping not found: ${fallbackUsername}`)
   }
 
   const aiSession = await requestAiLogin(
@@ -165,7 +173,7 @@ function handleUnauthorized(url, result, fallbackMessage) {
   }
 
   clearAiSession()
-  throw new Error(resolveErrorMessage(result, 'AI 侧登录状态已失效，请重新登录'))
+  throw new Error(resolveErrorMessage(result, 'AI side session expired, please login again'))
 }
 
 export async function request(url, options = {}) {
@@ -190,19 +198,19 @@ export async function request(url, options = {}) {
 
   const result = await response.json().catch(() => ({
     success: false,
-    message: '服务返回内容不可解析'
+    message: 'Service response is not valid JSON'
   }))
 
   if (response.status === 401) {
-    handleUnauthorized(url, result, '登录状态已失效')
+    handleUnauthorized(url, result, 'Login state has expired')
   }
 
   if (!response.ok) {
-    throw new Error(resolveErrorMessage(result, `请求失败 (状态码: ${response.status})`))
+    throw new Error(resolveErrorMessage(result, `Request failed (${response.status})`))
   }
 
   if (result.success === false) {
-    throw new Error(resolveErrorMessage(result, `请求失败 (状态码: ${response.status})`))
+    throw new Error(resolveErrorMessage(result, `Request failed (${response.status})`))
   }
 
   return result.success === true ? result.data : result
@@ -226,11 +234,11 @@ export async function* streamRequest(url, body) {
   })
 
   if (response.status === 401) {
-    handleUnauthorized(url, null, '登录状态已失效')
+    handleUnauthorized(url, null, 'Login state has expired')
   }
 
   if (!response.ok) {
-    throw new Error(`请求失败 (状态码: ${response.status})`)
+    throw new Error(`Request failed (${response.status})`)
   }
 
   const reader = response.body.getReader()

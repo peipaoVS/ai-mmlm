@@ -141,9 +141,15 @@ async function handleLogin() {
 
   try {
     const data = await api.post('/api/auth/login', form)
-    const aiSession = await resolveAiSession(data.user)
     setSession(data.token, data.user)
-    setAiSession(aiSession.token, aiSession.user)
+
+    try {
+      const aiSession = await resolveAiSession(data.user)
+      setAiSession(aiSession.token, aiSession.user)
+    } catch (aiError) {
+      console.warn('AI side login skipped:', aiError)
+    }
+
     router.replace('/chat')
   } catch (error) {
     errorMessage.value = error.message

@@ -56,8 +56,8 @@ const PAGE_CONFIGS = {
     endpoints: ['/api/rule-kb/catalog', '/api/rule-kb/source', '/api/rule-kb/chapter']
   },
   instructions: {
-    title: '说明',
-    description: '说明页沿用 demo 中的帮助说明内容，不单独请求查询接口。',
+    // title: '说明',
+    // description: '说明页沿用 demo 中的帮助说明内容，不单独请求查询接口。',
     endpoints: []
   }
 }
@@ -383,10 +383,10 @@ async function openRuleChapter(scope, source, chapter) {
 
 async function loadData() {
   if (pageKey.value === 'instructions') {
-    summaryCards.value = [
-      { label: '说明条目', value: instructions.length, tone: 'brand' },
-      { label: '来源', value: 'demo.html', tone: 'soft' }
-    ]
+    // summaryCards.value = [
+    //   { label: '说明条目', value: instructions.length, tone: 'brand' },
+    //   { label: '来源', value: 'demo.html', tone: 'soft' }
+    // ]
     return
   }
 
@@ -576,7 +576,7 @@ async function loadRuleLibrary() {
   <section class="data-panel glass-card log-panel">
     <div class="section-title page-head">
       <div>
-        <h3>{{ pageTitle }}</h3>
+        <h3 class="section-pill">{{ pageTitle }}</h3>
         <p>{{ pageDescription }}</p>
       </div>
 
@@ -717,9 +717,9 @@ async function loadRuleLibrary() {
     <div v-else-if="errorMessage" class="empty-state error-state">{{ errorMessage }}</div>
 
     <template v-else>
-      <div v-if="pageKey === 'instructions'" class="instruction-grid">
-        <article v-for="item in instructions" :key="item.title" class="instruction-card">
-          <span class="section-pill">说明</span>
+      <div v-if="pageKey === 'instructions'" class="instruction-grid instruction-card">
+        <article v-for="item in instructions" :key="item.title">
+          <!-- <span class="section-pill">说明</span> -->
           <h3>{{ item.title }}</h3>
           <p>{{ item.text }}</p>
         </article>

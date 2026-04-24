@@ -23,6 +23,8 @@ export default defineConfig({
       '/api/users': createProxy('http://192.168.1.37:8017'),
       '/api/roles': createProxy('http://192.168.1.37:8017'),
       '/api/posts': createProxy('http://192.168.1.37:8017'),
+      '/api/menus': createProxy('http://192.168.1.37:8017'),
+      '/api/companies': createProxy('http://192.168.1.37:8017'),
       '/api/visit-assistant': createProxy('http://192.168.1.168:8000'),
       '/api/taskstop': createProxy('http://192.168.1.168:8000'),
       '/api/chat': createProxy('http://192.168.1.168:8000'),

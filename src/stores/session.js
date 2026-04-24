@@ -31,16 +31,16 @@ export function useSession() {
 
 export function setSession(token, user) {
   state.token = token
-  state.user = user
+  state.user = user || null
   localStorage.setItem(TOKEN_KEY, token)
-  localStorage.setItem(USER_KEY, JSON.stringify(user))
+  localStorage.setItem(USER_KEY, JSON.stringify(user || null))
 }
 
 export function setAiSession(token, user) {
   state.aiToken = token
-  state.aiUser = user
+  state.aiUser = user || null
   localStorage.setItem(AI_TOKEN_KEY, token)
-  localStorage.setItem(AI_USER_KEY, JSON.stringify(user))
+  localStorage.setItem(AI_USER_KEY, JSON.stringify(user || null))
 }
 
 export function clearAiSession() {
@@ -72,6 +72,10 @@ export function getUser() {
 
 export function getAiUser() {
   return state.aiUser
+}
+
+export function hasMenuSnapshot(user) {
+  return Boolean(user && Object.prototype.hasOwnProperty.call(user, 'menus') && Array.isArray(user.menus))
 }
 
 export function isObserverUser(user) {

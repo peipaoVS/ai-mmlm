@@ -8,7 +8,9 @@ import LogModuleView from '../views/LogModuleView.vue'
 import UsersView from '../views/UsersView.vue'
 import RolesView from '../views/RolesView.vue'
 import PostsView from '../views/PostsView.vue'
-import { getToken, getUser, isObserverUser } from '../stores/session'
+import MenusView from '../views/MenusView.vue'
+import CompaniesView from '../views/CompaniesView.vue'
+import { getToken, getUser, hasMenuSnapshot } from '../stores/session'
 
 const routes = [
   {
@@ -97,7 +99,6 @@ const routes = [
         component: LogModuleView,
         meta: {
           title: 'Badcase',
-          observerOnly: true,
           description: '预留 Badcase 管理页，后续可接问题样本、失败案例和归档接口。'
         }
       },
@@ -107,7 +108,6 @@ const routes = [
         component: LogModuleView,
         meta: {
           title: '观测认证',
-          observerOnly: true,
           description: '预留观测认证管理页，后续可接观测数据、认证流程和审核接口。'
         }
       },
@@ -117,7 +117,6 @@ const routes = [
         component: LogModuleView,
         meta: {
           title: '回归评测',
-          observerOnly: true,
           description: '预留回归评测管理页，后续可接回归任务、评测结果和趋势接口。'
         }
       },
@@ -127,7 +126,6 @@ const routes = [
         component: LogModuleView,
         meta: {
           title: '修复队列',
-          observerOnly: true,
           description: '预留修复队列管理页，后续可接问题流转、修复状态和负责人接口。'
         }
       },
@@ -172,6 +170,22 @@ const routes = [
         meta: {
           title: '岗位管理'
         }
+      },
+      {
+        path: '/menus',
+        name: 'menus',
+        component: MenusView,
+        meta: {
+          title: '菜单管理'
+        }
+      },
+      {
+        path: '/companies',
+        name: 'companies',
+        component: CompaniesView,
+        meta: {
+          title: '所属公司'
+        }
       }
     ]
   }
@@ -182,20 +196,44 @@ const router = createRouter({
   routes
 })
 
+function resolveDefaultPath(user) {
+  return user?.menus?.[0]?.path || '/chat'
+}
+
+function hasMenuAccess(user, path) {
+  return Array.isArray(user?.menus) && user.menus.some((item) => item.path === path)
+}
+
 router.beforeEach((to, from, next) => {
   const token = getToken()
-  if (to.meta.requiresAuth && !token) {
+  const user = getUser()
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
+
+  if (requiresAuth && !token) {
     next('/login')
     return
   }
+
   if (to.path === '/login' && token) {
-    next('/chat')
+    next(resolveDefaultPath(user))
     return
   }
-  if (to.meta.observerOnly && !isObserverUser(getUser())) {
-    next('/chat')
+
+  if (!token) {
+    next()
     return
   }
+
+  if (to.path === '/') {
+    next(resolveDefaultPath(user))
+    return
+  }
+
+  if (hasMenuSnapshot(user) && user.menus.length > 0 && !hasMenuAccess(user, to.path)) {
+    next(resolveDefaultPath(user))
+    return
+  }
+
   next()
 })
 
