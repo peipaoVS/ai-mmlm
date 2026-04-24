@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
-import { useSession } from '../stores/session'
+import { useSession, getToken } from '../stores/session'
 import { API_PATHS } from '../config/aiApi';
 
 const session = useSession()
@@ -9,12 +9,13 @@ const loading = ref(false)
 const inputValue = ref('')
 const conversationTitle = ref('新会话')
 const messages = ref([])
+const visitTaskPayload  = ref([])
 const recentSessions = ref([])
 const taskJobs = ref([
   {
     id: 1,
-    name: '测试访客提醒任务',
-    cronExpression: '0 0/30 * * * ?',
+    title: '测试访客提醒任务',
+    prepared_at: '0 0/30 * * * ?',
     status: '启用',
     remark: '前端写死的测试数据，后续再切换为真实接口。'
   }
@@ -25,6 +26,17 @@ async function startFreshConver() {
   try {
     const response = await api.get(API_PATHS.SESSION.LIST)
     recentSessions.value = response.messages.filter(item => item.role === 'user')
+  } finally {
+    loading.value = false
+  }
+}
+// 待办事项接口
+async function loadTaskJobs() {
+  loading.value = true
+  try {
+    const response = await api.get(API_PATHS.SESSION.REDETAIL)
+    taskJobs.value = response.tasks || []
+    console.log('待办事项接口', response)
   } finally {
     loading.value = false
   }
@@ -81,6 +93,7 @@ const selectedModelLabel = computed(() => selectedModel.value || defaultModelLab
 onMounted(() => {
   startFreshConversation()
   startFreshConver()
+  loadTaskJobs()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -130,18 +143,18 @@ async function sendMessage(preset) {
   await scrollMessagesToBottom()
 
   try {
-    console.log('sendMessage', currentModel)
+    console.log('sendMessage', session)
     // 先添加一个空的助手消息，用于流式填充
     const assistantMessage = { role: 'assistant', content: '', model: currentModel }
     messages.value.push(assistantMessage)
-    if(selectedModel.value ==='规则答疑') {
+    if(selectedModel.value === '规则答疑') {
       const stream = api.stream(API_PATHS.SESSION.RULE_QA, {
         threadId: "rule_thread001",
           runId: "rule_run001",
           parentRunId: "",
           variant: 'both',
           state: {
-            branch: session.user?.role || '南京分行',
+            branch: session.user?.postNames[0] || '南京分行',
             action: "query",
             agent: 'visit_assistant_agent',
           },
@@ -154,11 +167,25 @@ async function sendMessage(preset) {
           additionalProp1: {}
       })
 
+      let jsonContent = ''
       for await (const eventData of stream) {
-        // 处理不同类型的 SSE 事件
+        // 收集 TEXT_MESSAGE_CONTENT 的内容
         if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
-          assistantMessage.content += eventData.delta
+          jsonContent += eventData.delta
         }
+      }
+
+      // 尝试解析 JSON 并格式化为 Markdown
+      try {
+        const data = JSON.parse(jsonContent)
+        if (data.type === 'rule_qa_response') {
+          assistantMessage.content = formatRuleQaResponse(data)
+        } else {
+          assistantMessage.content = jsonContent
+        }
+      } catch (e) {
+        // 如果不是 JSON，直接显示原始内容
+        assistantMessage.content = jsonContent
       }
     }
     // 访客辅助
@@ -169,7 +196,7 @@ async function sendMessage(preset) {
         parentRunId: "",
         variant: 'both',
         state: {
-          branch: "南京分行",
+          branch: session.user?.postNames[0] || "南京分行",
           agent: "visit_assistant_agent",
           action: "parse",
           task_payload: {},
@@ -192,6 +219,8 @@ async function sendMessage(preset) {
       // 尝试解析 JSON 并格式化为 Markdown
       try {
         const data = JSON.parse(jsonContent)
+        visitTaskPayload .value = data
+        console.log('访客辅助接口返回的完整数据:', visitTaskPayload.value)
         assistantMessage.content = formatToFriendlyMarkdown(data)
       } catch (e) {
         // 如果不是 JSON，直接显示原始内容
@@ -304,47 +333,202 @@ async function scrollMessagesToBottom() {
 }
 
 function editTask(task) {
-  window.alert(`编辑功能占位：${task.name}`)
+  const newTitle = window.prompt('请输入新的任务标题', task.title)
+  if (newTitle && newTitle.trim() !== task.title) {
+    updateTask({ ...task, title: newTitle.trim() })
+  }
 }
 
-function deleteTask(task) {
-  window.alert(`删除功能占位：${task.name}`)
+async function updateTask(task) {
+  try {
+    await api.post(`${API_PATHS.SESSION.ASSISYANT}${task.id}/revise`, {
+      task_id: task.id,
+      title: task.title,
+      dry_run: false,
+      regenerate_report: true,
+      before: {},
+      after: {},
+      parsed_patch: {},
+      deleted_old_report: {},
+      revision_log_id: 21
+    })
+    window.alert('更新成功')
+    loadTaskJobs()
+  } catch (error) {
+    window.alert('更新失败：' + error.message)
+  }
+}
+
+async function deleteTask(task) {
+  try {
+    await api.delete(`${API_PATHS.SESSION.DELETE}${task.id}`)
+    window.alert('删除成功')
+    loadTaskJobs()
+  } catch (error) {
+    window.alert('删除失败：' + error.message)
+  }
 }
 
 function importTask() {
   window.alert('导入功能占位')
 }
 
-function exportTask(task) {
-  window.alert(`导出功能占位：${task.name}`)
+async function exportTask(task) {
+  console.log('导出功能：', task.title)
+  const strtop = '/download?variant=full&include_meta=true&version=1';
+  const token = getToken()
+  try {
+    const response = await fetch(`${API_PATHS.SESSION.DOWNIOAD}${task.id}${strtop}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = task.title + '.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('导出失败:', error);
+    alert('导出失败: ' + error.message);
+  }
+}
+function formatRuleQaResponse(data) {
+  let md = ''
+  // 标题
+  if (data.title) {
+    md += `### ${data.title}\n\n`
+  }
+  // 答案正文
+  if (data.answer_text) {
+    md += `${data.answer_text}\n\n`
+  }
+  // 分段显示
+  if (data.sections && data.sections.length > 0) {
+    data.sections.forEach((section, index) => {
+      md += `**${section.title || `部分 ${index + 1}`}**\n`
+      if (section.body) {
+        md += `${section.body}\n`
+      }
+      if (section.bullets && section.bullets.length > 0) {
+        section.bullets.forEach(bullet => {
+          md += `- ${bullet}\n`
+        })
+      }
+      md += '\n'
+    })
+  }
+  // 推理步骤
+  if (data.reasoning_steps && data.reasoning_steps.length > 0) {
+    md += '**推理过程**\n'
+    data.reasoning_steps.forEach((step, index) => {
+      md += `${index + 1}. **${step.title}**\n`
+      if (step.body) {
+        md += `   ${step.body}\n`
+      }
+      if (step.chips && step.chips.length > 0) {
+        md += `   标签: ${step.chips.join(', ')}\n`
+      }
+    })
+    md += '\n'
+  }
+  return md || data.raw_final_answer || '暂无答案'
 }
 function formatToFriendlyMarkdown(data) {
+  let md = '拜访安排详情\n\n'
+  
+  // 基础字段映射
   const fieldMap = {
-    visit_time: '拜访时间',
-    visit_location: '拜访地点',
-    person: '联系人',
-    report_send_time: '报告提交时间',
-    remark: '备注',
+    action: '操作',
     report_id: '报告ID',
     version: '版本',
+    visit_time: '拜访时间',
+    visit_location: '拜访地点',
+    person: '拜访人',
+    report_send_time: '报告提交时间',
+    remark: '备注',
     report_content: '报告内容',
     full_report_content: '完整报告内容',
     brief_report_content: '简略报告内容',
     report_title: '报告标题',
     updated_at: '更新时间',
     created_at: '创建时间',
-    action: '操作',
+    generation_status: '生成状态',
+    pending: '待处理',
   }
-  let md = '拜访安排详情\n'
-  Object.entries(data).forEach(([key, value]) => {
-    const label = fieldMap[key] || key
-    md += `${label}: ${value}\n`
+  
+  // 基础字段
+  const baseFields = ['action', 'report_id', 'version', 'visit_time', 'visit_location', 'person', 'report_send_time', 'remark', 'created_at', 'updated_at']
+  baseFields.forEach(key => {
+    if (data[key] !== undefined) {
+      md += `**${fieldMap[key] || key}**: ${data[key]}\n`
+    }
   })
+  
+  // 处理 generation_status
+  if (data.generation_status) {
+    const statusMap = { preparing: '准备中', generating: '生成中', completed: '已完成', failed: '失败' }
+    md += `**生成状态**: ${statusMap[data.generation_status] || data.generation_status}\n`
+  }
+  
+  // 处理 report_content / full_report_content / brief_report_content
+  const contentFields = [
+    { key: 'report_content', label: '报告内容' },
+    { key: 'full_report_content', label: '完整报告' },
+    { key: 'brief_report_content', label: '简略报告' }
+  ]
+  contentFields.forEach(({ key, label }) => {
+    if (data[key]) {
+      md += `\n**${label}**\n${data[key]}\n`
+    }
+  })
+  
+  // 处理 sections
+  if (data.sections && data.sections.length > 0) {
+    md += '\n**报告详情**\n'
+    data.sections.forEach((section, index) => {
+      md += `\n##### ${section.numeral || index + 1}. ${section.title || section.heading}\n`
+      if (section.body) {
+        md += `${section.body}\n`
+      }
+      if (section.bullets && section.bullets.length > 0) {
+        section.bullets.forEach(bullet => {
+          md += `- ${bullet}\n`
+        })
+      }
+    })
+  }
+  
+  // 处理 brief_sections
+  if (data.brief_sections && data.brief_sections.length > 0) {
+    md += '\n**简略报告**\n'
+    data.brief_sections.forEach((section, index) => {
+      md += `\n##### ${section.numeral || index + 1}. ${section.title || section.heading}\n`
+      if (section.body) {
+        md += `${section.body}\n`
+      }
+      if (section.bullets && section.bullets.length > 0) {
+        section.bullets.forEach(bullet => {
+          md += `- ${bullet}\n`
+        })
+      }
+    })
+  }
+  
   return md
 }
 
 // 确认拜访安排
 async function handleConfirm(message) {
+  loading.value = true
   const assistantMessage = { role: 'assistant', content: '', model: '' }
   messages.value.push(assistantMessage)
   console.log('确认拜访安排:', message)
@@ -352,12 +536,10 @@ async function handleConfirm(message) {
     threadId: "thread_001",
     runId: "run_abc123",
     parentRunId: "",
-    variant: 'both',
     state: { 
-      branch: "南京分行", 
-      agent: "visit_assistant_agent",
       action: "confirm",
-      task_payload: message,
+      task_payload: visitTaskPayload .value,
+      report_variant: 'full',
     },
     messages: [{ id: "m1", role: "user", content: 'content' }],
     tools: [],
@@ -365,7 +547,6 @@ async function handleConfirm(message) {
     forwardedProps: {},
     additionalProp1: {}
   })
-
   let jsonContent = ''
   for await (const eventData of stream) {
     // 收集 TEXT_MESSAGE_CONTENT 的内容
@@ -373,7 +554,6 @@ async function handleConfirm(message) {
       jsonContent += eventData.delta
     }
   }
-
   // 尝试解析 JSON 并格式化为 Markdown
   try {
     const data = JSON.parse(jsonContent)
@@ -382,13 +562,15 @@ async function handleConfirm(message) {
     // 如果不是 JSON，直接显示原始内容
     assistantMessage.content = jsonContent
   }
+  loadTaskJobs()
+  loading.value = false
+  await scrollMessagesToBottom()
 }
-
 // 取消拜访安排
 async function handleCancel(message) {
   // TODO: 调用取消接口或删除消息
   console.log('取消拜访安排:', message)
-  window.alert('取消功能待实现')
+  // window.alert('取消功能待实现')
 }
 </script>
 
@@ -437,7 +619,7 @@ async function handleCancel(message) {
       <section class="side-section">
         <div class="section-head">
           <div class="section-head-main">
-            <span class="side-label">定时任务</span>
+            <span class="side-label">待办事项</span>
             <button type="button" class="head-action-button" @click="importTask">
               导入
             </button>
@@ -455,11 +637,11 @@ async function handleCancel(message) {
         <div v-if="taskJobs.length" class="task-list">
           <article v-for="task in visibleTaskJobs" :key="task.id" class="task-card">
             <div class="task-head">
-              <strong>{{ task.name }}</strong>
+              <strong>{{ task.title }}</strong>
               <span class="task-status">{{ task.status }}</span>
             </div>
-            <p class="task-meta">{{ task.cronExpression }}</p>
-            <p class="task-meta">{{ task.remark || '接口占位任务' }}</p>
+            <p class="task-meta">{{ task.visit_time }}</p>
+            <!-- <p class="task-meta">{{ task.remark || '接口占位任务' }}</p> -->
             <div class="task-actions">
               <button type="button" class="tiny-button" @click="editTask(task)">编辑</button>
               <button type="button" class="tiny-button danger" @click="deleteTask(task)">删除</button>
