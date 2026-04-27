@@ -64,26 +64,8 @@ function splitCsv(text) {
     .filter(Boolean)
 }
 
-<<<<<<< HEAD
 function joinCsv(arr) {
   return Array.isArray(arr) ? arr.join(', ') : String(arr || '')
-=======
-const currentMeta = computed(() => ({
-  title: route.meta.title || '知识库',
-  entityName: route.meta.entityName || '条目',
-  nameLabel: route.meta.nameLabel || '名称',
-  codeLabel: route.meta.codeLabel || '编码',
-  categoryLabel: route.meta.categoryLabel || '类别',
-  fitCustomerLabel: route.meta.fitCustomerLabel || '适配客户',
-  rateTenorLabel: route.meta.rateTenorLabel || '利率/期限',
-  searchPlaceholder: route.meta.searchPlaceholder || '搜索名称 / 编码',
-  codePlaceholder: route.meta.codePlaceholder || '请输入编码',
-  remarkPlaceholder: route.meta.remarkPlaceholder || '补充说明'
-}))
-
-function currentKey() {
-  return route.meta.kbKey || 'products'
->>>>>>> 4d60b756b4a8b270ef2ae4c708d2d686c1661383
 }
 
 function emptyForm(key) {
@@ -295,7 +277,6 @@ function formToBody() {
 // ---- 列表加载 ----
 async function loadData() {
   loading.value = true
-<<<<<<< HEAD
   try {
     const key = kbKey.value
     let list = []
@@ -318,57 +299,6 @@ async function loadData() {
   } finally {
     loading.value = false
   }
-=======
-  console.log('加载数据,当前KB类型:', route.meta.title)
-  if(route.meta.title === '产品库'){
-    try {
-      const stream = await api.get(`${API_PATHS.SESSION.products}?_=${Date.now()}`)
-      console.log('产品库返回数据:', stream)
-      const filtered = stream.products || [];
-      rows.value = filtered.sort((a, b) => b.id - a.id)
-    } finally {
-      loading.value = false
-    }
-  } else if (route.meta.title === '企业画像') {
-    try {
-      const stream = await api.get(`${API_PATHS.SESSION.enterprises}?_=${Date.now()}`)
-      console.log('企业画像返回数据:', stream)
-      const filtered = stream.enterprises || [];
-      rows.value = filtered.sort((a, b) => b.id - a.id)
-      console.log('企业画像排序后数据:', rows.value)
-    } finally {
-      loading.value = false
-    }
-  } else if (route.meta.title === '行业动态') {
-    try {
-      const stream = await api.get(`${API_PATHS.SESSION.insights}?_=${Date.now()}`)
-      console.log('行业动态返回数据:', stream)
-      const filtered = stream.insights || [];
-      rows.value = filtered.sort((a, b) => b.id - a.id)
-    } finally {
-      loading.value = false
-    }
-  }
-
-  // try {
-  //   const source = [...(mockStore[currentKey()] || [])]
-  //   const keyword = filters.keyword.trim().toLowerCase()
-
-  //   const filtered = source.filter((item) => {
-  //     const matchesKeyword =
-  //       !keyword ||
-  //       item.name.toLowerCase().includes(keyword) ||
-  //       item.code.toLowerCase().includes(keyword)
-  //     const matchesStatus =
-  //       filters.status === '' || String(item.status) === String(filters.status)
-  //     return matchesKeyword && matchesStatus
-  //   })
-
-  //   rows.value = filtered.sort((a, b) => b.id - a.id)
-  // } finally {
-  //   loading.value = false
-  // }
->>>>>>> 4d60b756b4a8b270ef2ae4c708d2d686c1661383
 }
 
 // 客户端搜索（与 admin.html 一致：拼几个字段做 includes）
@@ -518,7 +448,6 @@ watch(
   <section class="data-panel glass-card">
     <!-- 工具栏 -->
     <div class="toolbar">
-<<<<<<< HEAD
       <input
         v-model="filters.keyword"
         :placeholder="
@@ -538,11 +467,6 @@ watch(
       />
       <AppSelect v-model="filters.is_active" :options="ACTIVE_FILTER_OPTIONS" placeholder="全部状态" />
       <button class="pill-button secondary" @click="loadData">刷新</button>
-=======
-      <input v-model="filters.keyword" :placeholder="currentMeta.searchPlaceholder" />
-      <!-- <AppSelect v-model="filters.status" :options="filterStatusOptions" placeholder="全部状态" /> -->
-      <button class="pill-button secondary" @click="loadData()">查询</button>
->>>>>>> 4d60b756b4a8b270ef2ae4c708d2d686c1661383
       <button
         class="pill-button ghost"
         @click="
@@ -567,7 +491,6 @@ watch(
       <table class="data-table">
         <thead>
           <tr>
-<<<<<<< HEAD
             <th>产品 ID</th>
             <th>产品名称</th>
             <th>类别</th>
@@ -606,122 +529,6 @@ watch(
               <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
                 {{ row.is_active === 0 ? '停用' : '启用' }}
               </span>
-=======
-            <th>{{ currentMeta.nameLabel }}</th>
-            <th>{{ currentMeta.codeLabel }}</th>
-            <th>{{currentMeta.categoryLabel}}</th>
-            <th>{{currentMeta.fitCustomerLabel}}</th>
-            <th>{{currentMeta.rateTenorLabel}}</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <!-- 产品库 -->
-        <tbody v-if="route.meta.title === '产品库'">
-          <tr v-for="row in rows" :key="row.id">
-            <td>
-              <p class="status-tag" style="font-weight: 600">{{ row.product_name }}</p>
-              <p class="status-tag">{{ row.selling_points }}</p>
-            </td>
-            <td>{{ row.product_id }}</td>
-            <td>
-              <p class="status-tag" style="font-weight: 600">
-                {{ row.category }}
-              </p>
-              <p class="status-tag">
-                {{ row.subcategory }}
-              </p>
-            </td>
-            <td>
-              <div style="display: inline-flex;">
-                <p v-for="(item, index ) in row.fit_industries" :key="index">
-                  <span class="tag">{{ item }}</span> 
-                </p>
-                <p v-for="(item, index ) in row.fit_scales" :key="index">
-                  <span class="tag gray">{{ item }}</span>
-                </p>
-                <p v-for="(item, index ) in row.trigger_signals" :key="index">
-                  <span class="tag orange">{{ item }}</span>
-                </p>
-              </div>
-            </td>
-            <td>
-              <p class="status-tag" style="font-weight: 600">{{ row.rate_range }}</p>
-              <p class="status-tag">{{ row.tenor_range }}</p>
-            </td>
-            <td>
-              <div class="action-group">
-                <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                <button class="tiny-button danger" @click="removeRow(row)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-        <!-- 企业画像 -->
-        <tbody v-else-if="route.meta.title === '企业画像'">
-          <tr v-for="row in rows" :key="row.id">
-            <td>
-              <p class="status-tag" style="font-weight: 600">{{ row.company_name }}</p>
-              <p class="status-tag">{{ row.main_business }}</p>
-            </td>
-            <td>
-              <p class="status-tag" style="font-weight: 600">{{ row.industry_name }}</p>
-              <p class="status-tag">{{ row.industry_code }}</p>
-            </td>
-            <td>
-              <p class="status-tag" style="font-weight: 600">
-                {{ row.scale }}
-              </p>
-              <p class="status-tag">
-                {{ row.client_tier }}
-              </p>
-            </td>
-            <td>
-              <p class="status-tag" style="font-weight: 600">{{ row.aum }}</p>
-              <p class="status-tag">{{ row.aum_numeric }}万</p>
-            </td>
-            <td>
-              <div style="display: inline-flex;">
-                <p v-for="(item, index ) in row.held_products" :key="index">
-                  <span class="tag">{{ item }}</span> 
-                </p>
-                <p v-for="(item, index ) in row.key_needs" :key="index">
-                  <span class="tag gray">{{ item }}</span>
-                </p>
-                <p v-for="(item, index ) in row.trigger_signals" :key="index">
-                  <span class="tag orange">{{ item }}</span>
-                </p>
-              </div>
-            </td>
-            <td>
-              <div class="action-group">
-                <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                <button class="tiny-button danger" @click="removeRow(row)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-        <!-- 行业动态 -->
-        <tbody v-else-if="route.meta.title === '行业动态'">
-          <tr v-for="row in rows" :key="row.id">
-            <td>
-              <p class="status-tag">{{ row.insight_date }}</p>
-            </td>
-            <td>{{ row.industry_code }}</td>
-            <td>
-              <span class="tag">{{ row.category }}</span> 
-            </td>
-            <td>
-              <p class="status-tag" style="font-weight: 600">
-                {{ row.title }}
-              </p>
-              <p class="status-tag">
-                {{ row.summary }}
-              </p>
-            </td>
-            
-            <td>
-              <p class="status-tag">{{ row.source }}</p>
->>>>>>> 4d60b756b4a8b270ef2ae4c708d2d686c1661383
             </td>
             <td>
               <div class="action-group">
