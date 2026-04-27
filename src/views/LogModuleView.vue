@@ -31,28 +31,28 @@ const REPAIR_TARGET_LABELS = {
 
 const PAGE_CONFIGS = {
   badcase: {
-    title: 'Badcase',
-    description: '对接 demo 中的 badcase 查询接口，按状态和智能体查看问题样本。',
+    // title: 'Badcase',
+    // description: '对接 demo 中的 badcase 查询接口，按状态和智能体查看问题样本。',
     endpoints: ['/api/badcases']
   },
   observationAuth: {
-    title: '观测认证',
-    description: '对接 demo 中的 observability 日志接口，查看问题、答复、召回和合规信息。',
+    // title: '观测认证',
+    // description: '对接 demo 中的 observability 日志接口，查看问题、答复、召回和合规信息。',
     endpoints: ['/api/observability/logs']
   },
   regressionReview: {
-    title: '回归评测',
-    description: '对接 demo 中的回归评测接口，查看 badcase 生成的回归用例。',
+    // title: '回归评测',
+    // description: '对接 demo 中的回归评测接口，查看 badcase 生成的回归用例。',
     endpoints: ['/api/regression/badcases']
   },
   fixQueue: {
-    title: '修复队列',
-    description: '对接 demo 中的 repair queue 接口，聚合展示修复目标与优先级。',
+    // title: '修复队列',
+    // description: '对接 demo 中的 repair queue 接口，聚合展示修复目标与优先级。',
     endpoints: ['/api/repair-queue']
   },
   ruleLibrary: {
-    title: '规则库',
-    description: '对接 demo 中的规则目录、全文和章节查询接口，按范围浏览规则知识。',
+    // title: '规则库',
+    // description: '对接 demo 中的规则目录、全文和章节查询接口，按范围浏览规则知识。',
     endpoints: ['/api/rule-kb/catalog', '/api/rule-kb/source', '/api/rule-kb/chapter']
   },
   instructions: {
@@ -425,22 +425,22 @@ async function loadBadcases() {
   listRows.value = items
   summaryTags.value = []
   summaryCards.value = [
-    { label: '总数', value: payload.count ?? items.length, tone: 'brand' },
-    {
-      label: '待处理',
-      value: items.filter((item) => (item.status || 'open') === 'open').length,
-      tone: 'warning'
-    },
-    {
-      label: '已分诊',
-      value: items.filter((item) => item.status === 'triaged').length,
-      tone: 'soft'
-    },
-    {
-      label: '已修复',
-      value: items.filter((item) => item.status === 'fixed').length,
-      tone: 'success'
-    }
+    // { label: '总数', value: payload.count ?? items.length, tone: 'brand' },
+    // {
+    //   label: '待处理',
+    //   value: items.filter((item) => (item.status || 'open') === 'open').length,
+    //   tone: 'warning'
+    // },
+    // {
+    //   label: '已分诊',
+    //   value: items.filter((item) => item.status === 'triaged').length,
+    //   tone: 'soft'
+    // },
+    // {
+    //   label: '已修复',
+    //   value: items.filter((item) => item.status === 'fixed').length,
+    //   tone: 'success'
+    // }
   ]
 }
 
@@ -475,10 +475,10 @@ async function loadObservability() {
   listRows.value = items
   summaryTags.value = []
   summaryCards.value = [
-    { label: '日志条数', value: items.length, tone: 'brand' },
-    { label: '消息总数', value: totalMessages, tone: 'soft' },
-    { label: '召回片段', value: totalEvidence, tone: 'success' },
-    { label: '合规记录', value: totalModeration + totalReasoning, tone: 'warning' }
+    // { label: '日志条数', value: items.length, tone: 'brand' },
+    // { label: '消息总数', value: totalMessages, tone: 'soft' },
+    // { label: '召回片段', value: totalEvidence, tone: 'success' },
+    // { label: '合规记录', value: totalModeration + totalReasoning, tone: 'warning' }
   ]
 }
 
@@ -494,21 +494,21 @@ async function loadRegressionSuite() {
   const primaryCauseCounts = payload.summary?.primary_cause_counts || {}
 
   listRows.value = items
-  summaryTags.value = Object.entries(primaryCauseCounts).map(([name, count]) => ({
-    label: `${name} × ${count}`
-  }))
+  // summaryTags.value = Object.entries(primaryCauseCounts).map(([name, count]) => ({
+  //   label: `${name} × ${count}`
+  // }))
   summaryCards.value = [
-    { label: '回归用例', value: items.length, tone: 'brand' },
-    {
-      label: '主因分类',
-      value: Object.keys(primaryCauseCounts).length,
-      tone: 'soft'
-    },
-    {
-      label: '默认智能体',
-      value: getAgentLabel(filters.regressionAgent),
-      tone: 'success'
-    }
+    // { label: '回归用例', value: items.length, tone: 'brand' },
+    // {
+    //   label: '主因分类',
+    //   value: Object.keys(primaryCauseCounts).length,
+    //   tone: 'soft'
+    // },
+    // {
+    //   label: '默认智能体',
+    //   value: getAgentLabel(filters.regressionAgent),
+    //   tone: 'success'
+    // }
   ]
 }
 
@@ -527,14 +527,14 @@ async function loadRepairQueue() {
   listRows.value = items
   summaryTags.value = []
   summaryCards.value = [
-    { label: '修复目标', value: payload.count ?? items.length, tone: 'brand' },
-    {
-      label: '覆盖 Badcase',
-      value: payload.covered_badcase_count ?? 0,
-      tone: 'soft'
-    },
-    { label: '待处理', value: openCount, tone: 'warning' },
-    { label: '已修复', value: fixedCount, tone: 'success' }
+    // { label: '修复目标', value: payload.count ?? items.length, tone: 'brand' },
+    // {
+    //   label: '覆盖 Badcase',
+    //   value: payload.covered_badcase_count ?? 0,
+    //   tone: 'soft'
+    // },
+    // { label: '待处理', value: openCount, tone: 'warning' },
+    // { label: '已修复', value: fixedCount, tone: 'success' }
   ]
 }
 
@@ -564,10 +564,10 @@ async function loadRuleLibrary() {
     label: scope
   }))
   summaryCards.value = [
-    { label: '可见范围', value: ruleVisibleScopes.value.length, tone: 'brand' },
-    { label: '规则来源', value: sourceCount, tone: 'soft' },
-    { label: '章节数量', value: chapterCount, tone: 'success' },
-    { label: '数据源', value: ruleSourceKind.value, tone: 'warning' }
+    // { label: '可见范围', value: ruleVisibleScopes.value.length, tone: 'brand' },
+    // { label: '规则来源', value: sourceCount, tone: 'soft' },
+    // { label: '章节数量', value: chapterCount, tone: 'success' },
+    // { label: '数据源', value: ruleSourceKind.value, tone: 'warning' }
   ]
 }
 </script>
@@ -581,12 +581,12 @@ async function loadRuleLibrary() {
       </div>
 
       <div v-if="endpointList.length" class="endpoint-group">
-        <span class="endpoint-caption">接口映射</span>
-        <div class="endpoint-list">
+        <!-- <span class="endpoint-caption">接口映射</span> -->
+        <!-- <div class="endpoint-list">
           <code v-for="endpoint in endpointList" :key="endpoint" class="endpoint-code">
             {{ endpoint }}
           </code>
-        </div>
+        </div> -->
       </div>
     </div>
 
