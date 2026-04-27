@@ -1093,7 +1093,7 @@ async function loadRuleLibrary() {
 </script>
 
 <template>
-  <section class="data-panel glass-card log-panel">
+  <section class="data-panel glass-card log-panel admin-scroll-panel">
     <div class="section-title page-head">
       <div>
         <h3 class="section-pill">{{ pageTitle }}</h3>
@@ -1233,10 +1233,11 @@ async function loadRuleLibrary() {
       </button>
     </div>
 
-    <div v-if="loading" class="empty-state">数据加载中...</div>
-    <div v-else-if="errorMessage" class="empty-state error-state">{{ errorMessage }}</div>
+    <div class="panel-scroll-region log-scroll-body">
+      <div v-if="loading" class="empty-state panel-empty-state">数据加载中...</div>
+      <div v-else-if="errorMessage" class="empty-state error-state panel-empty-state">{{ errorMessage }}</div>
 
-    <template v-else>
+      <template v-else>
       <div v-if="pageKey === 'instructions'" class="instruction-grid instruction-card">
         <article v-for="item in instructions" :key="item.title">
           <!-- <span class="section-pill">说明</span> -->
@@ -1311,7 +1312,7 @@ async function loadRuleLibrary() {
           </details>
         </div>
 
-        <div v-else class="empty-state">当前没有匹配到规则目录数据。</div>
+        <div v-else class="empty-state panel-empty-state">当前没有匹配到规则目录数据。</div>
       </div>
 
       <div v-else-if="listRows.length" class="log-list">
@@ -1600,8 +1601,9 @@ async function loadRuleLibrary() {
         </article>
       </div>
 
-      <div v-else class="empty-state">当前没有查询到对应数据。</div>
-    </template>
+        <div v-else class="empty-state panel-empty-state">当前没有查询到对应数据。</div>
+      </template>
+    </div>
 
     <Teleport to="body">
       <div v-if="detailVisible" class="modal-mask" @click.self="closeDetail">
@@ -1912,6 +1914,12 @@ async function loadRuleLibrary() {
   display: flex;
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
+}
+
+.log-scroll-body {
+  display: flex;
+  flex-direction: column;
+  gap: calc(14px * var(--ui-scale));
 }
 
 .page-head {

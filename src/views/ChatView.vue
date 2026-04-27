@@ -1,8 +1,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { api } from '../api/http'
 import { useSession, getToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
 import { VisitApi, RuleQaApi } from '../api'
+import { API_PATHS } from '../config/aiApi';
 
 const session = useSession()
 const loading = ref(false)

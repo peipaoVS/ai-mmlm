@@ -222,6 +222,35 @@ button {
   padding: clamp(1.125rem, 0.8rem + 0.9vw, 1.625rem);
 }
 
+.admin-scroll-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.admin-scroll-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-scroll-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+
+.panel-empty-state {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  place-items: center;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -313,6 +342,11 @@ button {
   color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(248, 250, 254, 0.96);
+  backdrop-filter: blur(12px);
 }
 
 .tag-list {
@@ -330,12 +364,29 @@ button {
 }
 
 .status-tag {
-  display: inline-flex;
+  /* display: inline-flex; */
   align-items: center;
-  padding: calc(5px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  /* padding: calc(5px * var(--ui-scale)) calc(10px * var(--ui-scale)); */
   border-radius: 999px;
   font-size: calc(12px * var(--ui-scale));
-  font-weight: 600;
+  /* font-weight: 600; */
+}
+.tag{
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 999px;
+  font-size: 11px;
+  margin: 2px 3px 2px 0;
+}
+.gray{
+  background: #f1f5f9;
+  color: #475569;
+}
+.orange{
+  background: #fed7aa;
+  color: #9a3412;
 }
 
 .status-tag.active {

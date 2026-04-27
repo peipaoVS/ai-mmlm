@@ -10,6 +10,7 @@ const session = useSession()
 
 const headerToolsRef = ref(null)
 const activeMenu = ref('')
+const constrainedRouteNames = new Set(['users', 'roles', 'posts', 'menus', 'companies'])
 
 const sectionOrder = ['ai', 'knowledge', 'logs', 'permission']
 const sectionTitles = {
@@ -88,6 +89,11 @@ const groupedMenus = computed(() =>
     .filter((group) => group.items.length)
 )
 
+const shouldConstrainContent = computed(() => {
+  const routeName = typeof route.name === 'string' ? route.name : ''
+  return routeName.startsWith('logs-') || constrainedRouteNames.has(routeName)
+})
+
 function isMenuActive(group) {
   return activeMenu.value === group.key || group.items.some((item) => route.path === item.path)
 }
@@ -133,8 +139,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
-    <main class="shell-main">
+  <div class="app-shell" :class="{ 'app-shell-constrained': shouldConstrainContent }">
+    <main class="shell-main" :class="{ 'shell-main-constrained': shouldConstrainContent }">
       <header class="shell-header glass-card">
         <div class="header-left">
           <h3>{{ currentSection }}</h3>
@@ -218,7 +224,10 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <section class="shell-content">
+      <section
+        class="shell-content"
+        :class="{ 'shell-content-constrained': shouldConstrainContent }"
+      >
         <router-view />
       </section>
     </main>
@@ -231,10 +240,20 @@ onBeforeUnmount(() => {
   padding: clamp(0.875rem, 0.5rem + 1vw, 1.375rem);
 }
 
+.app-shell-constrained {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .shell-main {
   display: flex;
   flex-direction: column;
   gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
+}
+
+.shell-main-constrained {
+  height: 100%;
+  min-height: 0;
 }
 
 .shell-header {
@@ -474,6 +493,14 @@ onBeforeUnmount(() => {
   min-width: 0;
   position: relative;
   z-index: 1;
+}
+
+.shell-content-constrained {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 1080px) {
