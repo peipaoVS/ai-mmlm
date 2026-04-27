@@ -13,6 +13,7 @@ const visitTaskPayload  = ref([])
 const recentSessions = ref([])
 const visitThreadId = ref('')
 const ruleThreadId = ref('')
+const thread = ref('')
 
 function genThreadId(prefix) {
   const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -183,7 +184,7 @@ async function sendMessage(preset) {
             agent: 'visit_assistant_agent',
           },
           messages: [
-            { id: "m1", role: "user", content: content }
+            { id: "m1", thread_id: thread.value || '', role: "user", content: content }
           ],
           tools: [],
           context: [],
@@ -225,7 +226,7 @@ async function sendMessage(preset) {
           action: "parse",
           task_payload: {},
         },
-        messages: [{ id: "m1", role: "user", content: content }],
+        messages: [{ id: "m1", thread_id: thread.value || '', role: "user", content: content }],
         tools: [],
         context: [],
         forwardedProps: {},
@@ -280,12 +281,18 @@ function startFreshConversation() {
   scrollMessagesToBottom()
 }
 
-function switchSession(item) {
+async function switchSession(item) {
+  console.log('切换会话:', item)
+  thread.value = item.thread_id
+  const response = await api.get(API_PATHS.SESSION.LIST + "?thread_id=" + item.thread_id)
+  console.log('获取会话详情接口返回的数据:', response)
+
+
   activeSessionId.value = item.id
   conversationTitle.value = item.title
   selectedModel.value = item.model || defaultModelLabel
   modelMenuVisible.value = false
-  messages.value = cloneMessages(item.messages)
+  messages.value = cloneMessages(response.messages || [])
   scrollMessagesToBottom()
 }
 
@@ -448,6 +455,20 @@ async function exportTask(task) {
     alert('导出失败: ' + error.message);
   }
 }
+function getTaskStatusText(status) {
+  const statusMap = {
+    'pending': '待处理',
+    'ready': '就绪',
+    'timeout': '超时',
+    'preparing': '准备中',
+    'prepare_failed': '报告生成失败',
+    'done': '已推送',
+    'send_failed': '推送失败',
+    'cancelled': '已取消',
+  }
+  return statusMap[status] || status || '未知'
+}
+
 function formatRuleQaResponse(data) {
   let md = ''
   // 标题
@@ -683,7 +704,7 @@ async function handleCancel(message) {
             <div @click="yopfnsjnf(task)">
               <div class="task-head">
                 <strong>{{ task.title }}</strong>
-                <span class="task-status">{{ task.status }}</span>
+                <span class="task-status">{{ getTaskStatusText(task.status) }}</span>
               </div>
               <p class="task-meta">{{ task.visit_time }}</p>
               <!-- <p class="task-meta">{{ task.remark || '接口占位任务' }}</p> -->
@@ -823,7 +844,7 @@ async function handleCancel(message) {
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(249, 241, 230, 0.92), rgba(255, 255, 255, 0.84));
 }
@@ -974,7 +995,7 @@ async function handleCancel(message) {
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(circle at top right, rgba(255, 225, 194, 0.56), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 254, 0.88));
