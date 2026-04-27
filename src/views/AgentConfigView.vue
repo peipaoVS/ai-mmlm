@@ -365,12 +365,12 @@ async function removeRow(row) {
 <template>
   <div>
     <section class="data-panel glass-card agent-panel">
-      <div class="section-title">
+      <!-- <div class="section-title">
         <div>
-          <h2>智能体模块配置</h2>
+          <h2>智能体平台</h2>
           <p>按卡片展示智能体模块，每行 4 个模块，仅展示模型名称、供应商和绑定角色。</p>
         </div>
-      </div>
+      </div> -->
 
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索模块名称 / 供应商 / 角色" />

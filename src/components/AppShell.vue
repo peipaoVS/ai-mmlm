@@ -21,7 +21,7 @@ const sectionTitles = {
 
 const legacyMenus = [
   { name: 'AI工作台', section: 'ai', path: '/chat', sortOrder: 10 },
-  { name: '智能体配置', section: 'ai', path: '/agents', sortOrder: 20 },
+  { name: '智能体', section: 'ai', path: '/agents', sortOrder: 20 },
   { name: '产品库', section: 'knowledge', path: '/knowledge/products', sortOrder: 10 },
   { name: '企业画像', section: 'knowledge', path: '/knowledge/portraits', sortOrder: 20 },
   { name: '行业动态', section: 'knowledge', path: '/knowledge/trends', sortOrder: 30 },

@@ -189,7 +189,7 @@ async function handleLogin() {
         <span class="eyebrow warm">AI Workspace</span>
         <h2>统一接入大模型能力的业务工作台</h2>
         <p>
-          登录后进入模型问答、智能体配置与角色绑定能力，前台保持轻量，入口更加聚焦。
+          登录后进入模型问答、智能体与角色绑定能力，前台保持轻量，入口更加聚焦。
         </p>
 
         <div class="login-intro-tags">
