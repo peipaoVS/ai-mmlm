@@ -191,7 +191,7 @@ async function removeRow(row) {
 </script>
 
 <template>
-  <div>
+  <div class="admin-scroll-page">
     <div class="stats-grid">
       <article class="stats-card">
         <span>用户总数</span>
@@ -207,7 +207,7 @@ async function removeRow(row) {
       </article>
     </div>
 
-    <section class="data-panel glass-card">
+    <section class="data-panel glass-card admin-scroll-panel">
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索用户名 / 姓名 / 手机 / 邮箱" />
         <AppSelect v-model="filters.status" :options="filterStatusOptions" placeholder="全部状态" />
@@ -226,9 +226,9 @@ async function removeRow(row) {
         <button class="pill-button" @click="openCreate">新增</button>
       </div>
 
-      <div v-if="loading" class="empty-state">数据加载中...</div>
+      <div v-if="loading" class="empty-state panel-empty-state">数据加载中...</div>
 
-      <div v-else-if="rows.length" class="table-wrap">
+      <div v-else-if="rows.length" class="table-wrap panel-scroll-region">
         <table class="data-table">
           <thead>
             <tr>
@@ -285,7 +285,7 @@ async function removeRow(row) {
         </table>
       </div>
 
-      <div v-else class="empty-state">暂无用户数据。</div>
+      <div v-else class="empty-state panel-empty-state">暂无用户数据。</div>
     </section>
 
     <Teleport to="body">

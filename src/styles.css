@@ -222,6 +222,35 @@ button {
   padding: clamp(1.125rem, 0.8rem + 0.9vw, 1.625rem);
 }
 
+.admin-scroll-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.admin-scroll-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel-scroll-region {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+
+.panel-empty-state {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  place-items: center;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
@@ -313,6 +342,11 @@ button {
   color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: rgba(248, 250, 254, 0.96);
+  backdrop-filter: blur(12px);
 }
 
 .tag-list {

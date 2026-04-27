@@ -350,7 +350,7 @@ async function submitForm() {
 }
 
 async function removeRow(row) {
-  if (!window.confirm(`确认删除智能体模块“${row.name}”吗？`)) {
+  if (!window.confirm(`确认删除大模型“${row.name}”吗？`)) {
     return
   }
   try {
@@ -368,7 +368,7 @@ async function removeRow(row) {
       <!-- <div class="section-title">
         <div>
           <h2>智能体平台</h2>
-          <p>按卡片展示智能体模块，每行 4 个模块，仅展示模型名称、供应商和绑定角色。</p>
+          <p>按卡片展示大模型，每行 4 个模块，仅展示模型名称、供应商和绑定角色。</p>
         </div>
       </div> -->
 
@@ -382,7 +382,7 @@ async function removeRow(row) {
         <button class="pill-button secondary" @click="loadAll">查询</button>
         <button class="pill-button ghost" @click="resetFilters">重置</button>
         <span class="toolbar-spacer"></span>
-        <button class="pill-button" @click="openCreate">添加模块</button>
+        <button class="pill-button" @click="openCreate">添加大模型</button>
       </div>
 
       <div v-if="loading" class="empty-state">数据加载中...</div>
@@ -430,7 +430,7 @@ async function removeRow(row) {
         </article>
       </div>
 
-      <div v-else class="empty-state">暂无智能体模块数据</div>
+      <div v-else class="empty-state">暂无大模型数据</div>
     </section>
 
     <Teleport to="body">
@@ -438,9 +438,9 @@ async function removeRow(row) {
         <div class="modal-panel glass-card agent-modal-panel">
           <div class="modal-header">
             <div>
-              <h3 style="margin: 0">{{ editingId ? '编辑智能体模块' : '新增智能体模块' }}</h3>
+              <h3 style="margin: 0">{{ editingId ? '编辑大模型' : '新增大模型' }}</h3>
               <p class="modal-subtext">
-                每个智能体模块至少绑定一个角色，可以绑定单个角色，也可以绑定多个角色。
+                每个大模型至少绑定一个角色，可以绑定单个角色，也可以绑定多个角色。
               </p>
             </div>
             <button class="pill-button ghost" @click="dialogVisible = false">关闭</button>
