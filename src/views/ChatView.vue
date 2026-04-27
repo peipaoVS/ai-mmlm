@@ -193,13 +193,61 @@ async function sendMessage(preset) {
           additionalProp1: {}
       })
 
-      let jsonContent = ''
-      for await (const eventData of stream) {
-        // 收集 TEXT_MESSAGE_CONTENT 的内容
-        if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
-          jsonContent += eventData.delta
-        }
-      }
+      // let jsonContent = ''
+      // for await (const eventData of stream) {
+      //   // 收集 TEXT_MESSAGE_CONTENT 的内容
+      //   if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
+      //     jsonContent += eventData.delta
+      //   }
+      // }
+      async function switchSession(item) {
+  // item 来自 recentSessions（后端 conversation_messages 一行行的 user 消息），
+  // 关键字段是 item.thread_id —— 之前的版本忽略了它，导致：
+  //   1) 点进历史会话后并没有把 thread_id 恢复到 visitThreadId/ruleThreadId
+  //   2) 用户继续追问时 ensureVisitThreadId() 仍用旧值或新生成一个 UUID
+  //   3) 新消息被写到另一个 thread，回到这个历史会话就看不见刚才的追问了
+  //
+  // 修复：把后端 thread_id 恢复到对应 ref，并按 thread_id 重新拉一次完整时间
+  // 线（包含 parse + confirm + detail + regenerate 全部 turn），避免只显示
+  // 单条 user 消息。
+  console.log('切换会话:', item)
+  thread.value = item.thread_id || ''
+  activeSessionId.value = item.id
+  conversationTitle.value = item.title || item.content || '历史会话'
+  selectedModel.value = item.model || defaultModelLabel
+  modelMenuVisible.value = false
+  
+  const threadId = item.thread_id || item.threadId || ''
+  if (threadId) {
+    if (selectedModel.value === '规则答疑') {
+      ruleThreadId.value = threadId
+    } else {
+      visitThreadId.value = threadId
+    }
+    try {
+      const resp = await VisitApi.listHistory({ thread_id: threadId, limit: 200 })
+      const all = Array.isArray(resp?.messages) ? resp.messages : []
+      // 后端按 created_at ASC 返回；前端只关心 role + content 字段。
+      // assistant 端的 JSON 卡片留给气泡渲染层自己 try-parse。
+      messages.value = all.map((m) => ({
+        role: m.role,
+        content: m.content,
+        // 给访客辅助的 assistant JSON 气泡用，触发卡片渲染
+        model: m.role === 'assistant' && m.agent_name === 'visit_assistant_agent'
+          ? '访客辅助'
+          : ''
+      }))
+    } catch (e) {
+      // 拉历史失败时退回老逻辑：仅展示当前选中那条
+      console.warn('switchSession 加载完整历史失败：', e)
+      messages.value = cloneMessages(item.messages || [{ role: item.role, content: item.content }])
+    }
+  } else {
+    messages.value = cloneMessages(item.messages || [{ role: item.role, content: item.content }])
+  }
+  scrollMessagesToBottom()
+}
+      
 
       // 尝试解析 JSON 并格式化为 Markdown
       try {
