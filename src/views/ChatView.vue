@@ -178,9 +178,10 @@ async function sendMessage(preset) {
           parentRunId: "",
           variant: 'both',
           state: {
-            branch: session.user?.postNames[0] || '南京分行',
+            // branch 取自用户的 AI 身份或分行，不要用岗位名(postNames)，
+            // 后端 rule-qa 会按此字段过滤分行规则库。省略将默认按用户权限查询。
             action: "query",
-            agent: 'visit_assistant_agent',
+            agent: 'rule_qa_agent',
           },
           messages: [
             { id: "m1", role: "user", content: content }
@@ -220,7 +221,6 @@ async function sendMessage(preset) {
         parentRunId: "",
         variant: 'both',
         state: {
-          branch: session.user?.postNames[0] || "南京分行",
           agent: "visit_assistant_agent",
           action: "parse",
           task_payload: {},
@@ -364,13 +364,21 @@ function editTask(task) {
     updateTask({ ...task, title: newTitle.trim() })
   }
 }
-async function yopfnsjnf(task) {
+// 点击待办任务卡片时，查询并显示该任务对应的访前报告内容。
+// 注意：task.id 是 scheduled_tasks.id，而报告接口需要的是 report_id，
+// 两者不同；应该优先用 task.prepared_report_id。
+async function viewTaskReport(task) {
+  const reportId = task.prepared_report_id || task.report_id || task.id
+  if (!reportId) {
+    window.alert('该任务尚未生成报告。')
+    return
+  }
   const assistantMessage = { role: 'assistant', content: '正在查询报告...', model: '' }
   messages.value.push(assistantMessage)
   await scrollMessagesToBottom()
-  
+
   try {
-    const response = await api.get(API_PATHS.SESSION.QUERYREPORTS + task.id)
+    const response = await api.get(API_PATHS.SESSION.QUERYREPORTS + reportId)
     console.log('查询报告接口返回的数据：', response)
     const data = response || {}
     const index = messages.value.indexOf(assistantMessage)
@@ -591,21 +599,39 @@ async function handleConfirm(message) {
     forwardedProps: {},
     additionalProp1: {}
   })
-  let jsonContent = ''
+  // 后端 confirm 可能发 1~2 条独立 text message（JSON 主报告 + 可选的定时任务警告），
+  // 必须按 messageId 分组，否则拼起来 JSON.parse 会失败。
+  const messageBuckets = new Map() // messageId -> delta 累积字符串
+  const messageOrder = []          // 保留到达顺序
   for await (const eventData of stream) {
-    // 收集 TEXT_MESSAGE_CONTENT 的内容
     if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
-      jsonContent += eventData.delta
+      const mid = eventData.messageId || '__default__'
+      if (!messageBuckets.has(mid)) {
+        messageBuckets.set(mid, '')
+        messageOrder.push(mid)
+      }
+      messageBuckets.set(mid, messageBuckets.get(mid) + eventData.delta)
     }
   }
-  // 尝试解析 JSON 并格式化为 Markdown
+
+  // 第一条 = 主报告 JSON；后续（如存在）= 定时任务警告或其他附加消息
+  const [mainId, ...extraIds] = messageOrder
+  const mainContent = mainId ? messageBuckets.get(mainId) : ''
   try {
-    const data = JSON.parse(jsonContent)
+    const data = JSON.parse(mainContent)
     assistantMessage.content = formatToFriendlyMarkdown(data)
   } catch (e) {
-    // 如果不是 JSON，直接显示原始内容
-    assistantMessage.content = jsonContent
+    assistantMessage.content = mainContent
   }
+
+  // 把额外消息（警告）作为独立气泡追加显示，方便用户看到"为什么没生成定时任务"
+  for (const extraId of extraIds) {
+    const warnText = messageBuckets.get(extraId)
+    if (warnText && warnText.trim()) {
+      messages.value.push({ role: 'assistant', content: warnText, model: '' })
+    }
+  }
+
   loadTaskJobs()
   loading.value = false
   await scrollMessagesToBottom()
@@ -680,7 +706,7 @@ async function handleCancel(message) {
 
         <div v-if="taskJobs.length" class="task-list">
           <article v-for="task in visibleTaskJobs" :key="task.id" class="task-card">
-            <div @click="yopfnsjnf(task)">
+            <div class="task-card-body" @click="viewTaskReport(task)">
               <div class="task-head">
                 <strong>{{ task.title }}</strong>
                 <span class="task-status">{{ task.status }}</span>
@@ -688,9 +714,10 @@ async function handleCancel(message) {
               <p class="task-meta">{{ task.visit_time }}</p>
               <!-- <p class="task-meta">{{ task.remark || '接口占位任务' }}</p> -->
               <div class="task-actions">
-                <button type="button" class="tiny-button" @click="editTask(task)">编辑</button>
-                <button type="button" class="tiny-button danger" @click="deleteTask(task)">删除</button>
-                <button type="button" class="tiny-button" @click="exportTask(task)">导出</button>
+                <!-- @click.stop 阻止按钮点击冒泡到外层 viewTaskReport，避免误触 -->
+                <button type="button" class="tiny-button" @click.stop="editTask(task)">编辑</button>
+                <button type="button" class="tiny-button danger" @click.stop="deleteTask(task)">删除</button>
+                <button type="button" class="tiny-button" @click.stop="exportTask(task)">导出</button>
               </div>
             </div>
           </article>
