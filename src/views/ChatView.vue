@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
 
 const session = useSession()
@@ -115,12 +115,22 @@ const visibleTaskJobs = computed(() =>
   showAllTasks.value ? taskJobs.value : taskJobs.value.slice(0, 2)
 )
 
+// ---- 访前报告列表（侧栏第三块）----
+const reportList = ref([])
+const reportLoading = ref(false)
+const reportCompanyFilter = ref('')
+const showAllReports = ref(false)
+const visibleReports = computed(() =>
+  showAllReports.value ? reportList.value : reportList.value.slice(0, 2)
+)
+
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 
 onMounted(() => {
   startFreshConversation()
   startFreshConver()
   loadTaskJobs()
+  loadReports()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -454,12 +464,342 @@ async function scrollMessagesToBottom() {
   }
 }
 
-function editTask(task) {
-  const newTitle = window.prompt('请输入新的任务标题', task.title)
-  if (newTitle && newTitle.trim() !== task.title) {
-    updateTask({ ...task, title: newTitle.trim() })
+// ---- 待办事项·修改任务弹窗 ----
+const taskEditDialog = ref(false)
+const taskEditSubmitting = ref(false)
+const taskEditingId = ref(null)
+const taskEditOriginal = ref(null)
+const taskEditForm = ref({
+  company_name: '',
+  visit_time: '',
+  trigger_time: '',
+  title: '',
+  description: '',
+  dry_run: false
+})
+
+// ---- 待办事项·修改记录弹窗 ----
+const taskRevisionsDialog = ref(false)
+const taskRevisionsLoading = ref(false)
+const taskRevisionsTaskId = ref(null)
+const taskRevisions = ref([])
+
+const TASK_TYPE_LABEL = {
+  visit_report: '拜访报告',
+  follow_up: '跟进提醒'
+}
+
+function taskTypeLabel(type) {
+  return TASK_TYPE_LABEL[type] || type || ''
+}
+
+// 状态徽章配色：把后端枚举映射到 .task-pill--xxx 样式类
+function taskStatusVariant(status) {
+  switch (status) {
+    case 'ready':
+    case 'done':
+      return 'task-pill--ok'
+    case 'preparing':
+      return 'task-pill--info'
+    case 'prepare_failed':
+    case 'send_failed':
+    case 'timeout':
+      return 'task-pill--danger'
+    case 'cancelled':
+      return 'task-pill--muted'
+    default:
+      return 'task-pill--pending'
   }
 }
+
+// 后端 "YYYY-MM-DD HH:MM:SS" → <input type="datetime-local"> 需要的 "YYYY-MM-DDTHH:MM"
+function toLocalDatetime(value) {
+  const s = String(value || '').trim()
+  if (!s) return ''
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::\d{2})?/)
+  return m ? `${m[1]}T${m[2]}` : ''
+}
+
+// datetime-local → 后端规范 "YYYY-MM-DD HH:MM:00"
+function fromLocalDatetime(value) {
+  const s = String(value || '').trim()
+  if (!s) return ''
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::(\d{2}))?$/)
+  if (!m) return s
+  return `${m[1]} ${m[2]}:${m[3] || '00'}`
+}
+
+function editTask(task) {
+  taskEditingId.value = task.id
+  taskEditOriginal.value = task
+  taskEditForm.value = {
+    company_name: task.company_name || '',
+    visit_time: toLocalDatetime(task.visit_time),
+    trigger_time: toLocalDatetime(task.trigger_time),
+    title: task.title || '',
+    description: '',
+    dry_run: false
+  }
+  taskEditDialog.value = true
+}
+
+function closeTaskEditor() {
+  taskEditDialog.value = false
+  taskEditingId.value = null
+  taskEditOriginal.value = null
+}
+
+async function submitTaskEdit() {
+  if (!taskEditingId.value) return
+  const t = taskEditOriginal.value || {}
+  const form = taskEditForm.value
+  const desc = (form.description || '').trim()
+  const company = (form.company_name || '').trim()
+  const title = (form.title || '').trim()
+  const visitTime = fromLocalDatetime(form.visit_time)
+  const triggerTime = fromLocalDatetime(form.trigger_time)
+
+  // 仅发送真正改变的字段，未填字段保持原值（与 demo.html 一致）
+  const body = { dry_run: !!form.dry_run, regenerate_report: true }
+  if (desc) body.description = desc
+  if (company && company !== (t.company_name || '')) body.company_name = company
+  if (visitTime && visitTime !== (t.visit_time || '')) body.visit_time = visitTime
+  if (triggerTime && triggerTime !== (t.trigger_time || '')) body.trigger_time = triggerTime
+  if (title && title !== (t.title || '')) body.title = title
+
+  if (!desc && !body.company_name && !body.visit_time && !body.trigger_time && !body.title) {
+    window.alert('请至少修改一个字段，或填写修改描述。')
+    return
+  }
+
+  taskEditSubmitting.value = true
+  try {
+    await VisitApi.reviseTask(taskEditingId.value, body)
+    if (form.dry_run) {
+      window.alert(`任务 #${taskEditingId.value} 仅预览（dry_run）成功，未真正修改。`)
+    } else {
+      window.alert(`任务 #${taskEditingId.value} 修改成功，新报告将在后台重新生成。`)
+    }
+    closeTaskEditor()
+    await loadTaskJobs()
+  } catch (error) {
+    window.alert('修改失败：' + error.message)
+  } finally {
+    taskEditSubmitting.value = false
+  }
+}
+
+async function openTaskRevisions(task) {
+  taskRevisionsTaskId.value = task.id
+  taskRevisionsDialog.value = true
+  taskRevisionsLoading.value = true
+  taskRevisions.value = []
+  try {
+    const resp = await VisitApi.listTaskRevisions(task.id, { limit: 50 })
+    taskRevisions.value = resp?.logs || []
+  } catch (error) {
+    window.alert('加载修改记录失败：' + error.message)
+  } finally {
+    taskRevisionsLoading.value = false
+  }
+}
+
+function closeTaskRevisions() {
+  taskRevisionsDialog.value = false
+  taskRevisionsTaskId.value = null
+  taskRevisions.value = []
+}
+
+/* =================================================================
+   访前报告 · 列表 / 详情 / 历史 / 下载 / 改写 / 访后纪要 / 删除
+   ================================================================= */
+
+// 报告详情弹窗
+const reportDetailDialog = ref(false)
+const reportDetailLoading = ref(false)
+const reportDetail = ref(null)
+
+// 报告版本历史弹窗
+const reportHistoryDialog = ref(false)
+const reportHistoryLoading = ref(false)
+const reportHistoryReportId = ref(null)
+const reportHistoryLogs = ref([])
+
+// 访后纪要上传弹窗
+const postVisitDialog = ref(false)
+const postVisitSubmitting = ref(false)
+const postVisitReportId = ref(null)
+const postVisitCompany = ref('')
+const postVisitFile = ref(null)
+const postVisitSupplement = ref('')
+
+async function loadReports() {
+  reportLoading.value = true
+  try {
+    const params = {}
+    const filter = reportCompanyFilter.value.trim()
+    if (filter) params.company_name = filter
+    // 后端 /api/reports 直接返回数组
+    const resp = await ReportsApi.listReports(params)
+    reportList.value = Array.isArray(resp) ? resp : (resp?.reports || [])
+  } catch (error) {
+    reportList.value = []
+    window.alert('报告列表加载失败：' + error.message)
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+async function openReportDetail(report) {
+  reportDetailDialog.value = true
+  reportDetailLoading.value = true
+  reportDetail.value = null
+  try {
+    const resp = await VisitApi.getReport(report.id)
+    reportDetail.value = resp || null
+  } catch (error) {
+    window.alert('报告详情加载失败：' + error.message)
+    reportDetailDialog.value = false
+  } finally {
+    reportDetailLoading.value = false
+  }
+}
+
+function closeReportDetail() {
+  reportDetailDialog.value = false
+  reportDetail.value = null
+}
+
+async function openReportHistory(report) {
+  reportHistoryReportId.value = report.id
+  reportHistoryDialog.value = true
+  reportHistoryLoading.value = true
+  reportHistoryLogs.value = []
+  try {
+    const resp = await VisitApi.getReportHistory(report.id, { limit: 50 })
+    // 后端返回 { logs: [...] } 或直接数组，统一兜底
+    reportHistoryLogs.value = resp?.logs || resp?.history || resp || []
+    if (!Array.isArray(reportHistoryLogs.value)) {
+      reportHistoryLogs.value = []
+    }
+  } catch (error) {
+    window.alert('版本历史加载失败：' + error.message)
+  } finally {
+    reportHistoryLoading.value = false
+  }
+}
+
+function closeReportHistory() {
+  reportHistoryDialog.value = false
+  reportHistoryReportId.value = null
+  reportHistoryLogs.value = []
+}
+
+// 下载 .docx：和 exportTask 走相同路径，复用 buildDownloadUrl
+async function downloadReportFile(report, variant = 'both') {
+  const url = VisitApi.buildDownloadUrl(report.id, {
+    variant,
+    include_meta: true,
+    version: report.version || 0
+  })
+  try {
+    const token = getToken()
+    const resp = await fetch(url, {
+      method: 'GET',
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`)
+    }
+    const blob = await resp.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = `report_${report.id}_v${report.version || 1}_${variant}.docx`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(blobUrl)
+  } catch (error) {
+    window.alert('下载失败：' + error.message)
+  }
+}
+
+// 「改写」：把目标 report_id 预填到输入框，并切到「访客辅助」模式
+function useReportForRegenerate(report) {
+  selectedModel.value = '访客辅助'
+  inputValue.value = `请基于报告 #${report.id}（${report.company_name || report.visit_location || ''} v${report.version || 1}）改写：\n`
+  // 提示用户去补改写要求
+  window.alert(`已切换为「访客辅助」模式，并预填改写指令。\n请在输入框中补充具体改写要求后发送。`)
+}
+
+// 「访后纪要」：打开上传弹窗（粘贴拜访过程概要 / 可选附件，调后端 LLM 提炼）
+function openPostVisitUpload(report) {
+  postVisitReportId.value = report.id
+  postVisitCompany.value = report.company_name || report.visit_location || ''
+  postVisitFile.value = null
+  postVisitSupplement.value = ''
+  postVisitDialog.value = true
+}
+
+function closePostVisitUpload() {
+  postVisitDialog.value = false
+  postVisitReportId.value = null
+  postVisitCompany.value = ''
+  postVisitFile.value = null
+  postVisitSupplement.value = ''
+}
+
+function onPostVisitFileChange(event) {
+  const f = event?.target?.files?.[0] || null
+  postVisitFile.value = f
+}
+
+async function submitPostVisitUpload() {
+  if (!postVisitReportId.value) return
+  if (!postVisitFile.value) {
+    window.alert('请先选择拜访过程概要文件（.docx / .md / .txt）。')
+    return
+  }
+  postVisitSubmitting.value = true
+  try {
+    await ReportsApi.uploadPostVisitSummary(postVisitReportId.value, postVisitFile.value, {
+      supplement: postVisitSupplement.value.trim() || undefined
+    })
+    window.alert(`报告 #${postVisitReportId.value} 的访后纪要已生成。`)
+    closePostVisitUpload()
+  } catch (error) {
+    window.alert('生成访后纪要失败：' + error.message)
+  } finally {
+    postVisitSubmitting.value = false
+  }
+}
+
+async function removeReport(report) {
+  const label = `${report.company_name || report.visit_location || ''} #${report.id}`
+  if (!window.confirm(`确认删除报告「${label}」？此操作会一并删除所有版本，不可撤销。`)) {
+    return
+  }
+  try {
+    await ReportsApi.deleteReport(report.id)
+    window.alert('删除成功')
+    await loadReports()
+  } catch (error) {
+    window.alert('删除失败：' + error.message)
+  }
+}
+
+// 报告详情弹窗里展示的正文，优先完整版，其次精简版
+const reportDetailBody = computed(() => {
+  const r = reportDetail.value
+  if (!r) return ''
+  return (
+    r.full_report_content ||
+    r.report_content ||
+    r.brief_report_content ||
+    '（暂无报告正文）'
+  )
+})
 // 点击待办任务卡片时，查询并显示该任务对应的访前报告内容。
 // 注意：task.id 是 scheduled_tasks.id，而报告接口需要的是 report_id，
 // 两者不同；应该优先用 task.prepared_report_id。
@@ -490,27 +830,10 @@ async function viewTaskReport(task) {
   await scrollMessagesToBottom()
 }
 
-async function updateTask(task) {
-  try {
-    await VisitApi.reviseTask(task.id, {
-      task_id: task.id,
-      title: task.title,
-      dry_run: false,
-      regenerate_report: true,
-      before: {},
-      after: {},
-      parsed_patch: {},
-      deleted_old_report: {},
-      revision_log_id: 21
-    })
-    window.alert('更新成功')
-    loadTaskJobs()
-  } catch (error) {
-    window.alert('更新失败：' + error.message)
-  }
-}
-
 async function deleteTask(task) {
+  if (!window.confirm(`删除任务 #${task.id}「${task.title || task.company_name || ''}」？此操作不可撤销。`)) {
+    return
+  }
   try {
     await VisitApi.deleteTask(task.id)
     window.alert('删除成功')
@@ -817,24 +1140,137 @@ async function handleCancel(message) {
 
         <div v-if="taskJobs.length" class="task-list">
           <article v-for="task in visibleTaskJobs" :key="task.id" class="task-card">
-            <div class="task-card-body" @click="viewTaskReport(task)">
+            <div class="task-card-body">
+              <!-- 顶部 pill 行：状态 + 类型 + #ID + 标题 -->
               <div class="task-head">
-                <strong>{{ task.title }}</strong>
-                <span class="task-status">{{ getTaskStatusText(task.status) }}</span>
+                <span class="task-pill" :class="taskStatusVariant(task.status)">
+                  {{ getTaskStatusText(task.status) }}
+                </span>
+                <span v-if="task.task_type" class="task-pill task-pill--type">
+                  {{ taskTypeLabel(task.task_type) }}
+                </span>
+                <strong class="task-title">
+                  <span class="task-id">#{{ task.id }}</span>
+                  {{ task.title || task.company_name || '未命名任务' }}
+                </strong>
               </div>
-              <p class="task-meta">{{ task.visit_time }}</p>
-              <!-- <p class="task-meta">{{ task.remark || '接口占位任务' }}</p> -->
+
+              <!-- 元信息：公司 / 拜访时间 / 触发时间 / 报告编号 -->
+              <div class="task-meta-grid">
+                <span v-if="task.company_name">
+                  <em>公司：</em>{{ task.company_name }}
+                </span>
+                <span v-if="task.visit_time">
+                  <em>拜访：</em>{{ task.visit_time }}
+                </span>
+                <span v-if="task.trigger_time">
+                  <em>触发：</em>{{ task.trigger_time }}
+                </span>
+                <span v-if="task.prepared_report_id">
+                  <em>报告编号：</em>{{ task.prepared_report_id }}
+                </span>
+                <span v-if="task.last_error" class="task-meta-error">
+                  <em>错误：</em>{{ task.last_error }}
+                </span>
+              </div>
+
+              <!-- 操作按钮：查看报告 / 修改 / 删除 / 修改记录 / 导出 -->
               <div class="task-actions">
-                <!-- @click.stop 阻止按钮点击冒泡到外层 viewTaskReport，避免误触 -->
-                <button type="button" class="tiny-button" @click.stop="editTask(task)">编辑</button>
-                <button type="button" class="tiny-button danger" @click.stop="deleteTask(task)">删除</button>
-                <button type="button" class="tiny-button" @click.stop="exportTask(task)">导出</button>
+                <button type="button" class="tiny-button primary" @click.stop="viewTaskReport(task)">
+                  查看报告
+                </button>
+                <button type="button" class="tiny-button warn" @click.stop="editTask(task)">
+                  修改
+                </button>
+                <button type="button" class="tiny-button danger" @click.stop="deleteTask(task)">
+                  删除
+                </button>
+                <button type="button" class="tiny-button" @click.stop="openTaskRevisions(task)">
+                  修改记录
+                </button>
+                <button type="button" class="tiny-button" @click.stop="exportTask(task)">
+                  导出
+                </button>
               </div>
             </div>
           </article>
         </div>
 
         <div v-else class="topic-empty">暂无定时任务。</div>
+      </section>
+
+      <!-- ============ 访前报告列表 ============ -->
+      <section class="side-section">
+        <div class="section-head">
+          <div class="section-head-main">
+            <span class="side-label">访前报告</span>
+            <button type="button" class="head-action-button" @click="loadReports" :disabled="reportLoading">
+              {{ reportLoading ? '加载中...' : '刷新' }}
+            </button>
+          </div>
+          <button
+            v-if="reportList.length > 2"
+            type="button"
+            class="toggle-button"
+            @click="showAllReports = !showAllReports"
+          >
+            {{ showAllReports ? '收起' : '打开' }}
+          </button>
+        </div>
+
+        <div class="report-filter-row">
+          <input
+            v-model="reportCompanyFilter"
+            type="text"
+            placeholder="按客户名过滤..."
+            @keyup.enter="loadReports"
+          />
+        </div>
+
+        <div v-if="reportList.length" class="task-list">
+          <article v-for="report in visibleReports" :key="report.id" class="task-card">
+            <div class="task-card-body">
+              <div class="task-head">
+                <strong class="task-title">
+                  <span class="task-id">#{{ report.id }}</span>
+                  {{ report.company_name || report.visit_location || '未命名报告' }}
+                </strong>
+                <span class="task-pill task-pill--type">v{{ report.version || 1 }}</span>
+              </div>
+
+              <div class="task-meta-grid">
+                <span v-if="report.visit_time"><em>拜访：</em>{{ report.visit_time }}</span>
+                <span v-if="report.report_send_time"><em>推送：</em>{{ report.report_send_time }}</span>
+                <span v-if="report.updated_at"><em>更新：</em>{{ report.updated_at }}</span>
+              </div>
+
+              <div class="task-actions">
+                <button type="button" class="tiny-button primary" @click.stop="openReportDetail(report)">
+                  详情
+                </button>
+                <button type="button" class="tiny-button" @click.stop="openReportHistory(report)">
+                  历史
+                </button>
+                <button type="button" class="tiny-button" @click.stop="downloadReportFile(report, 'both')">
+                  下载
+                </button>
+                <button type="button" class="tiny-button warn" @click.stop="useReportForRegenerate(report)">
+                  改写
+                </button>
+                <button type="button" class="tiny-button" @click.stop="openPostVisitUpload(report)">
+                  访后纪要
+                </button>
+                <button type="button" class="tiny-button danger" @click.stop="removeReport(report)">
+                  删除
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="topic-empty">
+          {{ reportLoading ? '加载中...' : '暂无报告。生成的访前报告会出现在这里。' }}
+        </div>
       </section>
     </aside>
 
@@ -937,13 +1373,256 @@ async function handleCancel(message) {
         </div>
       </form>
     </section>
+
+    <!-- ========== 修改任务弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="taskEditDialog"
+        class="task-modal-mask"
+        @click.self="closeTaskEditor"
+      >
+        <div class="task-modal glass-card">
+          <header class="task-modal-head">
+            <h3>修改任务 <span class="task-id">#{{ taskEditingId }}</span></h3>
+            <button type="button" class="tiny-button" @click="closeTaskEditor">关闭</button>
+          </header>
+
+          <div class="task-modal-body">
+            <label class="task-field">
+              <span>公司名称</span>
+              <input v-model="taskEditForm.company_name" type="text" />
+            </label>
+            <label class="task-field">
+              <span>标题</span>
+              <input v-model="taskEditForm.title" type="text" />
+            </label>
+            <label class="task-field">
+              <span>拜访时间 (visit_time)</span>
+              <input v-model="taskEditForm.visit_time" type="datetime-local" step="60" />
+            </label>
+            <label class="task-field">
+              <span>推送时间 (trigger_time，须早于拜访时间)</span>
+              <input v-model="taskEditForm.trigger_time" type="datetime-local" step="60" />
+            </label>
+            <label class="task-field full">
+              <span>修改描述（可选）</span>
+              <textarea
+                v-model="taskEditForm.description"
+                rows="3"
+                placeholder="例如：备注改为第二季度回访"
+              ></textarea>
+            </label>
+            <label class="task-field full task-field-inline">
+              <input v-model="taskEditForm.dry_run" type="checkbox" />
+              <span>仅预览（dry_run），不实际写入</span>
+            </label>
+            <p class="task-modal-hint">
+              修改后会重新生成新报告，旧报告会归档保留，可在报告查询面板查看历史版本。
+            </p>
+          </div>
+
+          <footer class="task-modal-foot">
+            <button type="button" class="tiny-button" @click="closeTaskEditor">取消</button>
+            <button
+              type="button"
+              class="tiny-button primary"
+              :disabled="taskEditSubmitting"
+              @click="submitTaskEdit"
+            >
+              {{ taskEditSubmitting ? '提交中...' : '提交' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ========== 报告详情弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="reportDetailDialog"
+        class="task-modal-mask"
+        @click.self="closeReportDetail"
+      >
+        <div class="task-modal task-modal--wide glass-card">
+          <header class="task-modal-head">
+            <h3>
+              报告
+              <span class="task-id">#{{ reportDetail?.report_id || reportDetail?.id }}</span>
+              <span v-if="reportDetail?.version" class="task-pill task-pill--type">v{{ reportDetail.version }}</span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closeReportDetail">关闭</button>
+          </header>
+
+          <div v-if="reportDetailLoading" class="task-revisions-empty">加载中...</div>
+          <template v-else-if="reportDetail">
+            <div class="report-detail-meta">
+              <span>客户：<strong>{{ reportDetail.payload?.visit_location || reportDetail.visit_location || '-' }}</strong></span>
+              <span>拜访：<strong>{{ reportDetail.payload?.visit_time || reportDetail.visit_time || '-' }}</strong></span>
+              <span>推送：<strong>{{ reportDetail.payload?.report_send_time || reportDetail.report_send_time || '-' }}</strong></span>
+              <span>更新：<strong>{{ reportDetail.updated_at || '-' }}</strong></span>
+            </div>
+            <div class="report-detail-body">
+              <pre>{{ reportDetailBody }}</pre>
+            </div>
+          </template>
+
+          <footer class="task-modal-foot">
+            <button
+              v-if="reportDetail"
+              type="button"
+              class="tiny-button"
+              @click="downloadReportFile(reportDetail, 'brief')"
+            >下载精简版</button>
+            <button
+              v-if="reportDetail"
+              type="button"
+              class="tiny-button primary"
+              @click="downloadReportFile(reportDetail, 'full')"
+            >下载完整版</button>
+            <button
+              v-if="reportDetail"
+              type="button"
+              class="tiny-button warn"
+              @click="useReportForRegenerate(reportDetail); closeReportDetail()"
+            >改写</button>
+            <button type="button" class="tiny-button" @click="closeReportDetail">关闭</button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ========== 报告版本历史弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="reportHistoryDialog"
+        class="task-modal-mask"
+        @click.self="closeReportHistory"
+      >
+        <div class="task-modal glass-card">
+          <header class="task-modal-head">
+            <h3>
+              报告 <span class="task-id">#{{ reportHistoryReportId }}</span> 版本历史
+              <span class="task-revisions-count">（{{ reportHistoryLogs.length }}）</span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closeReportHistory">关闭</button>
+          </header>
+
+          <div class="task-modal-body">
+            <div v-if="reportHistoryLoading" class="task-revisions-empty">加载中...</div>
+            <div v-else-if="!reportHistoryLogs.length" class="task-revisions-empty">暂无版本记录。</div>
+            <ul v-else class="task-revisions-list">
+              <li v-for="(log, idx) in reportHistoryLogs" :key="log.id || log.version || idx" class="task-revision">
+                <div class="task-revision-head">
+                  <strong>
+                    {{ log.version != null ? `v${log.version}` : `#${log.id || idx + 1}` }}
+                  </strong>
+                  <span v-if="log.action" class="task-pill task-pill--muted">{{ log.action }}</span>
+                  <span v-if="log.created_at || log.updated_at" class="task-revision-time">
+                    {{ log.created_at || log.updated_at }}
+                  </span>
+                </div>
+                <p v-if="log.description || log.summary || log.note" class="task-revision-desc">
+                  {{ log.description || log.summary || log.note }}
+                </p>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ========== 访后纪要上传弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="postVisitDialog"
+        class="task-modal-mask"
+        @click.self="closePostVisitUpload"
+      >
+        <div class="task-modal glass-card">
+          <header class="task-modal-head">
+            <h3>
+              访后纪要 · 报告
+              <span class="task-id">#{{ postVisitReportId }}</span>
+              <span v-if="postVisitCompany" class="task-pill task-pill--muted">{{ postVisitCompany }}</span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closePostVisitUpload">关闭</button>
+          </header>
+
+          <div class="task-modal-body">
+            <label class="task-field full">
+              <span>拜访过程概要文件 (.docx / .md / .txt) *</span>
+              <input type="file" accept=".docx,.md,.txt" @change="onPostVisitFileChange" />
+              <small v-if="postVisitFile" class="task-modal-hint">已选择：{{ postVisitFile.name }}</small>
+            </label>
+            <label class="task-field full">
+              <span>补充说明（可选）</span>
+              <textarea
+                v-model="postVisitSupplement"
+                rows="4"
+                placeholder="补充未在文件中的关键信息，如客户态度、新发现的需求等"
+              ></textarea>
+            </label>
+            <p class="task-modal-hint">
+              后端会调用 LLM 自动从文件中提炼访后要点、待办、下次拜访建议，并生成 .docx 纪要。
+            </p>
+          </div>
+
+          <footer class="task-modal-foot">
+            <button type="button" class="tiny-button" @click="closePostVisitUpload">取消</button>
+            <button
+              type="button"
+              class="tiny-button primary"
+              :disabled="postVisitSubmitting"
+              @click="submitPostVisitUpload"
+            >
+              {{ postVisitSubmitting ? '生成中...' : '生成访后纪要' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ========== 修改记录弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="taskRevisionsDialog"
+        class="task-modal-mask"
+        @click.self="closeTaskRevisions"
+      >
+        <div class="task-modal glass-card">
+          <header class="task-modal-head">
+            <h3>
+              任务 <span class="task-id">#{{ taskRevisionsTaskId }}</span> 修改记录
+              <span class="task-revisions-count">（{{ taskRevisions.length }}）</span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closeTaskRevisions">关闭</button>
+          </header>
+
+          <div class="task-modal-body">
+            <div v-if="taskRevisionsLoading" class="task-revisions-empty">加载中...</div>
+            <div v-else-if="!taskRevisions.length" class="task-revisions-empty">暂无修改记录。</div>
+            <ul v-else class="task-revisions-list">
+              <li v-for="log in taskRevisions" :key="log.id" class="task-revision">
+                <div class="task-revision-head">
+                  <strong>#{{ log.id }}</strong>
+                  <span v-if="log.status" class="task-pill task-pill--muted">{{ log.status }}</span>
+                  <span v-if="log.created_at" class="task-revision-time">{{ log.created_at }}</span>
+                </div>
+                <p v-if="log.description" class="task-revision-desc">{{ log.description }}</p>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 .chat-layout {
   display: grid;
-  grid-template-columns: clamp(16rem, 24vw, 20rem) minmax(0, 1fr);
+  /* 加宽侧栏，给"待办事项"卡片留更多展示空间（状态/类型 pill + 4 列元信息 + 5 个按钮） */
+  grid-template-columns: clamp(18rem, 28vw, 24rem) minmax(0, 1fr);
   gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
   align-items: stretch;
   min-height: calc(100dvh - 10.5rem);
@@ -1100,6 +1779,273 @@ async function handleCancel(message) {
   gap: calc(8px * var(--ui-scale));
   flex-wrap: wrap;
   margin-top: calc(14px * var(--ui-scale));
+}
+
+/* ================ 待办事项 · 卡片增强样式 ================ */
+.task-head {
+  flex-wrap: wrap;
+  row-gap: calc(6px * var(--ui-scale));
+}
+
+.task-title {
+  flex: 1 1 100%;
+  min-width: 0;
+  font-size: calc(14px * var(--ui-scale));
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(6px * var(--ui-scale));
+}
+
+.task-id {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: calc(12px * var(--ui-scale));
+}
+
+.task-pill {
+  padding: calc(3px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  border-radius: 999px;
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 700;
+  white-space: nowrap;
+  background: rgba(47, 131, 116, 0.18);
+  color: var(--brand-alt);
+}
+
+.task-pill--ok      { background: rgba(40, 160, 90, 0.16);  color: #1f7a4c; }
+.task-pill--info    { background: rgba(64, 130, 220, 0.16); color: #1d4fa3; }
+.task-pill--danger  { background: rgba(207, 76, 76, 0.16);  color: var(--danger, #b9322f); }
+.task-pill--muted   { background: rgba(27, 37, 54, 0.10);   color: var(--text-muted); }
+.task-pill--pending { background: rgba(245, 158, 11, 0.16); color: #b15a00; }
+.task-pill--type    { background: rgba(122, 96, 199, 0.14); color: #5b3da3; }
+
+.task-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: calc(4px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  margin: calc(10px * var(--ui-scale)) 0 0;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.task-meta-grid em {
+  font-style: normal;
+  color: var(--text-main);
+  margin-right: 2px;
+}
+
+.task-meta-error {
+  grid-column: 1 / -1;
+  color: var(--danger, #b9322f);
+}
+
+/* tiny-button 局部加多两种 variant；primary/warn 样式只在本组件生效 */
+.tiny-button.primary {
+  background: rgba(47, 131, 116, 0.18);
+  color: var(--brand-alt);
+}
+
+.tiny-button.warn {
+  background: rgba(245, 158, 11, 0.18);
+  color: #b15a00;
+}
+
+.tiny-button[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ================ 待办事项 · 弹窗 ================ */
+.task-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.task-modal {
+  width: min(560px, 100%);
+  max-height: 86vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 24px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.task-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-modal-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.task-revisions-count {
+  color: var(--text-muted);
+  font-weight: normal;
+  font-size: 13px;
+}
+
+.task-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.task-field > span {
+  color: var(--text-muted);
+}
+
+.task-field input,
+.task-field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(27, 37, 54, 0.12);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  color: var(--text-main);
+  box-sizing: border-box;
+}
+
+.task-field textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.task-field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-field-inline > span {
+  color: var(--text-main);
+}
+
+.task-modal-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.task-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.task-revisions-empty {
+  padding: 16px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.task-revisions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-revision {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(27, 37, 54, 0.04);
+}
+
+.task-revision-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.task-revision-time {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.task-revision-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+/* ================ 访前报告 · 列表 + 详情弹窗 ================ */
+.report-filter-row {
+  margin: calc(8px * var(--ui-scale)) 0 calc(2px * var(--ui-scale));
+}
+
+.report-filter-row input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(27, 37, 54, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  color: var(--text-main);
+  box-sizing: border-box;
+}
+
+.task-modal--wide {
+  width: min(820px, 100%);
+}
+
+.report-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.report-detail-meta strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.report-detail-body {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: rgba(27, 37, 54, 0.04);
+  border-radius: 12px;
+}
+
+.report-detail-body pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-main);
 }
 
 .capability-card ul {
