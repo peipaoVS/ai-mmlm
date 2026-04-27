@@ -6,7 +6,7 @@
  *   - 企业画像   /api/admin/enterprises
  *   - 行业动态   /api/admin/insights
  */
-import { api } from './_request'
+import { api, qs } from './_request'
 
 /* -------------------- 银行产品 -------------------- */
 
@@ -44,9 +44,12 @@ export function deleteProduct(productId) {
 
 /* -------------------- 企业画像 -------------------- */
 
-/** 列出企业画像 */
-export function listEnterprises() {
-  return api.get('/api/admin/enterprises')
+/**
+ * 列出企业画像。
+ * @param {{ include_inactive?: boolean }} [params]
+ */
+export function listEnterprises(params) {
+  return api.get(`/api/admin/enterprises${qs(params)}`)
 }
 
 /** 单个企业画像（按公司名） */
@@ -76,9 +79,12 @@ export function deleteEnterprise(companyName) {
 
 /* -------------------- 行业动态 -------------------- */
 
-/** 列出行业动态 */
-export function listInsights() {
-  return api.get('/api/admin/insights')
+/**
+ * 列出行业动态。
+ * @param {{ industry_code?: string, include_inactive?: boolean }} [params]
+ */
+export function listInsights(params) {
+  return api.get(`/api/admin/insights${qs(params)}`)
 }
 
 /** 单个行业动态 */
