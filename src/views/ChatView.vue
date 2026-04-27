@@ -329,12 +329,12 @@ function startFreshConversation() {
   scrollMessagesToBottom()
 }
 
-async function switchSession(item) {
-  console.log('切换会话:', item)
-  thread.value = item.thread_id
-  const response = await api.get(API_PATHS.SESSION.LIST + "?thread_id=" + item.thread_id)
-  console.log('获取会话详情接口返回的数据:', response)
-
+// async function switchSession(item) {
+//   console.log('切换会话:', item)
+//   thread.value = item.thread_id
+//   const response = await api.get(API_PATHS.SESSION.LIST + "?thread_id=" + item.thread_id)
+//   console.log('获取会话详情接口返回的数据:', response)
+// }
 
 async function switchSession(item) {
   // item 来自 recentSessions（后端 conversation_messages 一行行的 user 消息），
