@@ -307,6 +307,13 @@ async function handleLogin() {
 
 <style scoped>
 .login-page {
+  --login-card-bg: rgba(15, 23, 42, 0.62);
+  --login-card-bg-strong: rgba(15, 23, 42, 0.84);
+  --login-card-line: rgba(34, 211, 238, 0.18);
+  --login-card-glow: rgba(34, 211, 238, 0.16);
+  --login-text-main: #e5e7eb;
+  --login-text-muted: #94a3b8;
+  --login-input-bg: rgba(2, 6, 23, 0.34);
   min-height: 100vh;
   position: relative;
   display: grid;
@@ -424,13 +431,16 @@ async function handleLogin() {
   border-radius: calc(36px * var(--ui-scale));
   padding: clamp(1.25rem, 0.75rem + 1.6vw, 2.25rem);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(247, 250, 255, 0.68)),
-    rgba(255, 255, 255, 0.56);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.64)),
+    rgba(15, 23, 42, 0.56);
+  border: 1px solid var(--login-card-line);
   box-shadow:
-    0 28px 68px rgba(3, 10, 26, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(26px);
+    0 28px 68px rgba(3, 10, 26, 0.48),
+    0 0 28px rgba(34, 211, 238, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(26px) saturate(145%);
+  -webkit-backdrop-filter: blur(26px) saturate(145%);
 }
 
 .login-mark {
@@ -445,14 +455,14 @@ async function handleLogin() {
   text-align: center;
   font-size: calc(clamp(28px, 3vw, 40px) * var(--ui-scale));
   line-height: 1.1;
-  color: var(--text-main);
+  color: var(--login-text-main);
   letter-spacing: 0.04em;
 }
 
 .login-subtitle {
   margin: 0 0 calc(22px * var(--ui-scale));
   text-align: center;
-  color: var(--text-muted);
+  color: var(--login-text-muted);
 }
 
 .login-eyebrow {
@@ -549,13 +559,36 @@ async function handleLogin() {
 .login-form .field {
   grid-template-columns: 5rem minmax(0, 1fr);
   align-items: center;
+  background:
+    linear-gradient(180deg, rgba(15, 23, 42, 0.76), rgba(15, 23, 42, 0.58)),
+    rgba(2, 6, 23, 0.28);
+  border-color: rgba(148, 163, 184, 0.14);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 14px 30px rgba(2, 6, 23, 0.22);
+}
+
+.login-form .field > span {
+  color: var(--login-text-muted);
+}
+
+.login-form .field :deep(input) {
+  background: var(--login-input-bg);
+  color: var(--login-text-main);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.login-form .field :deep(input::placeholder) {
+  color: rgba(148, 163, 184, 0.72);
 }
 
 .login-hint {
   border-radius: calc(18px * var(--ui-scale));
   padding: calc(16px * var(--ui-scale));
-  background: rgba(29, 35, 52, 0.06);
-  color: var(--text-muted);
+  background: rgba(2, 6, 23, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  color: var(--login-text-muted);
   line-height: 1.7;
 }
 
@@ -576,6 +609,32 @@ async function handleLogin() {
   margin-top: calc(10px * var(--ui-scale));
   padding-top: calc(14px * var(--ui-scale));
   padding-bottom: calc(14px * var(--ui-scale));
+}
+
+.login-actions .submit-button:not(.ghost) {
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background:
+    linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.94)),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent);
+  color: #e6faff;
+  box-shadow:
+    0 14px 30px rgba(3, 10, 26, 0.42),
+    0 0 20px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.login-actions .submit-button:not(.ghost):hover {
+  border-color: rgba(34, 211, 238, 0.32);
+  box-shadow:
+    0 18px 36px rgba(3, 10, 26, 0.5),
+    0 0 26px rgba(34, 211, 238, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.login-actions .submit-button.ghost {
+  background: rgba(15, 23, 42, 0.48);
+  color: var(--login-text-main);
+  border: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .login-brand-marquee {
