@@ -292,6 +292,9 @@ export const api = {
   put(url, body) {
     return request(url, { method: 'PUT', body: JSON.stringify(body) })
   },
+  patch(url, body) {
+    return request(url, { method: 'PATCH', body: JSON.stringify(body) })
+  },
   delete(url) {
     return request(url, { method: 'DELETE' })
   },

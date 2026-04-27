@@ -1,8 +1,8 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { api } from '../api/http'
 import { useSession, getToken } from '../stores/session'
-import { API_PATHS } from '../config/aiApi';
+// 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
+import { VisitApi, RuleQaApi } from '../api'
 
 const session = useSession()
 const loading = ref(false)
@@ -48,7 +48,7 @@ const taskJobs = ref([
 async function startFreshConver() {
   loading.value = true
   try {
-    const response = await api.get(API_PATHS.SESSION.LIST)
+    const response = await VisitApi.listHistory()
     recentSessions.value = response.messages.filter(item => item.role === 'user')
   } finally {
     loading.value = false
@@ -58,7 +58,7 @@ async function startFreshConver() {
 async function loadTaskJobs() {
   loading.value = true
   try {
-    const response = await api.get(API_PATHS.SESSION.REDETAIL)
+    const response = await VisitApi.listTasks()
     taskJobs.value = response.tasks || []
     console.log('待办事项接口', response)
   } finally {
@@ -172,7 +172,7 @@ async function sendMessage(preset) {
     const assistantMessage = { role: 'assistant', content: '', model: currentModel }
     messages.value.push(assistantMessage)
     if(selectedModel.value === '规则答疑') {
-      const stream = api.stream(API_PATHS.SESSION.RULE_QA, {
+      const stream = RuleQaApi.ruleQaStream({
         threadId: ensureRuleThreadId(),
           runId: genRunId(),
           parentRunId: "",
@@ -215,7 +215,7 @@ async function sendMessage(preset) {
     }
     // 访客辅助
     else {
-      const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
+      const stream = VisitApi.startStream({
         threadId: ensureVisitThreadId(),
         runId: genRunId(),
         parentRunId: "",
@@ -378,7 +378,7 @@ async function viewTaskReport(task) {
   await scrollMessagesToBottom()
 
   try {
-    const response = await api.get(API_PATHS.SESSION.QUERYREPORTS + reportId)
+    const response = await VisitApi.getReport(reportId)
     console.log('查询报告接口返回的数据：', response)
     const data = response || {}
     const index = messages.value.indexOf(assistantMessage)
@@ -396,7 +396,7 @@ async function viewTaskReport(task) {
 
 async function updateTask(task) {
   try {
-    await api.post(`${API_PATHS.SESSION.ASSISYANT}${task.id}/revise`, {
+    await VisitApi.reviseTask(task.id, {
       task_id: task.id,
       title: task.title,
       dry_run: false,
@@ -416,7 +416,7 @@ async function updateTask(task) {
 
 async function deleteTask(task) {
   try {
-    await api.delete(`${API_PATHS.SESSION.DELETE}${task.id}`)
+    await VisitApi.deleteTask(task.id)
     window.alert('删除成功')
     loadTaskJobs()
   } catch (error) {
@@ -430,10 +430,11 @@ function importTask() {
 
 async function exportTask(task) {
   console.log('导出功能：', task.title)
-  const strtop = '/download?variant=full&include_meta=true&version=1';
+  // 下载需要手动带 Bearer（取 Word/blob，不能走 api.get 的 JSON parse）
+  const downloadUrl = VisitApi.buildDownloadUrl(task.id, { variant: 'full', include_meta: true, version: 1 })
   const token = getToken()
   try {
-    const response = await fetch(`${API_PATHS.SESSION.DOWNIOAD}${task.id}${strtop}`, {
+    const response = await fetch(downloadUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -583,7 +584,7 @@ async function handleConfirm(message) {
   const assistantMessage = { role: 'assistant', content: '', model: '' }
   messages.value.push(assistantMessage)
   console.log('确认拜访安排:', message)
-  const stream = api.stream(API_PATHS.SESSION.WEB_STREAM, {
+  const stream = VisitApi.startStream({
     threadId: ensureVisitThreadId(),
     runId: genRunId(),
     parentRunId: "",
