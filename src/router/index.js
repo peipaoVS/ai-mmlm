@@ -45,7 +45,7 @@ const routes = [
         name: 'agents',
         component: AgentConfigView,
         meta: {
-          title: '智能体配置'
+          title: '智能体'
         }
       },
       {
