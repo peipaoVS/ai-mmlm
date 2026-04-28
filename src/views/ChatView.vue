@@ -241,6 +241,7 @@ async function sendMessage(preset) {
         const data = JSON.parse(jsonContent)
         if (data.type === 'rule_qa_response') {
           assistantMessage.content = formatRuleQaResponse(data)
+          assistantMessage.rawPayload = data
         } else {
           assistantMessage.content = jsonContent
         }
@@ -282,6 +283,7 @@ async function sendMessage(preset) {
         visitTaskPayload .value = data
         console.log('访客辅助接口返回的完整数据:', visitTaskPayload.value)
         assistantMessage.content = formatToFriendlyMarkdown(data)
+        assistantMessage.rawPayload = data
       } catch (e) {
         // 如果不是 JSON，直接显示原始内容
         assistantMessage.content = jsonContent
@@ -337,9 +339,10 @@ async function switchSession(item) {
   // 更新当前会话状态
   activeSessionId.value = item.id
   conversationTitle.value = item.title || item.content || '历史会话'
-  selectedModel.value = item.model || defaultModelLabel
+  let nextModel = item.model || defaultModelLabel
   modelMenuVisible.value = false
-  messages.value = cloneMessages(response.messages || [])
+  let nextMessages = normalizeConversationMessages(response.messages || [])
+  nextModel = inferConversationModel(nextMessages, nextModel)
 
   // 根据模型类型恢复对应的 thread_id
   const threadId = item.thread_id || item.threadId || ''
@@ -364,16 +367,32 @@ async function switchSession(item) {
           ? '访客辅助'
           : ''
       }))
+      if (all.length) {
+        nextMessages = normalizeConversationMessages(all)
+        nextModel = inferConversationModel(nextMessages, nextModel)
+      }
     } catch (e) {
       // 拉历史失败时退回老逻辑：仅展示当前选中那条
       console.warn('加载完整历史失败：', e)
       messages.value = cloneMessages(item.messages || [{ role: item.role, content: item.content }])
+      nextMessages = normalizeConversationMessages(
+        item.messages || response.messages || [{ role: item.role, content: item.content, model: item.model || '' }]
+      )
+      nextModel = inferConversationModel(nextMessages, nextModel)
     }
   } else {
     // 无 thread_id 时仅展示当前消息
     messages.value = cloneMessages(item.messages || [{ role: item.role, content: item.content }])
+    nextMessages = normalizeConversationMessages(
+      item.messages || response.messages || [{ role: item.role, content: item.content, model: item.model || '' }]
+    )
+    nextModel = inferConversationModel(nextMessages, nextModel)
   }
   // 滚动到底部
+  selectedModel.value = nextModel
+  bindThreadToModel(threadId, nextModel)
+  syncVisitTaskPayloadFromMessages(nextMessages)
+  messages.value = nextMessages
   scrollMessagesToBottom()
 }
 
@@ -401,7 +420,9 @@ function getSessionPreview(source) {
 function cloneMessages(source) {
   return source.map((item) => ({
     role: item.role,
-    content: item.content
+    content: item.content,
+    ...(item.model ? { model: item.model } : {}),
+    ...(item.rawPayload ? { rawPayload: item.rawPayload } : {})
   }))
 }
 
@@ -1318,10 +1339,153 @@ function formatToFriendlyMarkdown(data) {
 }
 
 // 确认拜访安排
+function tryParseAssistantPayload(content) {
+  if (typeof content !== 'string') {
+    return null
+  }
+
+  const trimmed = content.trim()
+  if (!trimmed || (!trimmed.startsWith('{') && !trimmed.startsWith('['))) {
+    return null
+  }
+
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    return null
+  }
+}
+
+function isRuleQaPayload(data) {
+  return !!data
+    && typeof data === 'object'
+    && !Array.isArray(data)
+    && (
+      data.type === 'rule_qa_response'
+      || typeof data.answer_text === 'string'
+      || Array.isArray(data.reasoning_steps)
+      || typeof data.raw_final_answer === 'string'
+    )
+}
+
+function isVisitAssistantPayload(data) {
+  return !!data
+    && typeof data === 'object'
+    && !Array.isArray(data)
+    && (
+      typeof data.report_content === 'string'
+      || typeof data.full_report_content === 'string'
+      || typeof data.brief_report_content === 'string'
+      || Array.isArray(data.brief_sections)
+      || (Array.isArray(data.sections) && !isRuleQaPayload(data))
+      || [
+        'action',
+        'report_id',
+        'report_title',
+        'visit_time',
+        'visit_location',
+        'person',
+        'report_send_time',
+        'remark',
+        'generation_status',
+        'pending'
+      ].some((key) => data[key] !== undefined)
+    )
+}
+
+function shouldShowVisitActions(data) {
+  return isVisitAssistantPayload(data)
+    && !data.report_content
+    && !data.full_report_content
+    && !data.brief_report_content
+}
+
+function formatConversationMessage(message) {
+  const normalized = {
+    role: message?.role || '',
+    content: typeof message?.content === 'string' ? message.content : String(message?.content ?? ''),
+    ...(message?.model ? { model: message.model } : {})
+  }
+
+  if (normalized.role !== 'assistant') {
+    return normalized
+  }
+
+  const payload = tryParseAssistantPayload(normalized.content)
+  if (!payload) {
+    return normalized
+  }
+
+  if (message?.agent_name === 'visit_assistant_agent' || isVisitAssistantPayload(payload)) {
+    return {
+      ...normalized,
+      content: formatToFriendlyMarkdown(payload),
+      model: shouldShowVisitActions(payload) ? modelOptions[1].label : (normalized.model || ''),
+      rawPayload: payload
+    }
+  }
+
+  if (message?.agent_name === 'rule_qa_agent' || isRuleQaPayload(payload)) {
+    return {
+      ...normalized,
+      content: formatRuleQaResponse(payload),
+      model: normalized.model || defaultModelLabel,
+      rawPayload: payload
+    }
+  }
+
+  return normalized
+}
+
+function normalizeConversationMessages(source) {
+  if (!Array.isArray(source)) {
+    return []
+  }
+
+  return source.map((item) => formatConversationMessage(item))
+}
+
+function inferConversationModel(source, fallbackModel = '') {
+  if (source.some((item) => item?.role === 'assistant' && item?.model === modelOptions[1].label)) {
+    return modelOptions[1].label
+  }
+
+  if (source.some((item) => item?.role === 'assistant' && item?.model === defaultModelLabel)) {
+    return defaultModelLabel
+  }
+
+  return fallbackModel || defaultModelLabel
+}
+
+function bindThreadToModel(threadId, modelLabel) {
+  if (!threadId) {
+    return
+  }
+
+  if (modelLabel === modelOptions[1].label) {
+    visitThreadId.value = threadId
+    ruleThreadId.value = ''
+    return
+  }
+
+  ruleThreadId.value = threadId
+  visitThreadId.value = ''
+}
+
+function syncVisitTaskPayloadFromMessages(source) {
+  const latestVisitMessage = [...source]
+    .reverse()
+    .find((item) => item?.model === modelOptions[1].label && item?.rawPayload)
+
+  visitTaskPayload.value = latestVisitMessage?.rawPayload || []
+}
+
 async function handleConfirm(message) {
   loading.value = true
   const assistantMessage = { role: 'assistant', content: '', model: '' }
   messages.value.push(assistantMessage)
+  const taskPayload = message?.rawPayload || visitTaskPayload.value || {}
+  visitTaskPayload.value = taskPayload
   console.log('确认拜访安排:', message)
   const stream = VisitApi.startStream({
     threadId: ensureVisitThreadId(),
@@ -1330,7 +1494,7 @@ async function handleConfirm(message) {
     state: { 
       agent: "visit_assistant_agent",
       action: "confirm",
-      task_payload: visitTaskPayload .value,
+      task_payload: taskPayload,
       report_variant: 'full',
     },
     messages: [{ id: "m1", role: "user", content: '确认' }],
@@ -1360,6 +1524,7 @@ async function handleConfirm(message) {
   try {
     const data = JSON.parse(mainContent)
     assistantMessage.content = formatToFriendlyMarkdown(data)
+    assistantMessage.rawPayload = data
   } catch (e) {
     assistantMessage.content = mainContent
   }
