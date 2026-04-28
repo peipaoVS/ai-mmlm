@@ -1,9 +1,9 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
-import { useSession, getToken } from '../stores/session'
+import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi, ReportsApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
 
 const session = useSession()
@@ -124,6 +124,28 @@ const visibleReports = computed(() =>
   showAllReports.value ? reportList.value : reportList.value.slice(0, 2)
 )
 
+// ---- 访后纪要列表（侧栏第四块）----
+const postSummaryList = ref([])
+const postSummaryLoading = ref(false)
+const showAllPostSummaries = ref(false)
+const visiblePostSummaries = computed(() =>
+  showAllPostSummaries.value ? postSummaryList.value : postSummaryList.value.slice(0, 2)
+)
+
+// ---- 待办列表（侧栏第五块）----
+const todoList = ref([])
+const todoLoading = ref(false)
+const showAllTodos = ref(false)
+const todoCompanyFilter = ref('')
+const todoStatusFilter = ref('pending')
+const TODO_STATUS_OPTIONS = [
+  { value: 'pending', label: '待办' },
+  { value: 'done', label: '已完成' },
+]
+const visibleTodos = computed(() =>
+  showAllTodos.value ? todoList.value : todoList.value.slice(0, 3)
+)
+
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 
 onMounted(() => {
@@ -131,6 +153,8 @@ onMounted(() => {
   startFreshConver()
   loadTaskJobs()
   loadReports()
+  loadPostSummaries()
+  loadTodos()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -205,13 +229,13 @@ async function sendMessage(preset) {
           additionalProp1: {}
       })
 
-      // let jsonContent = ''
-      // for await (const eventData of stream) {
-      //   // 收集 TEXT_MESSAGE_CONTENT 的内容
-      //   if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
-      //     jsonContent += eventData.delta
-      //   }
-      // }     
+      let jsonContent = ''
+      for await (const eventData of stream) {
+        if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
+          jsonContent += eventData.delta
+        }
+      }
+
       // 尝试解析 JSON 并格式化为 Markdown
       try {
         const data = JSON.parse(jsonContent)
@@ -633,6 +657,10 @@ async function openReportDetail(report) {
   reportDetailDialog.value = true
   reportDetailLoading.value = true
   reportDetail.value = null
+  reportDetailTab.value = 'cards'
+  reportRewriteSupplement.value = ''
+  reportRewriteStatus.value = ''
+  reportRewriteError.value = ''
   try {
     const resp = await VisitApi.getReport(report.id)
     reportDetail.value = resp || null
@@ -647,6 +675,10 @@ async function openReportDetail(report) {
 function closeReportDetail() {
   reportDetailDialog.value = false
   reportDetail.value = null
+  reportDetailTab.value = 'cards'
+  reportRewriteSupplement.value = ''
+  reportRewriteStatus.value = ''
+  reportRewriteError.value = ''
 }
 
 async function openReportHistory(report) {
@@ -682,7 +714,7 @@ async function downloadReportFile(report, variant = 'both') {
     version: report.version || 0
   })
   try {
-    const token = getToken()
+    const token = getAiToken() || getToken()
     const resp = await fetch(url, {
       method: 'GET',
       headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -704,12 +736,107 @@ async function downloadReportFile(report, variant = 'both') {
   }
 }
 
-// 「改写」：把目标 report_id 预填到输入框，并切到「访客辅助」模式
+// ---- 报告详情弹窗 · Tab + 改写 ----
+const reportDetailTab = ref('cards')       // 'cards' | 'brief' | 'full' | 'json' | 'rewrite'
+const reportRewriteSupplement = ref('')
+const reportRewriteSubmitting = ref(false)
+const reportRewriteStatus = ref('')          // '' | 'loading' | 'error'
+const reportRewriteError = ref('')
+
 function useReportForRegenerate(report) {
-  selectedModel.value = '访客辅助'
-  inputValue.value = `请基于报告 #${report.id}（${report.company_name || report.visit_location || ''} v${report.version || 1}）改写：\n`
-  // 提示用户去补改写要求
-  window.alert(`已切换为「访客辅助」模式，并预填改写指令。\n请在输入框中补充具体改写要求后发送。`)
+  // 打开报告详情弹窗并切到「改写」Tab
+  if (!reportDetailDialog.value) {
+    openReportDetail(report)
+  }
+  reportDetailTab.value = 'rewrite'
+  reportRewriteSupplement.value = ''
+  reportRewriteStatus.value = ''
+  reportRewriteError.value = ''
+}
+
+async function submitReportRewrite() {
+  const reportId = reportDetail.value?.report_id || reportDetail.value?.id
+  if (!reportId) return
+  const supplement = reportRewriteSupplement.value.trim()
+  if (!supplement) {
+    window.alert('请输入改写要求')
+    return
+  }
+  reportRewriteSubmitting.value = true
+  reportRewriteStatus.value = 'loading'
+  reportRewriteError.value = ''
+  try {
+    const stream = VisitApi.startReportRegenerate({
+      threadId: ensureVisitThreadId(),
+      runId: genRunId(),
+      parentRunId: '',
+      variant: 'both',
+      state: {
+        agent: 'visit_assistant_agent',
+        action: 'regenerate',
+        report_id: reportId,
+        supplement: supplement,
+        report_variant: 'both',
+        task_payload: {},
+      },
+      messages: [{ id: 'm1', thread_id: thread.value || '', role: 'user', content: supplement }],
+      tools: [],
+      context: [],
+      forwardedProps: {},
+      additionalProp1: {},
+    })
+
+    let jsonContent = ''
+    for await (const evt of stream) {
+      if (evt.type === 'TEXT_MESSAGE_CONTENT' && evt.delta) {
+        jsonContent += evt.delta
+      }
+    }
+
+    // 尝试解析返回的 JSON
+    let result = null
+    try { result = JSON.parse(jsonContent) } catch (_) { /* 非 JSON */ }
+
+    // 后端 _handle_regenerate 返回 {pending: true, message: "改写已在后台进行..."}
+    // 如果 result 里有 error 字段，视为失败
+    if (result?.error) {
+      throw new Error(result.error || result.message || '改写失败')
+    }
+
+    reportRewriteStatus.value = ''
+    reportRewriteSupplement.value = ''
+
+    // 如果后端返回了新的报告内容（非 pending），直接刷新
+    if (result && !result.pending) {
+      reportDetail.value = {
+        ...reportDetail.value,
+        full_report_content: result.full_report_content || reportDetail.value?.full_report_content,
+        brief_report_content: result.brief_report_content || reportDetail.value?.brief_report_content,
+        report_content: result.report_content || reportDetail.value?.report_content,
+        version: result.version || (reportDetail.value?.version || 0) + 1,
+      }
+      reportDetailTab.value = 'full'
+    }
+
+    await loadReports()
+
+    const label = reportDetail.value?.company_name || reportDetail.value?.visit_location || ''
+    const hint = result?.pending
+      ? `报告 #${reportId}（${label}）改写已在后台进行，稍后请刷新查看新版本。`
+      : `报告 #${reportId}（${label}）已改写完成。`
+    messages.value.push({ role: 'assistant', content: hint })
+
+    // pending 时提示用户稍后刷新
+    if (result?.pending) {
+      reportRewriteStatus.value = ''
+      window.alert(result.message || '改写已在后台进行，请稍后在报告列表中刷新查看新版本。')
+    }
+  } catch (error) {
+    reportRewriteStatus.value = 'error'
+    reportRewriteError.value = error.message || '改写失败'
+  } finally {
+    reportRewriteSubmitting.value = false
+  }
 }
 
 // 「访后纪要」：打开上传弹窗（粘贴拜访过程概要 / 可选附件，调后端 LLM 提炼）
@@ -747,6 +874,7 @@ async function submitPostVisitUpload() {
     })
     window.alert(`报告 #${postVisitReportId.value} 的访后纪要已生成。`)
     closePostVisitUpload()
+    await loadPostSummaries()
   } catch (error) {
     window.alert('生成访后纪要失败：' + error.message)
   } finally {
@@ -768,17 +896,237 @@ async function removeReport(report) {
   }
 }
 
-// 报告详情弹窗里展示的正文，优先完整版，其次精简版
-const reportDetailBody = computed(() => {
+/* =================================================================
+   访后纪要 · 列表 / 展开详情 / 查看报告 / 下载 / 版本历史 / 重新上传 / 删除
+   ================================================================= */
+
+// 详情弹窗
+const postSummaryDetailDialog = ref(false)
+const postSummaryDetailLoading = ref(false)
+const postSummaryDetail = ref(null)
+
+// 版本历史弹窗
+const postSummaryVersionsDialog = ref(false)
+const postSummaryVersionsLoading = ref(false)
+const postSummaryVersionsReportId = ref(null)
+const postSummaryVersions = ref([])
+
+async function loadPostSummaries() {
+  postSummaryLoading.value = true
+  try {
+    const resp = await ReportsApi.listAllPostVisitSummaries({ limit: 50 })
+    postSummaryList.value = Array.isArray(resp) ? resp : (resp?.summaries || [])
+  } catch (error) {
+    postSummaryList.value = []
+    // 静默失败：列表加载失败不打扰用户，只在控制台留痕
+    console.warn('访后纪要列表加载失败：', error)
+  } finally {
+    postSummaryLoading.value = false
+  }
+}
+
+// ---- 待办列表加载 ----
+async function loadTodos() {
+  todoLoading.value = true
+  try {
+    const params = { status: todoStatusFilter.value }
+    if (todoCompanyFilter.value.trim()) {
+      params.company_name = todoCompanyFilter.value.trim()
+    }
+    const resp = await ReportsApi.listTodos(params)
+    todoList.value = Array.isArray(resp) ? resp : (resp?.items || resp?.todos || [])
+  } catch (error) {
+    todoList.value = []
+    console.warn('待办列表加载失败：', error)
+  } finally {
+    todoLoading.value = false
+  }
+}
+
+// 摘要正文截断（长文 120 字内显示，避免卡片过高）
+function postSummaryShort(row) {
+  const s = String(row?.summary_content || '').trim()
+  if (!s) return ''
+  return s.length > 120 ? s.slice(0, 120) + '…' : s
+}
+
+async function openPostSummaryDetail(row) {
+  postSummaryDetailDialog.value = true
+  postSummaryDetailLoading.value = true
+  postSummaryDetail.value = null
+  postSummaryDetailTab.value = 'summary'
+  pvRewriteSupplement.value = ''
+  pvRewriteStatus.value = ''
+  pvRewriteError.value = ''
+  try {
+    const resp = await ReportsApi.getPostVisitSummary(row.report_id)
+    postSummaryDetail.value = resp || null
+  } catch (error) {
+    window.alert('访后纪要详情加载失败：' + error.message)
+    postSummaryDetailDialog.value = false
+  } finally {
+    postSummaryDetailLoading.value = false
+  }
+}
+
+function closePostSummaryDetail() {
+  postSummaryDetailDialog.value = false
+  postSummaryDetail.value = null
+  postSummaryDetailTab.value = 'summary'
+  pvRewriteSupplement.value = ''
+  pvRewriteStatus.value = ''
+  pvRewriteError.value = ''
+}
+
+// 「查看报告」：复用访前报告详情弹窗；优先用 summary_report_id（生成的 docx 报告），否则原报告
+function viewPostSummaryReport(row) {
+  const targetId = row.summary_report_id || row.report_id
+  if (!targetId) {
+    window.alert('该访后纪要没有关联的报告。')
+    return
+  }
+  openReportDetail({ id: targetId })
+}
+
+// 「下载 .docx」：复用访前报告下载逻辑
+function downloadPostSummary(row) {
+  const targetId = row.summary_report_id || row.report_id
+  if (!targetId) {
+    window.alert('该访后纪要没有可下载的报告文件。')
+    return
+  }
+  downloadReportFile({ id: targetId, version: row.version || 1 }, 'both')
+}
+
+async function openPostSummaryVersions(row) {
+  postSummaryVersionsReportId.value = row.report_id
+  postSummaryVersionsDialog.value = true
+  postSummaryVersionsLoading.value = true
+  postSummaryVersions.value = []
+  try {
+    const resp = await ReportsApi.listPostVisitSummaryVersions(row.report_id)
+    postSummaryVersions.value = Array.isArray(resp) ? resp : (resp?.versions || [])
+  } catch (error) {
+    window.alert('版本历史加载失败：' + error.message)
+  } finally {
+    postSummaryVersionsLoading.value = false
+  }
+}
+
+function closePostSummaryVersions() {
+  postSummaryVersionsDialog.value = false
+  postSummaryVersionsReportId.value = null
+  postSummaryVersions.value = []
+}
+
+// 「重新上传」：复用访前报告上的访后纪要上传弹窗
+function reuploadPostSummary(row) {
+  openPostVisitUpload({
+    id: row.report_id,
+    company_name: row.company_name || row.visit_location || ''
+  })
+}
+
+async function removePostSummary(row) {
+  const company = row.company_name || row.visit_location || ''
+  if (!window.confirm(`删除「${company}」的访后纪要（原报告 #${row.report_id}）？此操作不可撤销。`)) {
+    return
+  }
+  try {
+    await ReportsApi.deletePostVisitSummary(row.report_id)
+    window.alert('删除成功')
+    await loadPostSummaries()
+  } catch (error) {
+    window.alert('删除失败：' + error.message)
+  }
+}
+
+// ---- 访后纪要 · 补充重写 ----
+const postSummaryDetailTab = ref('summary')       // 'summary' | 'raw' | 'rewrite'
+const pvRewriteSupplement = ref('')
+const pvRewriteSubmitting = ref(false)
+const pvRewriteStatus = ref('')     // '', 'loading', 'error'
+const pvRewriteError = ref('')
+
+async function submitPostVisitRewrite() {
+  const reportId = postSummaryDetail.value?.report_id
+  if (!reportId) return
+  const supplement = pvRewriteSupplement.value.trim()
+  if (!supplement) {
+    window.alert('请输入补充内容')
+    return
+  }
+  pvRewriteSubmitting.value = true
+  pvRewriteStatus.value = 'loading'
+  pvRewriteError.value = ''
+  try {
+    const resp = await ReportsApi.rewritePostVisitSummary(reportId, { supplement })
+    // 重写成功后刷新详情 + 列表
+    postSummaryDetail.value = {
+      ...postSummaryDetail.value,
+      summary_content: resp.summary || resp.summary_content || postSummaryDetail.value.summary_content,
+      highlights_list: resp.highlights || resp.highlights_list || postSummaryDetail.value.highlights_list,
+      todos: resp.todos || postSummaryDetail.value.todos,
+      next_visit_time: resp.next_visit_time || postSummaryDetail.value.next_visit_time,
+      next_visit_location: resp.next_visit_location || postSummaryDetail.value.next_visit_location,
+      raw_text: resp.raw_text || postSummaryDetail.value.raw_text,
+      version: resp.version || (postSummaryDetail.value.version || 0) + 1,
+    }
+    pvRewriteStatus.value = ''
+    pvRewriteSupplement.value = ''
+    postSummaryDetailTab.value = 'summary'
+    await loadPostSummaries()
+    messages.value.push({
+      role: 'assistant',
+      content: `纪要已重写（报告 #${reportId}）`
+    })
+  } catch (error) {
+    pvRewriteStatus.value = 'error'
+    pvRewriteError.value = error.message || '重写失败'
+  } finally {
+    pvRewriteSubmitting.value = false
+  }
+}
+
+// 报告详情：精简版 / 完整版 / 分节卡片
+const reportBriefContent = computed(() => {
   const r = reportDetail.value
-  if (!r) return ''
-  return (
-    r.full_report_content ||
-    r.report_content ||
-    r.brief_report_content ||
-    '（暂无报告正文）'
-  )
+  return (r?.brief_report_content || '').trim() || '（暂无精简版）'
 })
+const reportFullContent = computed(() => {
+  const r = reportDetail.value
+  return (r?.full_report_content || r?.report_content || '').trim() || '（暂无完整版）'
+})
+const reportSections = computed(() => {
+  const r = reportDetail.value
+  return Array.isArray(r?.sections) ? r.sections : []
+})
+const reportStructuredJson = computed(() => {
+  const r = reportDetail.value
+  if (!r) return '{}'
+  const pl = r.payload || {}
+  return JSON.stringify({
+    report_id: r.report_id || r.id,
+    version: r.version,
+    visit_time: pl.visit_time || r.visit_time || '',
+    visit_location: pl.visit_location || r.visit_location || '',
+    person: pl.person || r.person || '',
+    report_send_time: pl.report_send_time || r.report_send_time || '',
+    remark: pl.remark || r.remark || '',
+    created_at: r.created_at || '',
+    updated_at: r.updated_at || '',
+    payload: pl,
+  }, null, 2)
+})
+
+function copyReportText(key) {
+  const text = key === 'brief' ? reportBriefContent.value : reportFullContent.value
+  if (!text) return
+  navigator.clipboard?.writeText(text).then(
+    () => window.alert(`已复制${key === 'brief' ? '精简版' : '完整版'}到剪贴板`),
+    () => window.alert('复制失败')
+  )
+}
 // 点击待办任务卡片时，查询并显示该任务对应的访前报告内容。
 // 注意：task.id 是 scheduled_tasks.id，而报告接口需要的是 report_id，
 // 两者不同；应该优先用 task.prepared_report_id。
@@ -830,7 +1178,7 @@ async function exportTask(task) {
   console.log('导出功能：', task.title)
   // 下载需要手动带 Bearer（取 Word/blob，不能走 api.get 的 JSON parse）
   const downloadUrl = VisitApi.buildDownloadUrl(task.id, { variant: 'full', include_meta: true, version: 1 })
-  const token = getToken()
+  const token = getAiToken() || getToken()
   try {
     const response = await fetch(downloadUrl, {
       method: 'GET',
@@ -1199,6 +1547,120 @@ async function handleCancel(message) {
   console.log('取消拜访安排:', message)
   // window.alert('取消功能待实现')
 }
+
+/* ==================== 推送消息轮询 (push polling) ==================== */
+const PUSH_POLL_MS = 5000
+const PUSH_SEEN_KEY = 'aibank_push_seen'
+const pushQueue = ref([])
+const pushActiveMsg = ref(null)
+const pushShownIds = ref(new Set(JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || '[]')))
+let pushPollTimer = null
+
+function persistPushSeen() {
+  try {
+    localStorage.setItem(PUSH_SEEN_KEY, JSON.stringify([...pushShownIds.value].slice(-200)))
+  } catch {}
+}
+
+const pushBadgeCount = computed(() => pushQueue.value.length)
+
+async function pollPushMessages() {
+  if (!session.token) return
+  try {
+    const rows = await PushMessagesApi.listPushMessages({ unread_only: true, limit: 20 })
+    const list = Array.isArray(rows) ? rows : []
+    const fresh = list.filter(m => !pushShownIds.value.has(m.id)).reverse()
+    if (!fresh.length) return
+    pushQueue.value.push(...fresh)
+    if (!pushActiveMsg.value) showNextPushToast()
+  } catch { /* 轮询失败静默 */ }
+}
+
+function showNextPushToast() {
+  closePushToast(false)
+  const msg = pushQueue.value.shift()
+  if (!msg) return
+  pushActiveMsg.value = msg
+  pushShownIds.value.add(msg.id)
+  persistPushSeen()
+}
+
+function closePushToast(requeue) {
+  if (requeue && pushActiveMsg.value) {
+    pushQueue.value.unshift(pushActiveMsg.value)
+  }
+  pushActiveMsg.value = null
+}
+
+async function acknowledgePush(id) {
+  try { await PushMessagesApi.markPushMessageRead(id) } catch {}
+  pushActiveMsg.value = null
+  if (pushQueue.value.length) showNextPushToast()
+}
+
+async function markAllPushRead() {
+  try { await PushMessagesApi.markAllPushMessagesRead() } catch (e) {
+    console.warn('一键已读失败', e)
+    return
+  }
+  if (pushActiveMsg.value) pushShownIds.value.add(pushActiveMsg.value.id)
+  pushQueue.value.forEach(m => pushShownIds.value.add(m.id))
+  persistPushSeen()
+  pushQueue.value = []
+  pushActiveMsg.value = null
+}
+
+function startPushPolling() {
+  if (pushPollTimer) clearInterval(pushPollTimer)
+  pollPushMessages()
+  pushPollTimer = setInterval(pollPushMessages, PUSH_POLL_MS)
+}
+
+function stopPushPolling() {
+  if (pushPollTimer) { clearInterval(pushPollTimer); pushPollTimer = null }
+}
+
+/* ==================== 报告生成进度轮询 (gen polling) ==================== */
+const GEN_POLL_MS = 3000
+const genJobs = ref([])
+const genDismissed = ref(new Set())
+let genPollTimer = null
+
+async function pollReportJobs() {
+  if (!session.token) return
+  try {
+    const resp = await ReportsApi.listReportJobs()
+    const jobs = (resp.jobs || []).filter(j => !genDismissed.value.has(j.report_id))
+    genJobs.value = jobs
+    // 有新完成的任务 → 自动刷新报告列表
+    if (jobs.some(j => j.status === 'done')) loadReports()
+  } catch { /* 静默 */ }
+}
+
+function dismissGenJob(reportId) {
+  genDismissed.value.add(reportId)
+  genJobs.value = genJobs.value.filter(j => j.report_id !== reportId)
+}
+
+function startGenPolling() {
+  if (genPollTimer) clearInterval(genPollTimer)
+  pollReportJobs()
+  genPollTimer = setInterval(pollReportJobs, GEN_POLL_MS)
+}
+
+function stopGenPolling() {
+  if (genPollTimer) { clearInterval(genPollTimer); genPollTimer = null }
+}
+
+// 挂载 / 卸载轮询
+onMounted(() => {
+  startPushPolling()
+  startGenPolling()
+})
+onBeforeUnmount(() => {
+  stopPushPolling()
+  stopGenPolling()
+})
 </script>
 
 <template>
@@ -1207,6 +1669,45 @@ async function handleCancel(message) {
       <button class="pill-button new-chat-button" @click="startFreshConversation">
         + 新建对话
       </button>
+
+      <!-- ============ 报告生成进度 ============ -->
+      <section v-if="genJobs.length" class="side-section gen-section">
+        <div class="section-head">
+          <div class="section-head-main">
+            <span class="side-label">生成进度</span>
+          </div>
+        </div>
+        <div class="gen-list">
+          <div
+            v-for="job in genJobs"
+            :key="job.report_id"
+            class="gen-card"
+            :class="{
+              done: job.status === 'done',
+              error: job.status === 'error'
+            }"
+          >
+            <div class="gen-icon">
+              <span v-if="job.status === 'done'">✅</span>
+              <span v-else-if="job.status === 'error'">❌</span>
+              <div v-else class="gen-spinner"></div>
+            </div>
+            <div class="gen-info">
+              <div class="gen-title">#{{ job.report_id }} {{ job.company || '' }}</div>
+              <div class="gen-meta">
+                {{ job.action || '' }}
+                {{ job.status === 'running' ? ' 进行中' : job.status === 'done' ? ' 已完成' : job.status === 'error' ? ' 失败' : '' }}
+                · {{ job.elapsed != null ? `${job.elapsed}s` : '...' }}
+              </div>
+            </div>
+            <button
+              v-if="job.status !== 'running'"
+              class="gen-dismiss"
+              @click="dismissGenJob(job.report_id)"
+            >关闭</button>
+          </div>
+        </div>
+      </section>
 
       <section class="side-section">
         <div class="section-head">
@@ -1252,16 +1753,15 @@ async function handleCancel(message) {
             </button>
           </div>
           <button
-            v-if="taskJobs.length > 2"
             type="button"
             class="toggle-button"
             @click="showAllTasks = !showAllTasks"
           >
-            {{ showAllTasks ? '收起' : '打开' }}
+            {{ showAllTasks ? '收起' : `展开${taskJobs.length ? `（${taskJobs.length}）` : ''}` }}
           </button>
         </div>
 
-        <div v-if="taskJobs.length" class="task-list">
+        <div v-if="showAllTasks && taskJobs.length" class="task-list">
           <article v-for="task in visibleTaskJobs" :key="task.id" class="task-card">
             <div class="task-card-body">
               <!-- 顶部 pill 行：状态 + 类型 + #ID + 标题 -->
@@ -1319,7 +1819,7 @@ async function handleCancel(message) {
           </article>
         </div>
 
-        <div v-else class="topic-empty">暂无定时任务。</div>
+        <div v-else-if="showAllTasks" class="topic-empty">暂无定时任务。</div>
       </section>
 
       <!-- ============ 访前报告列表 ============ -->
@@ -1332,16 +1832,15 @@ async function handleCancel(message) {
             </button>
           </div>
           <button
-            v-if="reportList.length > 2"
             type="button"
             class="toggle-button"
             @click="showAllReports = !showAllReports"
           >
-            {{ showAllReports ? '收起' : '打开' }}
+            {{ showAllReports ? '收起' : `展开${reportList.length ? `（${reportList.length}）` : ''}` }}
           </button>
         </div>
 
-        <div class="report-filter-row">
+        <div v-if="showAllReports" class="report-filter-row">
           <input
             v-model="reportCompanyFilter"
             type="text"
@@ -1350,7 +1849,7 @@ async function handleCancel(message) {
           />
         </div>
 
-        <div v-if="reportList.length" class="task-list">
+        <div v-if="showAllReports && reportList.length" class="task-list">
           <article v-for="report in visibleReports" :key="report.id" class="task-card">
             <div class="task-card-body">
               <div class="task-head">
@@ -1391,8 +1890,175 @@ async function handleCancel(message) {
           </article>
         </div>
 
-        <div v-else class="topic-empty">
+        <div v-else-if="showAllReports" class="topic-empty">
           {{ reportLoading ? '加载中...' : '暂无报告。生成的访前报告会出现在这里。' }}
+        </div>
+      </section>
+
+      <!-- ============ 访后纪要列表 ============ -->
+      <section class="side-section">
+        <div class="section-head">
+          <div class="section-head-main">
+            <span class="side-label">访后纪要</span>
+            <button
+              type="button"
+              class="head-action-button"
+              :disabled="postSummaryLoading"
+              @click="loadPostSummaries"
+            >
+              {{ postSummaryLoading ? '加载中...' : '刷新' }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="toggle-button"
+            @click="showAllPostSummaries = !showAllPostSummaries"
+          >
+            {{
+              showAllPostSummaries
+                ? '收起'
+                : `展开${postSummaryList.length ? `（${postSummaryList.length}）` : ''}`
+            }}
+          </button>
+        </div>
+
+        <div v-if="showAllPostSummaries && postSummaryList.length" class="task-list">
+          <article
+            v-for="row in visiblePostSummaries"
+            :key="row.report_id || row.id"
+            class="task-card"
+          >
+            <div class="task-card-body">
+              <div class="task-head">
+                <strong class="task-title">
+                  📋 {{ row.company_name || row.visit_location || '-' }}
+                </strong>
+                <span class="task-pill task-pill--muted">原报告 #{{ row.report_id }}</span>
+                <span class="task-pill task-pill--type">v{{ row.version || 1 }}</span>
+              </div>
+
+              <div class="task-meta-grid">
+                <span v-if="row.visit_time"><em>拜访：</em>{{ row.visit_time }}</span>
+                <span v-if="row.created_at"><em>生成：</em>{{ row.created_at }}</span>
+              </div>
+
+              <p v-if="postSummaryShort(row)" class="post-summary-snippet">
+                {{ postSummaryShort(row) }}
+              </p>
+
+              <div v-if="row.highlights_list && row.highlights_list.length" class="post-summary-block">
+                <strong>关键要点</strong>
+                <ul>
+                  <li v-for="(h, i) in row.highlights_list.slice(0, 3)" :key="i">{{ h }}</li>
+                </ul>
+              </div>
+
+              <div v-if="row.todos && row.todos.length" class="post-summary-block">
+                <strong>跟进待办</strong>
+                <ol>
+                  <li v-for="(t, i) in row.todos.slice(0, 3)" :key="i">{{ t }}</li>
+                </ol>
+              </div>
+
+              <p v-if="row.next_visit_time" class="post-summary-next">
+                📅 下次会面：{{ row.next_visit_time }}
+                <span v-if="row.next_visit_location"> · {{ row.next_visit_location }}</span>
+              </p>
+
+              <div class="task-actions">
+                <button type="button" class="tiny-button primary" @click.stop="openPostSummaryDetail(row)">
+                  展开详情
+                </button>
+                <button type="button" class="tiny-button" @click.stop="viewPostSummaryReport(row)">
+                  查看报告
+                </button>
+                <button type="button" class="tiny-button" @click.stop="downloadPostSummary(row)">
+                  下载 .docx
+                </button>
+                <button type="button" class="tiny-button" @click.stop="openPostSummaryVersions(row)">
+                  版本历史
+                </button>
+                <button type="button" class="tiny-button warn" @click.stop="reuploadPostSummary(row)">
+                  重新上传
+                </button>
+                <button type="button" class="tiny-button danger" @click.stop="removePostSummary(row)">
+                  删除
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else-if="showAllPostSummaries" class="topic-empty">
+          {{
+            postSummaryLoading
+              ? '加载中...'
+              : '暂无访后纪要。在「访前报告」中点击「访后纪要」即可上传拜访概要并自动生成。'
+          }}
+        </div>
+      </section>
+
+      <!-- ============ 待办列表 ============ -->
+      <section class="side-section">
+        <div class="section-head">
+          <div class="section-head-main">
+            <span class="side-label">待办</span>
+            <button
+              type="button"
+              class="head-action-button"
+              :disabled="todoLoading"
+              @click="loadTodos"
+            >
+              {{ todoLoading ? '加载中...' : '刷新' }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="toggle-button"
+            @click="showAllTodos = !showAllTodos"
+          >
+            {{
+              showAllTodos
+                ? '收起'
+                : `展开${todoList.length ? `（${todoList.length}）` : ''}`
+            }}
+          </button>
+        </div>
+
+        <div v-if="showAllTodos" class="todo-filter-row">
+          <input
+            v-model="todoCompanyFilter"
+            type="text"
+            placeholder="按公司过滤（可选）"
+            @keyup.enter="loadTodos"
+          />
+          <select v-model="todoStatusFilter" class="todo-status-select" @change="loadTodos">
+            <option v-for="opt in TODO_STATUS_OPTIONS" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <div v-if="showAllTodos && todoList.length" class="task-list">
+          <article v-for="row in visibleTodos" :key="row.id" class="task-card">
+            <div class="task-card-body">
+              <div class="task-head">
+                <strong class="task-title">
+                  <span class="task-id">#{{ row.id }}</span>
+                  {{ row.content || row.title || '' }}
+                </strong>
+              </div>
+              <div class="task-meta-grid">
+                <span v-if="row.company_name"><em>公司：</em>{{ row.company_name }}</span>
+                <span><em>状态：</em>{{ row.status || '' }}</span>
+                <span v-if="row.created_at">{{ row.created_at }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else-if="showAllTodos" class="topic-empty">
+          {{ todoLoading ? '加载中...' : '无待办' }}
         </div>
       </section>
     </aside>
@@ -1559,6 +2225,191 @@ async function handleCancel(message) {
       </div>
     </Teleport>
 
+    <!-- ========== 访后纪要详情弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="postSummaryDetailDialog"
+        class="task-modal-mask"
+        @click.self="closePostSummaryDetail"
+      >
+        <div class="task-modal task-modal--wide glass-card">
+          <header class="task-modal-head">
+            <h3>
+              访后纪要 · 原报告
+              <span class="task-id">#{{ postSummaryDetail?.report_id }}</span>
+              <span v-if="postSummaryDetail?.version" class="task-pill task-pill--type">
+                v{{ postSummaryDetail.version }}
+              </span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closePostSummaryDetail">关闭</button>
+          </header>
+
+          <div v-if="postSummaryDetailLoading" class="task-revisions-empty">加载中...</div>
+
+          <template v-else-if="postSummaryDetail">
+            <div class="report-detail-meta">
+              <span>客户：<strong>{{ postSummaryDetail.company_name || postSummaryDetail.visit_location || '-' }}</strong></span>
+              <span>拜访：<strong>{{ postSummaryDetail.visit_time || '-' }}</strong></span>
+              <span>生成：<strong>{{ postSummaryDetail.created_at || '-' }}</strong></span>
+            </div>
+
+            <!-- 三个 Tab -->
+            <div class="pv-tab-bar">
+              <button
+                type="button"
+                class="pv-tab-btn"
+                :class="{ active: postSummaryDetailTab === 'summary' }"
+                @click="postSummaryDetailTab = 'summary'"
+              >纪要内容</button>
+              <button
+                type="button"
+                class="pv-tab-btn"
+                :class="{ active: postSummaryDetailTab === 'raw' }"
+                @click="postSummaryDetailTab = 'raw'"
+              >原始访客报告</button>
+              <button
+                type="button"
+                class="pv-tab-btn"
+                :class="{ active: postSummaryDetailTab === 'rewrite' }"
+                @click="postSummaryDetailTab = 'rewrite'"
+              >补充重写</button>
+            </div>
+
+            <!-- Tab: 纪要内容 -->
+            <div v-show="postSummaryDetailTab === 'summary'" class="report-detail-body">
+              <h4 class="post-summary-h">摘要</h4>
+              <pre>{{ postSummaryDetail.summary_content || '（无）' }}</pre>
+
+              <template v-if="postSummaryDetail.highlights_list && postSummaryDetail.highlights_list.length">
+                <h4 class="post-summary-h">关键要点</h4>
+                <ul class="post-summary-detail-list">
+                  <li v-for="(h, i) in postSummaryDetail.highlights_list" :key="'h'+i">{{ h }}</li>
+                </ul>
+              </template>
+
+              <template v-if="postSummaryDetail.todos && postSummaryDetail.todos.length">
+                <h4 class="post-summary-h">跟进待办</h4>
+                <ol class="post-summary-detail-list">
+                  <li v-for="(t, i) in postSummaryDetail.todos" :key="'t'+i">{{ t }}</li>
+                </ol>
+              </template>
+
+              <template v-if="postSummaryDetail.next_visit_time || postSummaryDetail.next_visit_location">
+                <h4 class="post-summary-h">下次会面</h4>
+                <p>
+                  📅 {{ postSummaryDetail.next_visit_time || '（未定）' }}
+                  <span v-if="postSummaryDetail.next_visit_location"> · {{ postSummaryDetail.next_visit_location }}</span>
+                </p>
+              </template>
+            </div>
+
+            <!-- Tab: 原始访客报告 -->
+            <div v-show="postSummaryDetailTab === 'raw'" class="report-detail-body">
+              <h4 class="post-summary-h">客户经理上传的原始访客过程报告</h4>
+              <pre v-if="postSummaryDetail.raw_text">{{ postSummaryDetail.raw_text }}</pre>
+              <div v-else class="task-revisions-empty">暂无原始内容（可能上传时未保存原文）</div>
+            </div>
+
+            <!-- Tab: 补充重写 -->
+            <div v-show="postSummaryDetailTab === 'rewrite'" class="report-detail-body">
+              <h4 class="post-summary-h">补充内容重写纪要</h4>
+              <p class="task-modal-hint" style="margin-bottom:10px">
+                输入补充说明（如遗漏要点、修正信息、额外备注等），系统将结合原始文件内容和补充说明重新生成纪要。
+              </p>
+              <textarea
+                v-model="pvRewriteSupplement"
+                rows="6"
+                class="pv-rewrite-textarea"
+                placeholder="例如：补充一下，陈总还提到了他们Q3有一笔大额到期的理财需要续做，金额约500万…"
+              ></textarea>
+              <div
+                v-if="pvRewriteStatus === 'loading'"
+                class="pv-rewrite-status pv-rewrite-status--loading"
+              >⏳ 正在重新生成纪要，请稍候…</div>
+              <div
+                v-if="pvRewriteStatus === 'error'"
+                class="pv-rewrite-status pv-rewrite-status--error"
+              >❌ {{ pvRewriteError }}</div>
+              <div style="margin-top:8px">
+                <button
+                  type="button"
+                  class="tiny-button primary"
+                  :disabled="pvRewriteSubmitting"
+                  @click="submitPostVisitRewrite"
+                >{{ pvRewriteSubmitting ? '重写中...' : '重新生成纪要' }}</button>
+              </div>
+            </div>
+          </template>
+
+          <footer class="task-modal-foot">
+            <button
+              v-if="postSummaryDetail"
+              type="button"
+              class="tiny-button"
+              @click="viewPostSummaryReport(postSummaryDetail); closePostSummaryDetail()"
+            >查看报告</button>
+            <button
+              v-if="postSummaryDetail"
+              type="button"
+              class="tiny-button primary"
+              @click="downloadPostSummary(postSummaryDetail)"
+            >下载 .docx</button>
+            <button
+              v-if="postSummaryDetail"
+              type="button"
+              class="tiny-button"
+              @click="closePostSummaryDetail(); openPostSummaryVersions(postSummaryDetail)"
+            >版本历史</button>
+            <button type="button" class="tiny-button" @click="closePostSummaryDetail">关闭</button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ========== 访后纪要版本历史弹窗 ========== -->
+    <Teleport to="body">
+      <div
+        v-if="postSummaryVersionsDialog"
+        class="task-modal-mask"
+        @click.self="closePostSummaryVersions"
+      >
+        <div class="task-modal glass-card">
+          <header class="task-modal-head">
+            <h3>
+              访后纪要版本历史 · 原报告
+              <span class="task-id">#{{ postSummaryVersionsReportId }}</span>
+              <span class="task-revisions-count">（{{ postSummaryVersions.length }}）</span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closePostSummaryVersions">关闭</button>
+          </header>
+
+          <div class="task-modal-body">
+            <div v-if="postSummaryVersionsLoading" class="task-revisions-empty">加载中...</div>
+            <div v-else-if="!postSummaryVersions.length" class="task-revisions-empty">无版本记录。</div>
+            <ul v-else class="task-revisions-list">
+              <li
+                v-for="(v, idx) in postSummaryVersions"
+                :key="v.id || v.version || idx"
+                class="task-revision"
+              >
+                <div class="task-revision-head">
+                  <strong>v{{ v.version || idx + 1 }}</strong>
+                  <span v-if="v.created_at || v.updated_at" class="task-revision-time">
+                    {{ v.created_at || v.updated_at }}
+                  </span>
+                </div>
+                <p v-if="v.supplement" class="task-revision-desc">补充：{{ v.supplement }}</p>
+                <p v-if="v.next_visit_time" class="task-revision-desc">
+                  下次会面：{{ v.next_visit_time }}
+                  <span v-if="v.next_visit_location"> · {{ v.next_visit_location }}</span>
+                </p>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- ========== 报告详情弹窗 ========== -->
     <Teleport to="body">
       <div
@@ -1584,30 +2435,96 @@ async function handleCancel(message) {
               <span>推送：<strong>{{ reportDetail.payload?.report_send_time || reportDetail.report_send_time || '-' }}</strong></span>
               <span>更新：<strong>{{ reportDetail.updated_at || '-' }}</strong></span>
             </div>
-            <div class="report-detail-body">
-              <pre>{{ reportDetailBody }}</pre>
+
+            <!-- Tab 栏 -->
+            <div class="pv-tab-bar">
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'cards' }" @click="reportDetailTab = 'cards'">
+                分节卡片 ({{ reportSections.length }})
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'brief' }" @click="reportDetailTab = 'brief'">
+                精简版 ({{ reportBriefContent.length }}字)
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'full' }" @click="reportDetailTab = 'full'">
+                完整版 ({{ reportFullContent.length }}字)
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'json' }" @click="reportDetailTab = 'json'">
+                结构化
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'rewrite' }" @click="reportDetailTab = 'rewrite'">
+                补充改写
+              </button>
+            </div>
+
+            <!-- Tab: 分节卡片 -->
+            <div v-show="reportDetailTab === 'cards'" class="report-detail-body">
+              <div v-if="reportSections.length" class="rd-cards">
+                <div v-for="(sec, idx) in reportSections" :key="idx" class="rd-card">
+                  <h6>
+                    <span class="rd-idx">{{ sec.numeral || sec.index || idx + 1 }}</span>
+                    {{ sec.title || sec.heading || '章节' }}
+                  </h6>
+                  <ul v-if="sec.bullets && sec.bullets.length" class="rd-bullets">
+                    <li v-for="(b, bi) in sec.bullets" :key="bi">{{ b }}</li>
+                  </ul>
+                  <div v-else class="rd-body">{{ (sec.body || '').trim() || '（本节无内容）' }}</div>
+                </div>
+              </div>
+              <div v-else class="rd-cards-empty">（暂无可拆分的章节结构，可切换到「完整版」查看原文）</div>
+            </div>
+
+            <!-- Tab: 精简版 -->
+            <div v-show="reportDetailTab === 'brief'" class="report-detail-body">
+              <pre class="rd-pre">{{ reportBriefContent }}</pre>
+            </div>
+
+            <!-- Tab: 完整版 -->
+            <div v-show="reportDetailTab === 'full'" class="report-detail-body">
+              <pre class="rd-pre">{{ reportFullContent }}</pre>
+            </div>
+
+            <!-- Tab: 结构化 JSON -->
+            <div v-show="reportDetailTab === 'json'" class="report-detail-body">
+              <pre class="rd-pre rd-json">{{ reportStructuredJson }}</pre>
+            </div>
+
+            <!-- Tab: 补充改写 -->
+            <div v-show="reportDetailTab === 'rewrite'" class="report-detail-body">
+              <h4 class="post-summary-h">改写报告</h4>
+              <p class="task-modal-hint" style="margin-bottom:10px">
+                输入改写要求（如调整重点、补充信息、修改措辞等），系统将基于当前报告内容重新生成新版本。
+              </p>
+              <textarea
+                v-model="reportRewriteSupplement"
+                rows="6"
+                class="pv-rewrite-textarea"
+                placeholder="例如：请补充对方资产配置偏好，并把风险提示部分写得更详细一些…"
+              ></textarea>
+              <div
+                v-if="reportRewriteStatus === 'loading'"
+                class="pv-rewrite-status pv-rewrite-status--loading"
+              >⏳ 正在改写报告，请稍候…</div>
+              <div
+                v-if="reportRewriteStatus === 'error'"
+                class="pv-rewrite-status pv-rewrite-status--error"
+              >❌ {{ reportRewriteError }}</div>
+              <div style="margin-top:8px">
+                <button
+                  type="button"
+                  class="tiny-button primary"
+                  :disabled="reportRewriteSubmitting"
+                  @click="submitReportRewrite"
+                >{{ reportRewriteSubmitting ? '改写中...' : '重新生成报告' }}</button>
+              </div>
             </div>
           </template>
 
           <footer class="task-modal-foot">
-            <button
-              v-if="reportDetail"
-              type="button"
-              class="tiny-button"
-              @click="downloadReportFile(reportDetail, 'brief')"
-            >下载精简版</button>
-            <button
-              v-if="reportDetail"
-              type="button"
-              class="tiny-button primary"
-              @click="downloadReportFile(reportDetail, 'full')"
-            >下载完整版</button>
-            <button
-              v-if="reportDetail"
-              type="button"
-              class="tiny-button warn"
-              @click="useReportForRegenerate(reportDetail); closeReportDetail()"
-            >改写</button>
+            <button v-if="reportDetail" type="button" class="tiny-button" @click="copyReportText('brief')">复制精简版</button>
+            <button v-if="reportDetail" type="button" class="tiny-button" @click="copyReportText('full')">复制完整版</button>
+            <button v-if="reportDetail" type="button" class="tiny-button primary" @click="downloadReportFile(reportDetail, 'brief')">⬇ 精简版 .docx</button>
+            <button v-if="reportDetail" type="button" class="tiny-button primary" @click="downloadReportFile(reportDetail, 'full')">⬇ 完整版 .docx</button>
+            <button v-if="reportDetail" type="button" class="tiny-button primary" @click="downloadReportFile(reportDetail, 'both')">⬇ 双版本 .docx</button>
+            <button v-if="reportDetail" type="button" class="tiny-button warn" @click="reportDetailTab = 'rewrite'">改写此报告</button>
             <button type="button" class="tiny-button" @click="closeReportDetail">关闭</button>
           </footer>
         </div>
@@ -1734,6 +2651,39 @@ async function handleCancel(message) {
                 <p v-if="log.description" class="task-revision-desc">{{ log.description }}</p>
               </li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ============ 推送铃铛 ============ -->
+    <button
+      v-if="pushBadgeCount > 0"
+      class="push-bell"
+      title="查看推送通知"
+      @click="showNextPushToast"
+    >
+      🔔<span class="pb-dot">{{ pushBadgeCount > 99 ? '99+' : pushBadgeCount }}</span>
+    </button>
+
+    <!-- ============ 推送 Toast 弹窗 ============ -->
+    <Teleport to="body">
+      <div v-if="pushActiveMsg" class="push-toast-mask" @click.self="closePushToast(true)">
+        <div class="push-toast" role="dialog" aria-modal="true">
+          <div class="push-toast-head">
+            <div class="pt-title">🔔 定时任务推送 <span class="pt-count">#{{ pushActiveMsg.id }}</span></div>
+            <span v-if="pushQueue.length" class="pt-count">后续还有 {{ pushQueue.length }} 条</span>
+          </div>
+          <div class="push-toast-meta">
+            <span>客户：<strong>{{ pushActiveMsg.company_name || '—' }}</strong></span>
+            <span>时间：{{ pushActiveMsg.created_at || '' }}</span>
+          </div>
+          <div class="push-toast-body">{{ pushActiveMsg.content || '' }}</div>
+          <div class="push-toast-foot">
+            <button v-if="pushQueue.length" @click="showNextPushToast">下一条 →</button>
+            <button @click="closePushToast(true)">稍后再看</button>
+            <button class="primary" @click="acknowledgePush(pushActiveMsg.id)">标记已读</button>
+            <button @click="markAllPushRead">全部已读</button>
           </div>
         </div>
       </div>
@@ -2136,6 +3086,35 @@ async function handleCancel(message) {
   box-sizing: border-box;
 }
 
+.todo-filter-row {
+  display: flex;
+  gap: 6px;
+  margin: calc(8px * var(--ui-scale)) 0 calc(2px * var(--ui-scale));
+}
+
+.todo-filter-row input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 37, 54, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  color: var(--text-main);
+  box-sizing: border-box;
+  font-size: calc(12px * var(--ui-scale));
+}
+
+.todo-status-select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 37, 54, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  color: var(--text-main);
+  font-size: calc(12px * var(--ui-scale));
+  cursor: pointer;
+}
+
 .task-modal--wide {
   width: min(820px, 100%);
 }
@@ -2169,6 +3148,114 @@ async function handleCancel(message) {
   font-size: 13px;
   line-height: 1.7;
   color: var(--text-main);
+}
+
+/* ================ 访后纪要 · 卡片 + 详情弹窗 ================ */
+.post-summary-snippet {
+  margin: calc(8px * var(--ui-scale)) 0 0;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: 1.7;
+  color: var(--text-main);
+}
+
+.post-summary-block {
+  margin-top: calc(6px * var(--ui-scale));
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.post-summary-block strong {
+  display: block;
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.post-summary-block ul,
+.post-summary-block ol {
+  margin: 2px 0 0;
+  padding-left: calc(18px * var(--ui-scale));
+}
+
+.post-summary-next {
+  margin: calc(6px * var(--ui-scale)) 0 0;
+  font-size: calc(12px * var(--ui-scale));
+  color: #16a34a;
+}
+
+/* 详情弹窗内的二级标题 */
+.post-summary-h {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.post-summary-h:first-child {
+  margin-top: 0;
+}
+
+.post-summary-detail-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-main);
+}
+
+/* ---- 访后纪要详情 · Tab 栏 + 补充重写 ---- */
+.pv-tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid rgba(27, 37, 54, 0.10);
+}
+
+.pv-tab-btn {
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pv-tab-btn.active {
+  color: var(--brand-alt, #2563eb);
+  border-bottom-color: var(--brand-alt, #2563eb);
+}
+
+.pv-rewrite-textarea {
+  width: 100%;
+  font-size: 13px;
+  border: 1px solid rgba(27, 37, 54, 0.12);
+  border-radius: 6px;
+  padding: 10px;
+  resize: vertical;
+  font: inherit;
+  color: var(--text-main);
+  box-sizing: border-box;
+}
+
+.pv-rewrite-status {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.pv-rewrite-status--loading {
+  background: rgba(64, 130, 220, 0.12);
+  color: #1e40af;
+}
+
+.pv-rewrite-status--error {
+  background: rgba(207, 76, 76, 0.12);
+  color: #b91c1c;
 }
 
 .capability-card ul {
@@ -2475,4 +3562,331 @@ async function handleCancel(message) {
     width: 100%;
   }
 }
+
+/* ==================== 推送铃铛 ==================== */
+.push-bell {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.35);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.push-bell .pb-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* ==================== 推送 Toast ==================== */
+.push-toast-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: pushFadeIn 0.2s;
+}
+
+@keyframes pushFadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pushPopIn { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
+
+.push-toast {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 640px;
+  width: 92%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  animation: pushPopIn 0.25s;
+}
+
+.push-toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, #1d4ed8, #4338ca);
+  color: #fff;
+}
+
+.push-toast-head .pt-title {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.push-toast-head .pt-count {
+  background: rgba(255, 255, 255, 0.22);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.push-toast-meta {
+  display: flex;
+  gap: 12px;
+  padding: 8px 18px;
+  font-size: 11px;
+  color: #64748b;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.push-toast-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #0f172a;
+  white-space: pre-wrap;
+  background: #fff;
+}
+
+.push-toast-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 18px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  justify-content: flex-end;
+}
+
+.push-toast-foot button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #c7d2fe;
+  background: #fff;
+  color: #3730a3;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.push-toast-foot button.primary {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.push-toast-foot button:hover {
+  filter: brightness(1.05);
+}
+
+/* ==================== 报告生成进度卡片 ==================== */
+.gen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gen-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.gen-card .gen-icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.gen-card .gen-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #1d4ed8;
+  border-radius: 50%;
+  animation: genSpin 0.8s linear infinite;
+}
+
+@keyframes genSpin { to { transform: rotate(360deg) } }
+
+.gen-card .gen-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.gen-card .gen-title {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gen-card .gen-meta {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.gen-card.done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.gen-card.error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.gen-dismiss {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.gen-dismiss:hover {
+  background: #f1f5f9;
+}
+
+/* ==================== 报告详情 · 分节卡片 ==================== */
+.rd-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.rd-cards-empty {
+  color: #64748b;
+  font-size: 13px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.rd-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rd-card h6 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rd-idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.rd-bullets {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.rd-bullets li {
+  margin-bottom: 2px;
+}
+
+.rd-body {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.rd-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #0f172a;
+}
+
+.rd-json {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 12px;
+  color: #334155;
+}
+
+.task-modal-foot {
+  flex-wrap: wrap;
+}
+
+.tiny-button.warn {
+  background: #f59e0b;
+  color: #fff;
+  border-color: #f59e0b;
+}
+
+.tiny-button.warn:hover {
+  background: #d97706;
+}
 </style>
+
