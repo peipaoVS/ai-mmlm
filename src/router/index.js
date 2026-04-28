@@ -3,6 +3,7 @@ import AppShell from '../components/AppShell.vue'
 import LoginView from '../views/LoginView.vue'
 import ChatView from '../views/ChatView.vue'
 import AgentConfigView from '../views/AgentConfigView.vue'
+import ParamConfigView from '../views/ParamConfigView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
 import LogModuleView from '../views/LogModuleView.vue'
 import UsersView from '../views/UsersView.vue'
@@ -46,6 +47,14 @@ const routes = [
         component: AgentConfigView,
         meta: {
           title: '大模型配置'
+        }
+      },
+      {
+        path: '/params',
+        name: 'params',
+        component: ParamConfigView,
+        meta: {
+          title: '参数配置'
         }
       },
       {
