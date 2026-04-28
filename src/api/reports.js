@@ -9,6 +9,7 @@
  *   - /api/post-visit-summaries                          全量列表
  */
 import { api, qs } from './_request'
+import { getAiToken } from '../stores/session'
 
 /* -------------------- 报告 -------------------- */
 
@@ -46,9 +47,13 @@ export function uploadPostVisitSummary(reportId, file, extra = {}) {
   fd.append('file', file)
   if (extra.supplement) fd.append('supplement', extra.supplement)
   // 这里走原生 fetch，因 api.post 默认 application/json
+  const headers = {}
+  const token = getAiToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
   return fetch(`/api/reports/${reportId}/post-visit-summary`, {
     method: 'POST',
     body: fd,
+    headers,
     credentials: 'include',
   }).then(async (resp) => {
     const data = await resp.json().catch(() => ({}))
