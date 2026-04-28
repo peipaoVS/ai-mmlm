@@ -10,7 +10,7 @@ const session = useSession()
 
 const headerToolsRef = ref(null)
 const activeMenu = ref('')
-const constrainedRouteNames = new Set(['users', 'roles', 'posts', 'menus', 'companies'])
+const constrainedRouteNames = new Set(['users', 'roles', 'posts', 'menus', 'companies', 'params'])
 
 const sectionOrder = ['ai', 'knowledge', 'logs', 'permission']
 const sectionTitles = {
@@ -23,6 +23,7 @@ const sectionTitles = {
 const legacyMenus = [
   { name: 'AI工作台', section: 'ai', path: '/chat', sortOrder: 10 },
   { name: '大模型配置', section: 'ai', path: '/agents', sortOrder: 20 },
+  { name: '参数配置', section: 'ai', path: '/params', sortOrder: 30 },
   { name: '产品库', section: 'knowledge', path: '/knowledge/products', sortOrder: 10 },
   { name: '企业画像', section: 'knowledge', path: '/knowledge/portraits', sortOrder: 20 },
   { name: '行业动态', section: 'knowledge', path: '/knowledge/trends', sortOrder: 30 },
