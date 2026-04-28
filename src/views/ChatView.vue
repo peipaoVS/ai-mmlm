@@ -709,7 +709,9 @@ function closeReportHistory() {
 
 // 下载 .docx：和 exportTask 走相同路径，复用 buildDownloadUrl
 async function downloadReportFile(report, variant = 'both') {
-  const url = VisitApi.buildDownloadUrl(report.id, {
+  console.log('下载报告文件', report)
+  const reportId = report.id || report.report_id
+  const url = VisitApi.buildDownloadUrl(reportId, {
     variant,
     include_meta: true,
     version: report.version || 0
@@ -727,7 +729,7 @@ async function downloadReportFile(report, variant = 'both') {
     const blobUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = blobUrl
-    a.download = `report_${report.id}_v${report.version || 1}_${variant}.docx`
+    a.download = `report_${reportId}_v${report.version || 1}_${variant}.docx`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -823,8 +825,8 @@ async function submitReportRewrite() {
 
     const label = reportDetail.value?.company_name || reportDetail.value?.visit_location || ''
     const hint = result?.pending
-      ? `报告 #${reportId}（${label}）改写已在后台进行，稍后请刷新查看新版本。`
-      : `报告 #${reportId}（${label}）已改写完成。`
+      ? `报告 #${reportId}(${label})改写已在后台进行，稍后请刷新查看新版本。`
+      : `报告 #${reportId}(${label})已改写完成。`
     messages.value.push({ role: 'assistant', content: hint })
 
     // pending 时提示用户稍后刷新
@@ -865,7 +867,7 @@ function onPostVisitFileChange(event) {
 async function submitPostVisitUpload() {
   if (!postVisitReportId.value) return
   if (!postVisitFile.value) {
-    window.alert('请先选择拜访过程概要文件（.docx / .md / .txt）。')
+    window.alert('请先选择拜访过程概要文件(.docx / .md / .txt)。')
     return
   }
   postVisitSubmitting.value = true
@@ -877,7 +879,7 @@ async function submitPostVisitUpload() {
     closePostVisitUpload()
     await loadPostSummaries()
   } catch (error) {
-    window.alert('生成访后纪要失败：' + error.message)
+    window.alert('生成访后纪要失败:' + error.message)
   } finally {
     postVisitSubmitting.value = false
   }
