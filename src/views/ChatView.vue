@@ -1837,7 +1837,7 @@ onBeforeUnmount(() => {
             class="toggle-button"
             @click="showAllReports = !showAllReports"
           >
-            {{ showAllReports ? '收起' : `展开${reportList.length ? `（${reportList.length}）` : ''}` }}
+            {{ showAllReports ? '收起' : `展开${reportList.length ? `(${reportList.length})` : ''}` }}
           </button>
         </div>
 
