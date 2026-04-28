@@ -91,7 +91,11 @@ const groupedMenus = computed(() =>
 
 const shouldConstrainContent = computed(() => {
   const routeName = typeof route.name === 'string' ? route.name : ''
-  return routeName.startsWith('logs-') || constrainedRouteNames.has(routeName)
+  return (
+    routeName.startsWith('logs-') ||
+    routeName.startsWith('knowledge-') ||
+    constrainedRouteNames.has(routeName)
+  )
 })
 
 function isMenuActive(group) {

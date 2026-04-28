@@ -489,6 +489,15 @@ function getObservabilityFieldLabel(key) {
   return OBSERVABILITY_FIELD_LABELS[key] || key
 }
 
+function pushJsonCandidate(candidates, candidate) {
+  const normalized = getTextOrEmpty(candidate)
+  if (!normalized || candidates.includes(normalized)) {
+    return
+  }
+
+  candidates.push(normalized)
+}
+
 function parseJsonContent(value) {
   if (isPlainObject(value) || Array.isArray(value)) {
     return value
@@ -503,22 +512,41 @@ function parseJsonContent(value) {
     return null
   }
 
-  const candidates = [content]
+  const candidates = []
+  pushJsonCandidate(candidates, content)
+
   const codeFenceMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/i)
   if (codeFenceMatch?.[1]) {
-    candidates.push(codeFenceMatch[1].trim())
+    pushJsonCandidate(candidates, codeFenceMatch[1])
   }
 
   const firstBraceIndex = content.indexOf('{')
   const lastBraceIndex = content.lastIndexOf('}')
   if (firstBraceIndex >= 0 && lastBraceIndex > firstBraceIndex) {
-    candidates.push(content.slice(firstBraceIndex, lastBraceIndex + 1).trim())
+    pushJsonCandidate(candidates, content.slice(firstBraceIndex, lastBraceIndex + 1))
   }
 
   const firstBracketIndex = content.indexOf('[')
   const lastBracketIndex = content.lastIndexOf(']')
   if (firstBracketIndex >= 0 && lastBracketIndex > firstBracketIndex) {
-    candidates.push(content.slice(firstBracketIndex, lastBracketIndex + 1).trim())
+    pushJsonCandidate(candidates, content.slice(firstBracketIndex, lastBracketIndex + 1))
+  }
+
+  const looksLikeObjectFragment =
+    /^"[^"]+"\s*:/.test(content) ||
+    /^[A-Za-z0-9_]+\s*:/.test(content)
+
+  if (looksLikeObjectFragment) {
+    pushJsonCandidate(candidates, `{${content}}`)
+  }
+
+  for (const candidate of [...candidates]) {
+    if (candidate.startsWith('{') && !candidate.endsWith('}')) {
+      pushJsonCandidate(candidates, `${candidate}}`)
+    }
+    if (candidate.startsWith('[') && !candidate.endsWith(']')) {
+      pushJsonCandidate(candidates, `${candidate}]`)
+    }
   }
 
   for (const candidate of candidates) {
@@ -617,6 +645,306 @@ function normalizeStructuredSections(items, groupLabel) {
       }
     })
     .filter(Boolean)
+}
+
+const FRIENDLY_BODY_FIELD_KEYS = [
+  'report_content',
+  'full_report_content',
+  'brief_report_content',
+  'answer_text',
+  'raw_final_answer',
+  'summary',
+  'result',
+  'content'
+]
+
+const FRIENDLY_META_FIELD_KEYS = [
+  'report_title',
+  'title',
+  'action',
+  'report_id',
+  'version',
+  'status',
+  'generation_status',
+  'visit_time',
+  'visit_location',
+  'person',
+  'report_send_time',
+  'remark',
+  'task_name',
+  'task_type',
+  'branch',
+  'home_branch',
+  'user_branch',
+  'user_level_label',
+  'user_level',
+  'created_at',
+  'updated_at',
+  'started_at'
+]
+
+function dedupeTextLines(items) {
+  const seen = new Set()
+
+  return items.filter((item) => {
+    const normalized = getTextOrEmpty(item)
+    if (!normalized || seen.has(normalized)) {
+      return false
+    }
+
+    seen.add(normalized)
+    return true
+  })
+}
+
+function formatFriendlyFieldLine(key, value) {
+  return `${getObservabilityFieldLabel(key)}：${formatStructuredValue(key, value)}`
+}
+
+function formatStructuredSectionText(section, includeGroupLabel = true) {
+  const lines = []
+  const titleLine = includeGroupLabel ? `${section.groupLabel}：${section.title}` : section.title
+  lines.push(titleLine)
+
+  if (section.subtitle) {
+    lines.push(section.subtitle)
+  }
+
+  if (section.body) {
+    lines.push(formatAnswerTextAsChinese(section.body, { preferBodyOnly: true, depth: 1 }))
+  }
+
+  if (section.bullets.length) {
+    section.bullets.forEach((bullet) => {
+      lines.push(`- ${bullet}`)
+    })
+  }
+
+  return lines.filter(Boolean).join('\n')
+}
+
+function extractStructuredBodyText(data, depth = 0) {
+  if (!hasMeaningfulValue(data) || depth > 2) {
+    return ''
+  }
+
+  if (Array.isArray(data)) {
+    const parts = dedupeTextLines(
+      data.map((item) => {
+        if (!hasMeaningfulValue(item)) {
+          return ''
+        }
+
+        if (isPlainObject(item) || Array.isArray(item)) {
+          return formatStructuredDataAsChineseText(item, {
+            preferBodyOnly: true,
+            depth: depth + 1
+          })
+        }
+
+        return formatAnswerTextAsChinese(item, {
+          preferBodyOnly: true,
+          depth: depth + 1
+        })
+      })
+    )
+
+    return parts
+      .map((item, index) => (parts.length > 1 ? `条目 ${index + 1}\n${item}` : item))
+      .join('\n\n')
+  }
+
+  if (!isPlainObject(data)) {
+    return toDisplayText(data, '')
+  }
+
+  for (const key of FRIENDLY_BODY_FIELD_KEYS) {
+    const content = getTextOrEmpty(data[key])
+    if (!content) {
+      continue
+    }
+
+    const nested = depth < 2 ? normalizeStructuredAnswerData(content) : null
+    if (nested) {
+      const nestedText = formatStructuredDataAsChineseText(nested, {
+        preferBodyOnly: true,
+        depth: depth + 1
+      })
+
+      if (nestedText) {
+        return nestedText
+      }
+    }
+
+    return content
+  }
+
+  const sections = [
+    ...normalizeStructuredSections(data.sections, '报告章节'),
+    ...normalizeStructuredSections(data.brief_sections, '简版章节')
+  ]
+
+  if (sections.length) {
+    return sections.map((section) => formatStructuredSectionText(section, true)).join('\n\n')
+  }
+
+  return ''
+}
+
+function formatStructuredDataAsChineseText(data, options = {}) {
+  const { preferBodyOnly = false, depth = 0 } = options
+
+  if (!hasMeaningfulValue(data)) {
+    return '（无）'
+  }
+
+  if (depth > 2) {
+    return JSON.stringify(localizeStructuredDataKeys(data), null, 2)
+  }
+
+  if (Array.isArray(data)) {
+    const bodyText = extractStructuredBodyText(data, depth)
+    return bodyText || JSON.stringify(localizeStructuredDataKeys(data), null, 2)
+  }
+
+  if (!isPlainObject(data)) {
+    return toDisplayText(data, '（无）')
+  }
+
+  const bodyText = extractStructuredBodyText(data, depth)
+  if (preferBodyOnly && bodyText) {
+    return bodyText
+  }
+
+  const metaLines = FRIENDLY_META_FIELD_KEYS
+    .filter((key) => hasMeaningfulValue(data[key]))
+    .map((key) => formatFriendlyFieldLine(key, data[key]))
+
+  const extraLines = Object.entries(data)
+    .filter(([key, value]) => !FRIENDLY_META_FIELD_KEYS.includes(key) && hasMeaningfulValue(value))
+    .filter(([key]) => !FRIENDLY_BODY_FIELD_KEYS.includes(key) && key !== 'sections' && key !== 'brief_sections')
+    .filter(([, value]) => typeof value !== 'function')
+    .filter(([, value]) => isPrimitiveArray(value) || ['string', 'number', 'boolean'].includes(typeof value))
+    .map(([key, value]) => formatFriendlyFieldLine(key, value))
+
+  const parts = []
+  if (metaLines.length) {
+    parts.push(metaLines.join('\n'))
+  }
+
+  if (bodyText) {
+    parts.push(bodyText)
+  } else if (extraLines.length) {
+    parts.push(extraLines.join('\n'))
+  }
+
+  return parts.filter(Boolean).join('\n\n') || JSON.stringify(localizeStructuredDataKeys(data), null, 2)
+}
+
+function formatAnswerTextAsChinese(value, options = {}) {
+  if (!hasMeaningfulValue(value)) {
+    return '（无）'
+  }
+
+  const normalized = normalizeStructuredAnswerData(value)
+  if (!normalized) {
+    return toDisplayText(value, '（无）')
+  }
+
+  return formatStructuredDataAsChineseText(normalized, options)
+}
+
+function formatLabeledMultilineValue(label, value) {
+  const content = getTextOrEmpty(value)
+  if (!content) {
+    return `${label}：（无）`
+  }
+
+  return content.includes('\n') ? `${label}：\n${content}` : `${label}：${content}`
+}
+
+function formatStructuredDataAsChineseFields(data, options = {}) {
+  const { depth = 0 } = options
+
+  if (!hasMeaningfulValue(data)) {
+    return '（无）'
+  }
+
+  if (depth > 2) {
+    return JSON.stringify(localizeStructuredDataKeys(data), null, 2)
+  }
+
+  if (Array.isArray(data)) {
+    return data
+      .map((item, index) => {
+        const content = isPlainObject(item) || Array.isArray(item)
+          ? formatStructuredDataAsChineseFields(item, { depth: depth + 1 })
+          : toDisplayText(item, '（空）')
+
+        return content.includes('\n') ? `条目 ${index + 1}：\n${content}` : `条目 ${index + 1}：${content}`
+      })
+      .join('\n\n')
+  }
+
+  if (!isPlainObject(data)) {
+    return toDisplayText(data, '（无）')
+  }
+
+  const lines = []
+
+  FRIENDLY_META_FIELD_KEYS.forEach((key) => {
+    if (!hasMeaningfulValue(data[key])) {
+      return
+    }
+
+    lines.push(formatFriendlyFieldLine(key, data[key]))
+  })
+
+  FRIENDLY_BODY_FIELD_KEYS.forEach((key) => {
+    if (!hasMeaningfulValue(data[key])) {
+      return
+    }
+
+    const rawContent = getTextOrEmpty(data[key])
+    const nested = depth < 2 ? normalizeStructuredAnswerData(rawContent) : null
+    const content = nested
+      ? formatStructuredDataAsChineseFields(nested, { depth: depth + 1 })
+      : rawContent
+
+    lines.push(formatLabeledMultilineValue(getObservabilityFieldLabel(key), content))
+  })
+
+  const sectionGroups = [
+    ...normalizeStructuredSections(data.sections, '报告章节'),
+    ...normalizeStructuredSections(data.brief_sections, '简版章节')
+  ]
+  sectionGroups.forEach((section) => {
+    lines.push(formatStructuredSectionText(section, true))
+  })
+
+  Object.entries(data)
+    .filter(([key, value]) => !FRIENDLY_META_FIELD_KEYS.includes(key) && hasMeaningfulValue(value))
+    .filter(([key]) => !FRIENDLY_BODY_FIELD_KEYS.includes(key) && key !== 'sections' && key !== 'brief_sections')
+    .filter(([, value]) => typeof value !== 'function')
+    .filter(([, value]) => isPrimitiveArray(value) || ['string', 'number', 'boolean'].includes(typeof value))
+    .forEach(([key, value]) => {
+      lines.push(formatFriendlyFieldLine(key, value))
+    })
+
+  return dedupeTextLines(lines).join('\n\n') || JSON.stringify(localizeStructuredDataKeys(data), null, 2)
+}
+
+function formatAnswerTextAsChineseFields(value) {
+  if (!hasMeaningfulValue(value)) {
+    return '（无）'
+  }
+
+  const normalized = normalizeStructuredAnswerData(value)
+  if (!normalized) {
+    return toDisplayText(value, '（无）')
+  }
+
+  return formatStructuredDataAsChineseFields(normalized)
 }
 
 function buildStructuredAnswerView(data, depth = 0) {
@@ -1393,120 +1721,7 @@ async function loadRuleLibrary() {
 
             <div class="content-block">
               <strong>答复预览</strong>
-              <template v-if="item.__structuredAnswerView.structured">
-                <div class="structured-answer preview">
-                  <div
-                    v-if="item.__structuredAnswerView.highlights.length"
-                    class="structured-highlight-grid"
-                  >
-                    <article
-                      v-for="field in item.__structuredAnswerView.highlights"
-                      :key="`preview-highlight-${field.label}`"
-                      class="structured-highlight-card"
-                    >
-                      <span>{{ field.label }}</span>
-                      <strong>{{ field.value }}</strong>
-                    </article>
-                  </div>
-
-                  <div
-                    v-if="item.__structuredAnswerView.textBlocks.length"
-                    class="structured-text-list"
-                  >
-                    <article
-                      v-for="block in item.__structuredAnswerView.textBlocks.slice(0, 1)"
-                      :key="`preview-text-${block.label}`"
-                      class="structured-text-card"
-                    >
-                      <div class="structured-card-head">
-                        <strong>{{ block.label }}</strong>
-                      </div>
-                      <template v-if="block.structuredView && block.structuredView.structured">
-                        <div class="structured-answer nested">
-                          <div
-                            v-if="block.structuredView.highlights.length"
-                            class="structured-highlight-grid"
-                          >
-                            <article
-                              v-for="field in block.structuredView.highlights"
-                              :key="`preview-text-highlight-${field.label}`"
-                              class="structured-highlight-card"
-                            >
-                              <span>{{ field.label }}</span>
-                              <strong>{{ field.value }}</strong>
-                            </article>
-                          </div>
-
-                          <div
-                            v-if="block.structuredView.extraFields.length"
-                            class="structured-extra-grid"
-                          >
-                            <article
-                              v-for="field in block.structuredView.extraFields.slice(0, PREVIEW_EXTRA_FIELD_LIMIT)"
-                              :key="`preview-text-extra-${field.label}`"
-                              class="structured-extra-item"
-                            >
-                              <span>{{ field.label }}</span>
-                              <strong>{{ field.value }}</strong>
-                            </article>
-                          </div>
-                        </div>
-                      </template>
-                      <p v-else>{{ trimText(formatLocalizedStructuredText(block.content), 240) }}</p>
-                    </article>
-                  </div>
-
-                  <div
-                    v-if="item.__structuredAnswerView.sections.length"
-                    class="structured-section-list"
-                  >
-                    <article
-                      v-for="(section, index) in item.__structuredAnswerView.sections.slice(0, PREVIEW_SECTION_LIMIT)"
-                      :key="`preview-section-${index}`"
-                      class="structured-section-card"
-                    >
-                      <div class="structured-section-head">
-                        <span class="structured-section-kind">{{ section.groupLabel }}</span>
-                        <strong>{{ section.title }}</strong>
-                      </div>
-                      <p v-if="section.subtitle" class="structured-section-subtitle">
-                        {{ section.subtitle }}
-                      </p>
-                      <p v-if="section.body">{{ trimText(formatLocalizedStructuredText(section.body), 180) }}</p>
-                      <ul v-if="section.bullets.length" class="structured-bullet-list">
-                        <li
-                          v-for="(bullet, bulletIndex) in section.bullets.slice(0, 3)"
-                          :key="`preview-bullet-${bulletIndex}`"
-                        >
-                          {{ bullet }}
-                        </li>
-                      </ul>
-                    </article>
-                  </div>
-
-                  <div
-                    v-if="item.__structuredAnswerView.extraFields.length"
-                    class="structured-extra-grid"
-                  >
-                    <article
-                      v-for="field in item.__structuredAnswerView.extraFields.slice(0, PREVIEW_EXTRA_FIELD_LIMIT)"
-                      :key="`preview-extra-${field.label}`"
-                      class="structured-extra-item"
-                    >
-                      <span>{{ field.label }}</span>
-                      <strong>{{ field.value }}</strong>
-                    </article>
-                  </div>
-
-                  <p
-                    v-if="item.__structuredAnswerView.hasOverflow"
-                    class="structured-preview-note"
-                  >
-                    已按中文结构化方式展示摘要，完整内容请查看下方完整日志。
-                  </p>
-                </div>
-              </template>
-              <p v-else>{{ trimText(formatLocalizedStructuredText(item.__answerText || item.answer_preview || item.answer_text || item.assistant_raw_content), 420) }}</p>
+              <pre class="answer-preview-pre">{{ trimText(formatAnswerTextAsChineseFields(item.__structuredAnswer || item.__answerText || item.answer_preview || item.answer_text || item.assistant_raw_content), 420) }}</pre>
             </div>
 
             <div class="entry-actions">
@@ -1658,151 +1873,10 @@ async function loadRuleLibrary() {
             </div>
 
             <details open class="entry-details">
-              <summary>{{ detailPayload.__structuredAnswerView.structured ? '结构化答复' : '完整答复' }}</summary>
-              <template v-if="detailPayload.__structuredAnswerView.structured">
-                <div class="structured-answer detail">
-                  <div
-                    v-if="detailPayload.__structuredAnswerView.highlights.length"
-                    class="structured-highlight-grid"
-                  >
-                    <article
-                      v-for="field in detailPayload.__structuredAnswerView.highlights"
-                      :key="`detail-highlight-${field.label}`"
-                      class="structured-highlight-card"
-                    >
-                      <span>{{ field.label }}</span>
-                      <strong>{{ field.value }}</strong>
-                    </article>
-                  </div>
-
-                  <div
-                    v-if="detailPayload.__structuredAnswerView.textBlocks.length"
-                    class="structured-text-list"
-                  >
-                    <article
-                      v-for="block in detailPayload.__structuredAnswerView.textBlocks"
-                      :key="`detail-text-${block.label}`"
-                      class="structured-text-card"
-                    >
-                      <div class="structured-card-head">
-                        <strong>{{ block.label }}</strong>
-                      </div>
-                      <template v-if="block.structuredView && block.structuredView.structured">
-                        <div class="structured-answer nested">
-                          <div
-                            v-if="block.structuredView.highlights.length"
-                            class="structured-highlight-grid"
-                          >
-                            <article
-                              v-for="field in block.structuredView.highlights"
-                              :key="`detail-text-highlight-${field.label}`"
-                              class="structured-highlight-card"
-                            >
-                              <span>{{ field.label }}</span>
-                              <strong>{{ field.value }}</strong>
-                            </article>
-                          </div>
-
-                          <div
-                            v-if="block.structuredView.sections.length"
-                            class="structured-section-list"
-                          >
-                            <article
-                              v-for="(section, sectionIndex) in block.structuredView.sections"
-                              :key="`detail-text-section-${sectionIndex}`"
-                              class="structured-section-card"
-                            >
-                              <div class="structured-section-head">
-                                <span class="structured-section-kind">{{ section.groupLabel }}</span>
-                                <strong>{{ section.title }}</strong>
-                              </div>
-                              <p v-if="section.subtitle" class="structured-section-subtitle">
-                                {{ section.subtitle }}
-                              </p>
-                              <pre
-                                v-if="section.body"
-                                class="detail-pre structured-pre"
-                              >{{ formatLocalizedStructuredText(section.body) }}</pre>
-                              <ul v-if="section.bullets.length" class="structured-bullet-list">
-                                <li
-                                  v-for="(bullet, bulletIndex) in section.bullets"
-                                  :key="`detail-text-bullet-${bulletIndex}`"
-                                >
-                                  {{ bullet }}
-                                </li>
-                              </ul>
-                            </article>
-                          </div>
-
-                          <div
-                            v-if="block.structuredView.extraFields.length"
-                            class="structured-extra-grid"
-                          >
-                            <article
-                              v-for="field in block.structuredView.extraFields"
-                              :key="`detail-text-extra-${field.label}`"
-                              class="structured-extra-item"
-                            >
-                              <span>{{ field.label }}</span>
-                              <strong>{{ field.value }}</strong>
-                            </article>
-                          </div>
-                        </div>
-                      </template>
-                      <pre
-                        v-else
-                        class="detail-pre structured-pre"
-                      >{{ formatLocalizedStructuredText(block.content) }}</pre>
-                    </article>
-                  </div>
-
-                  <div
-                    v-if="detailPayload.__structuredAnswerView.sections.length"
-                    class="structured-section-list"
-                  >
-                    <article
-                      v-for="(section, index) in detailPayload.__structuredAnswerView.sections"
-                      :key="`detail-section-${index}`"
-                      class="structured-section-card"
-                    >
-                      <div class="structured-section-head">
-                        <span class="structured-section-kind">{{ section.groupLabel }}</span>
-                        <strong>{{ section.title }}</strong>
-                      </div>
-                      <p v-if="section.subtitle" class="structured-section-subtitle">
-                        {{ section.subtitle }}
-                      </p>
-                      <pre v-if="section.body" class="detail-pre structured-pre">{{ formatLocalizedStructuredText(section.body) }}</pre>
-                      <ul v-if="section.bullets.length" class="structured-bullet-list">
-                        <li
-                          v-for="(bullet, bulletIndex) in section.bullets"
-                          :key="`detail-bullet-${bulletIndex}`"
-                        >
-                          {{ bullet }}
-                        </li>
-                      </ul>
-                    </article>
-                  </div>
-
-                  <div
-                    v-if="detailPayload.__structuredAnswerView.extraFields.length"
-                    class="structured-extra-grid"
-                  >
-                    <article
-                      v-for="field in detailPayload.__structuredAnswerView.extraFields"
-                      :key="`detail-extra-${field.label}`"
-                      class="structured-extra-item"
-                    >
-                      <span>{{ field.label }}</span>
-                      <strong>{{ field.value }}</strong>
-                    </article>
-                  </div>
-                </div>
-              </template>
+              <summary>答复内容</summary>
               <pre
-                v-else
                 class="detail-pre"
-              >{{ formatLocalizedStructuredText(detailPayload.__answerText || detailPayload.answer_text || detailPayload.answer_preview || detailPayload.assistant_raw_content) }}</pre>
+              >{{ formatAnswerTextAsChineseFields(detailPayload.__structuredAnswer || detailPayload.__answerText || detailPayload.answer_text || detailPayload.answer_preview || detailPayload.assistant_raw_content) }}</pre>
             </details>
 
             <details open class="entry-details">
@@ -2297,6 +2371,15 @@ async function loadRuleLibrary() {
   color: var(--text-muted);
   font-size: calc(12px * var(--ui-scale));
   line-height: 1.6;
+}
+
+.answer-preview-pre {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif;
 }
 
 .structured-pre {

@@ -445,203 +445,205 @@ watch(
 </script>
 
 <template>
-  <section class="data-panel glass-card">
-    <!-- 工具栏 -->
-    <div class="toolbar">
-      <input
-        v-model="filters.keyword"
-        :placeholder="
-          kbKey === 'products'
-            ? '搜索产品 ID / 名称 / 类别'
-            : kbKey === 'portraits'
-            ? '搜索公司名 / 行业 / 规模'
-            : '搜索标题 / 摘要 / 来源'
-        "
-      />
-      <AppSelect
-        v-if="kbKey === 'trends'"
-        v-model="filters.industry_code"
-        :options="industryCodeOptions"
-        placeholder="全部行业"
-        @update:model-value="loadData"
-      />
-      <AppSelect v-model="filters.is_active" :options="ACTIVE_FILTER_OPTIONS" placeholder="全部状态" />
-      <button class="pill-button secondary" @click="loadData">刷新</button>
-      <button
-        class="pill-button ghost"
-        @click="
-          filters.keyword = '';
-          filters.is_active = '';
-          filters.industry_code = '';
-          loadData();
-        "
-      >
-        重置
-      </button>
-      <span class="toolbar-spacer"></span>
-      <button class="pill-button" @click="openCreate">
-        + 新增{{ kbKey === 'products' ? '产品' : kbKey === 'portraits' ? '企业' : '动态' }}
-      </button>
-    </div>
+  <div class="admin-scroll-page">
+    <section class="data-panel glass-card admin-scroll-panel">
+      <!-- 工具栏 -->
+      <div class="toolbar">
+        <input
+          v-model="filters.keyword"
+          :placeholder="
+            kbKey === 'products'
+              ? '搜索产品 ID / 名称 / 类别'
+              : kbKey === 'portraits'
+              ? '搜索公司名 / 行业 / 规模'
+              : '搜索标题 / 摘要 / 来源'
+          "
+        />
+        <AppSelect
+          v-if="kbKey === 'trends'"
+          v-model="filters.industry_code"
+          :options="industryCodeOptions"
+          placeholder="全部行业"
+          @update:model-value="loadData"
+        />
+        <AppSelect v-model="filters.is_active" :options="ACTIVE_FILTER_OPTIONS" placeholder="全部状态" />
+        <button class="pill-button secondary" @click="loadData">刷新</button>
+        <button
+          class="pill-button ghost"
+          @click="
+            filters.keyword = '';
+            filters.is_active = '';
+            filters.industry_code = '';
+            loadData();
+          "
+        >
+          重置
+        </button>
+        <span class="toolbar-spacer"></span>
+        <button class="pill-button" @click="openCreate">
+          + 新增{{ kbKey === 'products' ? '产品' : kbKey === 'portraits' ? '企业' : '动态' }}
+        </button>
+      </div>
 
-    <div v-if="loading" class="empty-state">数据加载中...</div>
+      <div v-if="loading" class="empty-state panel-empty-state">数据加载中...</div>
 
-    <!-- ============ 产品库 ============ -->
-    <div v-else-if="kbKey === 'products' && filteredRows.length" class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>产品 ID</th>
-            <th>产品名称</th>
-            <th>类别</th>
-            <th>适配行业 / 规模 / 等级</th>
-            <th>利率 / 期限</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in filteredRows" :key="row.product_id">
-            <td><code>{{ row.product_id }}</code></td>
-            <td>
-              <strong>{{ row.product_name }}</strong>
-              <div class="cell-hint">{{ row.selling_points || '' }}</div>
-            </td>
-            <td>
-              {{ row.category || '--' }}
-              <div class="cell-hint">{{ row.subcategory || '' }}</div>
-            </td>
-            <td class="cell-multi">
-              <span v-for="t in (row.fit_industries || [])" :key="`i-${t}`" class="tag">{{ t }}</span>
-              <span v-for="t in (row.fit_scales || [])" :key="`s-${t}`" class="tag green">{{ t }}</span>
-              <span
-                v-for="t in (row.fit_client_tiers || row.fit_tiers || [])"
-                :key="`c-${t}`"
-                class="tag gray"
-              >{{ t }}</span>
-              <span v-for="t in (row.trigger_signals || [])" :key="`g-${t}`" class="tag orange">{{ t }}</span>
-            </td>
-            <td>
-              {{ row.rate_range || '--' }}
-              <div class="cell-hint">{{ row.tenor_range || '' }}</div>
-            </td>
-            <td>
-              <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
-                {{ row.is_active === 0 ? '停用' : '启用' }}
-              </span>
-            </td>
-            <td>
-              <div class="action-group">
-                <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                <button class="tiny-button danger" @click="removeRow(row)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <!-- ============ 产品库 ============ -->
+      <div v-else-if="kbKey === 'products' && filteredRows.length" class="table-wrap panel-scroll-region">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>产品 ID</th>
+              <th>产品名称</th>
+              <th>类别</th>
+              <th>适配行业 / 规模 / 等级</th>
+              <th>利率 / 期限</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in filteredRows" :key="row.product_id">
+              <td><code>{{ row.product_id }}</code></td>
+              <td>
+                <strong>{{ row.product_name }}</strong>
+                <div class="cell-hint">{{ row.selling_points || '' }}</div>
+              </td>
+              <td>
+                {{ row.category || '--' }}
+                <div class="cell-hint">{{ row.subcategory || '' }}</div>
+              </td>
+              <td class="cell-multi">
+                <span v-for="t in (row.fit_industries || [])" :key="`i-${t}`" class="tag">{{ t }}</span>
+                <span v-for="t in (row.fit_scales || [])" :key="`s-${t}`" class="tag green">{{ t }}</span>
+                <span
+                  v-for="t in (row.fit_client_tiers || row.fit_tiers || [])"
+                  :key="`c-${t}`"
+                  class="tag gray"
+                >{{ t }}</span>
+                <span v-for="t in (row.trigger_signals || [])" :key="`g-${t}`" class="tag orange">{{ t }}</span>
+              </td>
+              <td>
+                {{ row.rate_range || '--' }}
+                <div class="cell-hint">{{ row.tenor_range || '' }}</div>
+              </td>
+              <td>
+                <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
+                  {{ row.is_active === 0 ? '停用' : '启用' }}
+                </span>
+              </td>
+              <td>
+                <div class="action-group">
+                  <button class="tiny-button" @click="openEdit(row)">编辑</button>
+                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <!-- ============ 企业画像 ============ -->
-    <div v-else-if="kbKey === 'portraits' && filteredRows.length" class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>公司名 / 主营</th>
-            <th>行业</th>
-            <th>规模 / 等级</th>
-            <th>AUM</th>
-            <th>已持产品 / 关键字段</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in filteredRows" :key="row.company_name">
-            <td>
-              <strong>{{ row.company_name }}</strong>
-              <div class="cell-hint">{{ row.main_business || '' }}</div>
-            </td>
-            <td>
-              {{ row.industry_name || row.industry || '--' }}
-              <div class="cell-hint">{{ row.industry_code || '' }}</div>
-            </td>
-            <td>
-              {{ row.scale || '--' }}
-              <div class="cell-hint">{{ row.client_tier || '' }}</div>
-            </td>
-            <td>
-              {{ row.aum || '--' }}
-              <div class="cell-hint">{{ row.aum_numeric || 0 }} 万</div>
-            </td>
-            <td class="cell-multi">
-              <span v-for="t in (row.held_products || [])" :key="`p-${t}`" class="tag">{{ t }}</span>
-              <span v-for="t in (row.key_needs || [])" :key="`n-${t}`" class="tag gray">{{ t }}</span>
-              <span v-if="row.export_oriented" class="tag orange">出口</span>
-              <span v-if="row.is_group" class="tag">集团</span>
-              <span v-if="row.green_industry" class="tag green">绿色</span>
-              <span v-if="row.msme_first_time" class="tag green">小微首贷</span>
-              <span
-                v-if="row.credit_due_days !== null && row.credit_due_days !== undefined"
-                class="tag gray"
-              >授信 {{ row.credit_due_days }} 天到期</span>
-            </td>
-            <td>
-              <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
-                {{ row.is_active === 0 ? '停用' : '启用' }}
-              </span>
-            </td>
-            <td>
-              <div class="action-group">
-                <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                <button class="tiny-button danger" @click="removeRow(row)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <!-- ============ 企业画像 ============ -->
+      <div v-else-if="kbKey === 'portraits' && filteredRows.length" class="table-wrap panel-scroll-region">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>公司名 / 主营</th>
+              <th>行业</th>
+              <th>规模 / 等级</th>
+              <th>AUM</th>
+              <th>已持产品 / 关键字段</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in filteredRows" :key="row.company_name">
+              <td>
+                <strong>{{ row.company_name }}</strong>
+                <div class="cell-hint">{{ row.main_business || '' }}</div>
+              </td>
+              <td>
+                {{ row.industry_name || row.industry || '--' }}
+                <div class="cell-hint">{{ row.industry_code || '' }}</div>
+              </td>
+              <td>
+                {{ row.scale || '--' }}
+                <div class="cell-hint">{{ row.client_tier || '' }}</div>
+              </td>
+              <td>
+                {{ row.aum || '--' }}
+                <div class="cell-hint">{{ row.aum_numeric || 0 }} 万</div>
+              </td>
+              <td class="cell-multi">
+                <span v-for="t in (row.held_products || [])" :key="`p-${t}`" class="tag">{{ t }}</span>
+                <span v-for="t in (row.key_needs || [])" :key="`n-${t}`" class="tag gray">{{ t }}</span>
+                <span v-if="row.export_oriented" class="tag orange">出口</span>
+                <span v-if="row.is_group" class="tag">集团</span>
+                <span v-if="row.green_industry" class="tag green">绿色</span>
+                <span v-if="row.msme_first_time" class="tag green">小微首贷</span>
+                <span
+                  v-if="row.credit_due_days !== null && row.credit_due_days !== undefined"
+                  class="tag gray"
+                >授信 {{ row.credit_due_days }} 天到期</span>
+              </td>
+              <td>
+                <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
+                  {{ row.is_active === 0 ? '停用' : '启用' }}
+                </span>
+              </td>
+              <td>
+                <div class="action-group">
+                  <button class="tiny-button" @click="openEdit(row)">编辑</button>
+                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <!-- ============ 行业动态 ============ -->
-    <div v-else-if="kbKey === 'trends' && filteredRows.length" class="table-wrap">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>日期</th>
-            <th>行业</th>
-            <th>类别</th>
-            <th>标题 / 摘要</th>
-            <th>来源</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in filteredRows" :key="row.id">
-            <td>{{ row.insight_date }}</td>
-            <td><code>{{ row.industry_code || '--' }}</code></td>
-            <td><span class="tag">{{ row.category || '--' }}</span></td>
-            <td>
-              <strong>{{ row.title }}</strong>
-              <div class="cell-hint">{{ row.summary }}</div>
-            </td>
-            <td class="cell-hint">{{ row.source || '--' }}</td>
-            <td>
-              <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
-                {{ row.is_active === 0 ? '停用' : '启用' }}
-              </span>
-            </td>
-            <td>
-              <div class="action-group">
-                <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                <button class="tiny-button danger" @click="removeRow(row)">删除</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+      <!-- ============ 行业动态 ============ -->
+      <div v-else-if="kbKey === 'trends' && filteredRows.length" class="table-wrap panel-scroll-region">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>行业</th>
+              <th>类别</th>
+              <th>标题 / 摘要</th>
+              <th>来源</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in filteredRows" :key="row.id">
+              <td>{{ row.insight_date }}</td>
+              <td><code>{{ row.industry_code || '--' }}</code></td>
+              <td><span class="tag">{{ row.category || '--' }}</span></td>
+              <td>
+                <strong>{{ row.title }}</strong>
+                <div class="cell-hint">{{ row.summary }}</div>
+              </td>
+              <td class="cell-hint">{{ row.source || '--' }}</td>
+              <td>
+                <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
+                  {{ row.is_active === 0 ? '停用' : '启用' }}
+                </span>
+              </td>
+              <td>
+                <div class="action-group">
+                  <button class="tiny-button" @click="openEdit(row)">编辑</button>
+                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <div v-else class="empty-state">暂无{{ kindLabel }}数据。</div>
+      <div v-else class="empty-state panel-empty-state">暂无{{ kindLabel }}数据。</div>
+    </section>
 
     <!-- ============ 编辑弹窗 ============ -->
     <Teleport to="body">
@@ -910,7 +912,7 @@ watch(
         </div>
       </div>
     </Teleport>
-  </section>
+  </div>
 </template>
 
 <style scoped>
