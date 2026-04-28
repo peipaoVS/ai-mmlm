@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi, ReportsApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
 
 const session = useSession()
@@ -132,6 +132,20 @@ const visiblePostSummaries = computed(() =>
   showAllPostSummaries.value ? postSummaryList.value : postSummaryList.value.slice(0, 2)
 )
 
+// ---- 待办列表（侧栏第五块）----
+const todoList = ref([])
+const todoLoading = ref(false)
+const showAllTodos = ref(false)
+const todoCompanyFilter = ref('')
+const todoStatusFilter = ref('pending')
+const TODO_STATUS_OPTIONS = [
+  { value: 'pending', label: '待办' },
+  { value: 'done', label: '已完成' },
+]
+const visibleTodos = computed(() =>
+  showAllTodos.value ? todoList.value : todoList.value.slice(0, 3)
+)
+
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 
 onMounted(() => {
@@ -140,6 +154,7 @@ onMounted(() => {
   loadTaskJobs()
   loadReports()
   loadPostSummaries()
+  loadTodos()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -621,7 +636,7 @@ async function openReportDetail(report) {
   reportDetailDialog.value = true
   reportDetailLoading.value = true
   reportDetail.value = null
-  reportDetailTab.value = 'content'
+  reportDetailTab.value = 'cards'
   reportRewriteSupplement.value = ''
   reportRewriteStatus.value = ''
   reportRewriteError.value = ''
@@ -639,7 +654,7 @@ async function openReportDetail(report) {
 function closeReportDetail() {
   reportDetailDialog.value = false
   reportDetail.value = null
-  reportDetailTab.value = 'content'
+  reportDetailTab.value = 'cards'
   reportRewriteSupplement.value = ''
   reportRewriteStatus.value = ''
   reportRewriteError.value = ''
@@ -701,7 +716,7 @@ async function downloadReportFile(report, variant = 'both') {
 }
 
 // ---- 报告详情弹窗 · Tab + 改写 ----
-const reportDetailTab = ref('content')       // 'content' | 'rewrite'
+const reportDetailTab = ref('cards')       // 'cards' | 'brief' | 'full' | 'json' | 'rewrite'
 const reportRewriteSupplement = ref('')
 const reportRewriteSubmitting = ref(false)
 const reportRewriteStatus = ref('')          // '' | 'loading' | 'error'
@@ -779,7 +794,7 @@ async function submitReportRewrite() {
         report_content: result.report_content || reportDetail.value?.report_content,
         version: result.version || (reportDetail.value?.version || 0) + 1,
       }
-      reportDetailTab.value = 'content'
+      reportDetailTab.value = 'full'
     }
 
     await loadReports()
@@ -886,6 +901,24 @@ async function loadPostSummaries() {
     console.warn('访后纪要列表加载失败：', error)
   } finally {
     postSummaryLoading.value = false
+  }
+}
+
+// ---- 待办列表加载 ----
+async function loadTodos() {
+  todoLoading.value = true
+  try {
+    const params = { status: todoStatusFilter.value }
+    if (todoCompanyFilter.value.trim()) {
+      params.company_name = todoCompanyFilter.value.trim()
+    }
+    const resp = await ReportsApi.listTodos(params)
+    todoList.value = Array.isArray(resp) ? resp : (resp?.items || resp?.todos || [])
+  } catch (error) {
+    todoList.value = []
+    console.warn('待办列表加载失败：', error)
+  } finally {
+    todoLoading.value = false
   }
 }
 
@@ -1034,17 +1067,45 @@ async function submitPostVisitRewrite() {
   }
 }
 
-// 报告详情弹窗里展示的正文，优先完整版，其次精简版
-const reportDetailBody = computed(() => {
+// 报告详情：精简版 / 完整版 / 分节卡片
+const reportBriefContent = computed(() => {
   const r = reportDetail.value
-  if (!r) return ''
-  return (
-    r.full_report_content ||
-    r.report_content ||
-    r.brief_report_content ||
-    '（暂无报告正文）'
-  )
+  return (r?.brief_report_content || '').trim() || '（暂无精简版）'
 })
+const reportFullContent = computed(() => {
+  const r = reportDetail.value
+  return (r?.full_report_content || r?.report_content || '').trim() || '（暂无完整版）'
+})
+const reportSections = computed(() => {
+  const r = reportDetail.value
+  return Array.isArray(r?.sections) ? r.sections : []
+})
+const reportStructuredJson = computed(() => {
+  const r = reportDetail.value
+  if (!r) return '{}'
+  const pl = r.payload || {}
+  return JSON.stringify({
+    report_id: r.report_id || r.id,
+    version: r.version,
+    visit_time: pl.visit_time || r.visit_time || '',
+    visit_location: pl.visit_location || r.visit_location || '',
+    person: pl.person || r.person || '',
+    report_send_time: pl.report_send_time || r.report_send_time || '',
+    remark: pl.remark || r.remark || '',
+    created_at: r.created_at || '',
+    updated_at: r.updated_at || '',
+    payload: pl,
+  }, null, 2)
+})
+
+function copyReportText(key) {
+  const text = key === 'brief' ? reportBriefContent.value : reportFullContent.value
+  if (!text) return
+  navigator.clipboard?.writeText(text).then(
+    () => window.alert(`已复制${key === 'brief' ? '精简版' : '完整版'}到剪贴板`),
+    () => window.alert('复制失败')
+  )
+}
 // 点击待办任务卡片时，查询并显示该任务对应的访前报告内容。
 // 注意：task.id 是 scheduled_tasks.id，而报告接口需要的是 report_id，
 // 两者不同；应该优先用 task.prepared_report_id。
@@ -1321,6 +1382,120 @@ async function handleCancel(message) {
   console.log('取消拜访安排:', message)
   // window.alert('取消功能待实现')
 }
+
+/* ==================== 推送消息轮询 (push polling) ==================== */
+const PUSH_POLL_MS = 5000
+const PUSH_SEEN_KEY = 'aibank_push_seen'
+const pushQueue = ref([])
+const pushActiveMsg = ref(null)
+const pushShownIds = ref(new Set(JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || '[]')))
+let pushPollTimer = null
+
+function persistPushSeen() {
+  try {
+    localStorage.setItem(PUSH_SEEN_KEY, JSON.stringify([...pushShownIds.value].slice(-200)))
+  } catch {}
+}
+
+const pushBadgeCount = computed(() => pushQueue.value.length)
+
+async function pollPushMessages() {
+  if (!session.token) return
+  try {
+    const rows = await PushMessagesApi.listPushMessages({ unread_only: true, limit: 20 })
+    const list = Array.isArray(rows) ? rows : []
+    const fresh = list.filter(m => !pushShownIds.value.has(m.id)).reverse()
+    if (!fresh.length) return
+    pushQueue.value.push(...fresh)
+    if (!pushActiveMsg.value) showNextPushToast()
+  } catch { /* 轮询失败静默 */ }
+}
+
+function showNextPushToast() {
+  closePushToast(false)
+  const msg = pushQueue.value.shift()
+  if (!msg) return
+  pushActiveMsg.value = msg
+  pushShownIds.value.add(msg.id)
+  persistPushSeen()
+}
+
+function closePushToast(requeue) {
+  if (requeue && pushActiveMsg.value) {
+    pushQueue.value.unshift(pushActiveMsg.value)
+  }
+  pushActiveMsg.value = null
+}
+
+async function acknowledgePush(id) {
+  try { await PushMessagesApi.markPushMessageRead(id) } catch {}
+  pushActiveMsg.value = null
+  if (pushQueue.value.length) showNextPushToast()
+}
+
+async function markAllPushRead() {
+  try { await PushMessagesApi.markAllPushMessagesRead() } catch (e) {
+    console.warn('一键已读失败', e)
+    return
+  }
+  if (pushActiveMsg.value) pushShownIds.value.add(pushActiveMsg.value.id)
+  pushQueue.value.forEach(m => pushShownIds.value.add(m.id))
+  persistPushSeen()
+  pushQueue.value = []
+  pushActiveMsg.value = null
+}
+
+function startPushPolling() {
+  if (pushPollTimer) clearInterval(pushPollTimer)
+  pollPushMessages()
+  pushPollTimer = setInterval(pollPushMessages, PUSH_POLL_MS)
+}
+
+function stopPushPolling() {
+  if (pushPollTimer) { clearInterval(pushPollTimer); pushPollTimer = null }
+}
+
+/* ==================== 报告生成进度轮询 (gen polling) ==================== */
+const GEN_POLL_MS = 3000
+const genJobs = ref([])
+const genDismissed = ref(new Set())
+let genPollTimer = null
+
+async function pollReportJobs() {
+  if (!session.token) return
+  try {
+    const resp = await ReportsApi.listReportJobs()
+    const jobs = (resp.jobs || []).filter(j => !genDismissed.value.has(j.report_id))
+    genJobs.value = jobs
+    // 有新完成的任务 → 自动刷新报告列表
+    if (jobs.some(j => j.status === 'done')) loadReports()
+  } catch { /* 静默 */ }
+}
+
+function dismissGenJob(reportId) {
+  genDismissed.value.add(reportId)
+  genJobs.value = genJobs.value.filter(j => j.report_id !== reportId)
+}
+
+function startGenPolling() {
+  if (genPollTimer) clearInterval(genPollTimer)
+  pollReportJobs()
+  genPollTimer = setInterval(pollReportJobs, GEN_POLL_MS)
+}
+
+function stopGenPolling() {
+  if (genPollTimer) { clearInterval(genPollTimer); genPollTimer = null }
+}
+
+// 挂载 / 卸载轮询
+onMounted(() => {
+  startPushPolling()
+  startGenPolling()
+})
+onBeforeUnmount(() => {
+  stopPushPolling()
+  stopGenPolling()
+})
 </script>
 
 <template>
@@ -1329,6 +1504,45 @@ async function handleCancel(message) {
       <button class="pill-button new-chat-button" @click="startFreshConversation">
         + 新建对话
       </button>
+
+      <!-- ============ 报告生成进度 ============ -->
+      <section v-if="genJobs.length" class="side-section gen-section">
+        <div class="section-head">
+          <div class="section-head-main">
+            <span class="side-label">生成进度</span>
+          </div>
+        </div>
+        <div class="gen-list">
+          <div
+            v-for="job in genJobs"
+            :key="job.report_id"
+            class="gen-card"
+            :class="{
+              done: job.status === 'done',
+              error: job.status === 'error'
+            }"
+          >
+            <div class="gen-icon">
+              <span v-if="job.status === 'done'">✅</span>
+              <span v-else-if="job.status === 'error'">❌</span>
+              <div v-else class="gen-spinner"></div>
+            </div>
+            <div class="gen-info">
+              <div class="gen-title">#{{ job.report_id }} {{ job.company || '' }}</div>
+              <div class="gen-meta">
+                {{ job.action || '' }}
+                {{ job.status === 'running' ? ' 进行中' : job.status === 'done' ? ' 已完成' : job.status === 'error' ? ' 失败' : '' }}
+                · {{ job.elapsed != null ? `${job.elapsed}s` : '...' }}
+              </div>
+            </div>
+            <button
+              v-if="job.status !== 'running'"
+              class="gen-dismiss"
+              @click="dismissGenJob(job.report_id)"
+            >关闭</button>
+          </div>
+        </div>
+      </section>
 
       <section class="side-section">
         <div class="section-head">
@@ -1616,6 +1830,70 @@ async function handleCancel(message) {
               ? '加载中...'
               : '暂无访后纪要。在「访前报告」中点击「访后纪要」即可上传拜访概要并自动生成。'
           }}
+        </div>
+      </section>
+
+      <!-- ============ 待办列表 ============ -->
+      <section class="side-section">
+        <div class="section-head">
+          <div class="section-head-main">
+            <span class="side-label">待办</span>
+            <button
+              type="button"
+              class="head-action-button"
+              :disabled="todoLoading"
+              @click="loadTodos"
+            >
+              {{ todoLoading ? '加载中...' : '刷新' }}
+            </button>
+          </div>
+          <button
+            type="button"
+            class="toggle-button"
+            @click="showAllTodos = !showAllTodos"
+          >
+            {{
+              showAllTodos
+                ? '收起'
+                : `展开${todoList.length ? `（${todoList.length}）` : ''}`
+            }}
+          </button>
+        </div>
+
+        <div v-if="showAllTodos" class="todo-filter-row">
+          <input
+            v-model="todoCompanyFilter"
+            type="text"
+            placeholder="按公司过滤（可选）"
+            @keyup.enter="loadTodos"
+          />
+          <select v-model="todoStatusFilter" class="todo-status-select" @change="loadTodos">
+            <option v-for="opt in TODO_STATUS_OPTIONS" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <div v-if="showAllTodos && todoList.length" class="task-list">
+          <article v-for="row in visibleTodos" :key="row.id" class="task-card">
+            <div class="task-card-body">
+              <div class="task-head">
+                <strong class="task-title">
+                  <span class="task-id">#{{ row.id }}</span>
+                  {{ row.content || row.title || '' }}
+                </strong>
+              </div>
+              <div class="task-meta-grid">
+                <span v-if="row.company_name"><em>公司：</em>{{ row.company_name }}</span>
+                <span><em>状态：</em>{{ row.status || '' }}</span>
+                <span v-if="row.created_at">{{ row.created_at }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div v-else-if="showAllTodos" class="topic-empty">
+          {{ todoLoading ? '加载中...' : '无待办' }}
         </div>
       </section>
     </aside>
@@ -1993,25 +2271,55 @@ async function handleCancel(message) {
               <span>更新：<strong>{{ reportDetail.updated_at || '-' }}</strong></span>
             </div>
 
-            <!-- 两个 Tab -->
+            <!-- Tab 栏 -->
             <div class="pv-tab-bar">
-              <button
-                type="button"
-                class="pv-tab-btn"
-                :class="{ active: reportDetailTab === 'content' }"
-                @click="reportDetailTab = 'content'"
-              >报告内容</button>
-              <button
-                type="button"
-                class="pv-tab-btn"
-                :class="{ active: reportDetailTab === 'rewrite' }"
-                @click="reportDetailTab = 'rewrite'"
-              >补充改写</button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'cards' }" @click="reportDetailTab = 'cards'">
+                分节卡片 ({{ reportSections.length }})
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'brief' }" @click="reportDetailTab = 'brief'">
+                精简版 ({{ reportBriefContent.length }}字)
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'full' }" @click="reportDetailTab = 'full'">
+                完整版 ({{ reportFullContent.length }}字)
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'json' }" @click="reportDetailTab = 'json'">
+                结构化
+              </button>
+              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'rewrite' }" @click="reportDetailTab = 'rewrite'">
+                补充改写
+              </button>
             </div>
 
-            <!-- Tab: 报告内容 -->
-            <div v-show="reportDetailTab === 'content'" class="report-detail-body">
-              <pre>{{ reportDetailBody }}</pre>
+            <!-- Tab: 分节卡片 -->
+            <div v-show="reportDetailTab === 'cards'" class="report-detail-body">
+              <div v-if="reportSections.length" class="rd-cards">
+                <div v-for="(sec, idx) in reportSections" :key="idx" class="rd-card">
+                  <h6>
+                    <span class="rd-idx">{{ sec.numeral || sec.index || idx + 1 }}</span>
+                    {{ sec.title || sec.heading || '章节' }}
+                  </h6>
+                  <ul v-if="sec.bullets && sec.bullets.length" class="rd-bullets">
+                    <li v-for="(b, bi) in sec.bullets" :key="bi">{{ b }}</li>
+                  </ul>
+                  <div v-else class="rd-body">{{ (sec.body || '').trim() || '（本节无内容）' }}</div>
+                </div>
+              </div>
+              <div v-else class="rd-cards-empty">（暂无可拆分的章节结构，可切换到「完整版」查看原文）</div>
+            </div>
+
+            <!-- Tab: 精简版 -->
+            <div v-show="reportDetailTab === 'brief'" class="report-detail-body">
+              <pre class="rd-pre">{{ reportBriefContent }}</pre>
+            </div>
+
+            <!-- Tab: 完整版 -->
+            <div v-show="reportDetailTab === 'full'" class="report-detail-body">
+              <pre class="rd-pre">{{ reportFullContent }}</pre>
+            </div>
+
+            <!-- Tab: 结构化 JSON -->
+            <div v-show="reportDetailTab === 'json'" class="report-detail-body">
+              <pre class="rd-pre rd-json">{{ reportStructuredJson }}</pre>
             </div>
 
             <!-- Tab: 补充改写 -->
@@ -2046,18 +2354,12 @@ async function handleCancel(message) {
           </template>
 
           <footer class="task-modal-foot">
-            <button
-              v-if="reportDetail"
-              type="button"
-              class="tiny-button"
-              @click="downloadReportFile(reportDetail, 'brief')"
-            >下载精简版</button>
-            <button
-              v-if="reportDetail"
-              type="button"
-              class="tiny-button primary"
-              @click="downloadReportFile(reportDetail, 'full')"
-            >下载完整版</button>
+            <button v-if="reportDetail" type="button" class="tiny-button" @click="copyReportText('brief')">复制精简版</button>
+            <button v-if="reportDetail" type="button" class="tiny-button" @click="copyReportText('full')">复制完整版</button>
+            <button v-if="reportDetail" type="button" class="tiny-button primary" @click="downloadReportFile(reportDetail, 'brief')">⬇ 精简版 .docx</button>
+            <button v-if="reportDetail" type="button" class="tiny-button primary" @click="downloadReportFile(reportDetail, 'full')">⬇ 完整版 .docx</button>
+            <button v-if="reportDetail" type="button" class="tiny-button primary" @click="downloadReportFile(reportDetail, 'both')">⬇ 双版本 .docx</button>
+            <button v-if="reportDetail" type="button" class="tiny-button warn" @click="reportDetailTab = 'rewrite'">改写此报告</button>
             <button type="button" class="tiny-button" @click="closeReportDetail">关闭</button>
           </footer>
         </div>
@@ -2184,6 +2486,39 @@ async function handleCancel(message) {
                 <p v-if="log.description" class="task-revision-desc">{{ log.description }}</p>
               </li>
             </ul>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ============ 推送铃铛 ============ -->
+    <button
+      v-if="pushBadgeCount > 0"
+      class="push-bell"
+      title="查看推送通知"
+      @click="showNextPushToast"
+    >
+      🔔<span class="pb-dot">{{ pushBadgeCount > 99 ? '99+' : pushBadgeCount }}</span>
+    </button>
+
+    <!-- ============ 推送 Toast 弹窗 ============ -->
+    <Teleport to="body">
+      <div v-if="pushActiveMsg" class="push-toast-mask" @click.self="closePushToast(true)">
+        <div class="push-toast" role="dialog" aria-modal="true">
+          <div class="push-toast-head">
+            <div class="pt-title">🔔 定时任务推送 <span class="pt-count">#{{ pushActiveMsg.id }}</span></div>
+            <span v-if="pushQueue.length" class="pt-count">后续还有 {{ pushQueue.length }} 条</span>
+          </div>
+          <div class="push-toast-meta">
+            <span>客户：<strong>{{ pushActiveMsg.company_name || '—' }}</strong></span>
+            <span>时间：{{ pushActiveMsg.created_at || '' }}</span>
+          </div>
+          <div class="push-toast-body">{{ pushActiveMsg.content || '' }}</div>
+          <div class="push-toast-foot">
+            <button v-if="pushQueue.length" @click="showNextPushToast">下一条 →</button>
+            <button @click="closePushToast(true)">稍后再看</button>
+            <button class="primary" @click="acknowledgePush(pushActiveMsg.id)">标记已读</button>
+            <button @click="markAllPushRead">全部已读</button>
           </div>
         </div>
       </div>
@@ -2584,6 +2919,35 @@ async function handleCancel(message) {
   font: inherit;
   color: var(--text-main);
   box-sizing: border-box;
+}
+
+.todo-filter-row {
+  display: flex;
+  gap: 6px;
+  margin: calc(8px * var(--ui-scale)) 0 calc(2px * var(--ui-scale));
+}
+
+.todo-filter-row input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 37, 54, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  color: var(--text-main);
+  box-sizing: border-box;
+  font-size: calc(12px * var(--ui-scale));
+}
+
+.todo-status-select {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(27, 37, 54, 0.10);
+  background: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  color: var(--text-main);
+  font-size: calc(12px * var(--ui-scale));
+  cursor: pointer;
 }
 
 .task-modal--wide {
@@ -3033,4 +3397,331 @@ async function handleCancel(message) {
     width: 100%;
   }
 }
+
+/* ==================== 推送铃铛 ==================== */
+.push-bell {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.35);
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+.push-bell .pb-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* ==================== 推送 Toast ==================== */
+.push-toast-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: pushFadeIn 0.2s;
+}
+
+@keyframes pushFadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pushPopIn { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
+
+.push-toast {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 640px;
+  width: 92%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  animation: pushPopIn 0.25s;
+}
+
+.push-toast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: linear-gradient(90deg, #1d4ed8, #4338ca);
+  color: #fff;
+}
+
+.push-toast-head .pt-title {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.push-toast-head .pt-count {
+  background: rgba(255, 255, 255, 0.22);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.push-toast-meta {
+  display: flex;
+  gap: 12px;
+  padding: 8px 18px;
+  font-size: 11px;
+  color: #64748b;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.push-toast-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 18px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #0f172a;
+  white-space: pre-wrap;
+  background: #fff;
+}
+
+.push-toast-foot {
+  display: flex;
+  gap: 8px;
+  padding: 10px 18px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  justify-content: flex-end;
+}
+
+.push-toast-foot button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid #c7d2fe;
+  background: #fff;
+  color: #3730a3;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.push-toast-foot button.primary {
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+.push-toast-foot button:hover {
+  filter: brightness(1.05);
+}
+
+/* ==================== 报告生成进度卡片 ==================== */
+.gen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gen-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  font-size: 12px;
+}
+
+.gen-card .gen-icon {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.gen-card .gen-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #1d4ed8;
+  border-radius: 50%;
+  animation: genSpin 0.8s linear infinite;
+}
+
+@keyframes genSpin { to { transform: rotate(360deg) } }
+
+.gen-card .gen-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.gen-card .gen-title {
+  font-weight: 600;
+  color: #0f172a;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gen-card .gen-meta {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.gen-card.done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.gen-card.error {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.gen-dismiss {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.gen-dismiss:hover {
+  background: #f1f5f9;
+}
+
+/* ==================== 报告详情 · 分节卡片 ==================== */
+.rd-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.rd-cards-empty {
+  color: #64748b;
+  font-size: 13px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.rd-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rd-card h6 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rd-idx {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.rd-bullets {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.rd-bullets li {
+  margin-bottom: 2px;
+}
+
+.rd-body {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+}
+
+.rd-pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #0f172a;
+}
+
+.rd-json {
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 12px;
+  color: #334155;
+}
+
+.task-modal-foot {
+  flex-wrap: wrap;
+}
+
+.tiny-button.warn {
+  background: #f59e0b;
+  color: #fff;
+  border-color: #f59e0b;
+}
+
+.tiny-button.warn:hover {
+  background: #d97706;
+}
 </style>
+
