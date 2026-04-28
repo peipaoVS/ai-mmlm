@@ -40,16 +40,6 @@ const legacyMenus = [
   { name: '所属公司', section: 'permission', path: '/companies', sortOrder: 50 }
 ]
 
-const currentSection = computed(() => route.meta.title || 'AI工作台')
-const today = computed(() =>
-  new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long'
-  }).format(new Date())
-)
-
 const displayUsername = computed(
   () => session.user?.nickname || session.user?.username || '管理员'
 )
@@ -88,6 +78,29 @@ const groupedMenus = computed(() =>
         .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
     }))
     .filter((group) => group.items.length)
+)
+
+const currentMenuItem = computed(() => {
+  const exactMatched = effectiveMenus.value.find((item) => item.path === route.path)
+  if (exactMatched) {
+    return exactMatched
+  }
+
+  const partialMatched = effectiveMenus.value.find(
+    (item) => item.path !== '/' && route.path.startsWith(item.path)
+  )
+  return partialMatched || null
+})
+
+const currentSectionLabel = computed(() => currentMenuItem.value?.name || route.meta.title || 'AI工作台')
+
+const currentDateText = computed(() =>
+  new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+  }).format(new Date())
 )
 
 const shouldConstrainContent = computed(() => {
@@ -148,8 +161,10 @@ onBeforeUnmount(() => {
     <main class="shell-main" :class="{ 'shell-main-constrained': shouldConstrainContent }">
       <header class="shell-header glass-card">
         <div class="header-left">
-          <h3>{{ currentSection }}</h3>
-          <p>{{ today }}</p>
+          <div class="header-copy">
+            <span class="header-section-pill">{{ currentSectionLabel }}</span>
+            <p class="header-date-inline">{{ currentDateText }}</p>
+          </div>
         </div>
 
         <div ref="headerToolsRef" class="header-right">
@@ -276,19 +291,42 @@ onBeforeUnmount(() => {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: calc(14px * var(--ui-scale));
   flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.header-left h2 {
+.header-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(14px * var(--ui-scale));
+  flex-wrap: nowrap;
+}
+
+.header-section-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(34px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.16), rgba(47, 131, 116, 0.14));
+  border: 1px solid rgba(237, 124, 71, 0.16);
+  color: var(--brand-alt);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.header-date-inline {
   margin: 0;
-  font-size: clamp(1.6rem, 1.1rem + 1vw, 2rem);
-  line-height: 1.1;
-}
-
-.header-left p {
-  margin: calc(8px * var(--ui-scale)) 0 0;
   color: var(--text-muted);
+  font-size: calc(13px * var(--ui-scale));
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .header-right {
@@ -513,6 +551,10 @@ onBeforeUnmount(() => {
     align-items: stretch;
   }
 
+  .header-left {
+    width: 100%;
+  }
+
   .header-right {
     width: 100%;
   }
@@ -527,6 +569,14 @@ onBeforeUnmount(() => {
     width: 100%;
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .header-left {
+    align-items: stretch;
+  }
+
+  .header-copy {
+    width: 100%;
   }
 
   .menu-anchor,
@@ -545,8 +595,8 @@ onBeforeUnmount(() => {
     padding: 1rem;
   }
 
-  .header-left h2 {
-    font-size: 1.5rem;
+  .header-copy {
+    gap: 0.75rem;
   }
 
   .menu-popover,
