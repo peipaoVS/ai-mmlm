@@ -58,14 +58,15 @@ async function startFreshConver() {
   }
 }
 // 待办事项接口
+const loadLoading = ref(false)
 async function loadTaskJobs() {
-  loading.value = true
+  loadLoading.value = true
   try {
     const response = await VisitApi.listTasks()
     taskJobs.value = response.tasks || []
     console.log('待办事项接口', response)
   } finally {
-    loading.value = false
+    loadLoading.value = false
   }
 }
 const activeSessionId = ref('')
@@ -1748,8 +1749,8 @@ onBeforeUnmount(() => {
         <div class="section-head">
           <div class="section-head-main">
             <span class="side-label">待办事项</span>
-            <button type="button" class="head-action-button" @click="importTask">
-              导入
+            <button type="button" class="head-action-button" @click="loadTaskJobs" :disabled="loadLoading">
+              {{ loadLoading ? '加载中...' : '刷新' }}
             </button>
           </div>
           <button
@@ -1757,7 +1758,7 @@ onBeforeUnmount(() => {
             class="toggle-button"
             @click="showAllTasks = !showAllTasks"
           >
-            {{ showAllTasks ? '收起' : `展开${taskJobs.length ? `（${taskJobs.length}）` : ''}` }}
+            {{ showAllTasks ? '收起' : `展开${taskJobs.length ? `(${taskJobs.length})` : ''}` }}
           </button>
         </div>
 
@@ -1917,7 +1918,7 @@ onBeforeUnmount(() => {
             {{
               showAllPostSummaries
                 ? '收起'
-                : `展开${postSummaryList.length ? `（${postSummaryList.length}）` : ''}`
+                : `展开${postSummaryList.length ? `(${postSummaryList.length})` : ''}`
             }}
           </button>
         </div>
@@ -2020,7 +2021,7 @@ onBeforeUnmount(() => {
             {{
               showAllTodos
                 ? '收起'
-                : `展开${todoList.length ? `（${todoList.length}）` : ''}`
+                : `展开${todoList.length ? `(${todoList.length})` : ''}`
             }}
           </button>
         </div>
