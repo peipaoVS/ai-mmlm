@@ -1308,11 +1308,11 @@ async function handleCancel(message) {
                 <button type="button" class="tiny-button danger" @click.stop="deleteTask(task)">
                   删除
                 </button>
-                <button type="button" class="tiny-button" @click.stop="openTaskRevisions(task)">
-                  修改记录
-                </button>
                 <button type="button" class="tiny-button" @click.stop="exportTask(task)">
                   导出
+                </button>
+                <button type="button" class="tiny-button" @click.stop="openTaskRevisions(task)">
+                  修改记录
                 </button>
               </div>
             </div>
@@ -1520,11 +1520,11 @@ async function handleCancel(message) {
               <input v-model="taskEditForm.title" type="text" />
             </label>
             <label class="task-field">
-              <span>拜访时间 (visit_time)</span>
+              <span>拜访时间</span>
               <input v-model="taskEditForm.visit_time" type="datetime-local" step="60" />
             </label>
             <label class="task-field">
-              <span>推送时间 (trigger_time，须早于拜访时间)</span>
+              <span>推送时间 (须早于拜访时间)</span>
               <input v-model="taskEditForm.trigger_time" type="datetime-local" step="60" />
             </label>
             <label class="task-field full">
@@ -1537,7 +1537,7 @@ async function handleCancel(message) {
             </label>
             <label class="task-field full task-field-inline">
               <input v-model="taskEditForm.dry_run" type="checkbox" />
-              <span>仅预览（dry_run），不实际写入</span>
+              <span>仅预览(dry_run),不实际写入</span>
             </label>
             <p class="task-modal-hint">
               修改后会重新生成新报告，旧报告会归档保留，可在报告查询面板查看历史版本。
@@ -2040,7 +2040,7 @@ async function handleCancel(message) {
 
 .task-field input,
 .task-field textarea {
-  width: 100%;
+  /* width: 100%; */
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(27, 37, 54, 0.12);
