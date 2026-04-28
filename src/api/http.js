@@ -206,7 +206,9 @@ export async function request(url, options = {}) {
     handleUnauthorized(url, result, 'Login state has expired')
   }
 
-  if (!response.ok) {
+  // Java 后端（SSO）登录成功时可能返回 HTTP 400 但 body.success === true，
+  // 需要先检查 body 再决定是否抛异常
+  if (!response.ok && result.success !== true) {
     throw new Error(resolveErrorMessage(result, `Request failed (${response.status})`))
   }
 
