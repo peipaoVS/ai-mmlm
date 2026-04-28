@@ -19,14 +19,14 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      // ---- 系统侧 SSO（远程 192.168.1.37:8017） ----
-      '/api/auth':      createProxy('http://192.168.1.37:8017'),
-      '/api/users':     createProxy('http://192.168.1.37:8017'),
-      '/api/roles':     createProxy('http://192.168.1.37:8017'),
-      '/api/posts':     createProxy('http://192.168.1.37:8017'),
-      '/api/menus':     createProxy('http://192.168.1.37:8017'),
-      '/api/companies': createProxy('http://192.168.1.37:8017'),
-      '/api/agent-modules': createProxy('http://192.168.1.37:8017'),
+      // ---- 系统侧 SSO（远程 192.168.1.39:8017） ----
+      '/api/auth':      createProxy('http://192.168.1.39:8017'),
+      '/api/users':     createProxy('http://192.168.1.39:8017'),
+      '/api/roles':     createProxy('http://192.168.1.39:8017'),
+      '/api/posts':     createProxy('http://192.168.1.39:8017'),
+      '/api/menus':     createProxy('http://192.168.1.39:8017'),
+      '/api/companies': createProxy('http://192.168.1.39:8017'),
+      '/api/agent-modules': createProxy('http://192.168.1.39:8017'),
       // ---- AI 主后端（远程 192.168.1.168:8000） ----
       // 切回本地调试：把下面所有 'http://192.168.1.168:8000' 替换为 'http://localhost:8000'。
       '/api/visit-assistant':       createProxy('http://192.168.1.168:8000'),
