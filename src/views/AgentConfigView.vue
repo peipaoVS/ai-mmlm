@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
+import { PROVIDER_CONFIG } from '../config/api'
 import AppSelect from '../components/AppSelect.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
 import ollamaLogo from '../assets/providers/ollama-logo.png'
@@ -44,7 +45,7 @@ const PROVIDERS = [
     code: 'ollama',
     name: 'Ollama',
     badge: 'OL',
-    defaultDomain: 'http://127.0.0.1:11434',
+    defaultDomain: PROVIDER_CONFIG.OLLAMA_DOMAIN,
     types: ['language', 'embedding'],
     accent: '#20242f',
     surfaceStart: 'rgba(32, 36, 47, 0.16)',
@@ -621,13 +622,13 @@ async function removeRow(row) {
   gap: calc(18px * var(--ui-scale));
   padding: calc(20px * var(--ui-scale));
   border-radius: calc(28px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 254, 0.9)),
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
     linear-gradient(145deg, var(--provider-surface-start), var(--provider-surface-end));
   box-shadow:
-    0 18px 38px rgba(29, 35, 52, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
   overflow: hidden;
   isolation: isolate;
 }
@@ -651,8 +652,8 @@ async function removeRow(row) {
   inset: 1px;
   border-radius: inherit;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.48), transparent 40%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 55%);
+    radial-gradient(circle at top left, var(--surface-accent), transparent 40%),
+    linear-gradient(135deg, var(--surface-inset), transparent 55%);
   pointer-events: none;
   z-index: 0;
 }
@@ -677,7 +678,9 @@ async function removeRow(row) {
   height: calc(60px * var(--ui-scale));
   padding: calc(10px * var(--ui-scale));
   border-radius: calc(20px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.96);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
     0 16px 30px var(--provider-icon-glow),
@@ -705,9 +708,9 @@ async function removeRow(row) {
 }
 
 .module-card-actions .tiny-button {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(27, 37, 54, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .module-card-body {
@@ -733,11 +736,11 @@ async function removeRow(row) {
   min-width: 0;
   padding: calc(14px * var(--ui-scale)) calc(14px * var(--ui-scale));
   border-radius: calc(18px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.06);
-  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    0 10px 22px rgba(29, 35, 52, 0.04);
+    inset 0 1px 0 var(--surface-inset),
+    var(--panel-card-shadow);
 }
 
 .module-meta-label {
@@ -781,12 +784,26 @@ async function removeRow(row) {
   justify-content: space-between;
   gap: calc(10px * var(--ui-scale));
   padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.1);
+  border: 1px solid var(--panel-card-border);
   border-radius: calc(16px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 var(--surface-inset),
+    var(--panel-card-shadow);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.provider-trigger:hover {
+  transform: translateY(-1px);
+  border-color: rgba(237, 124, 71, 0.18);
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .provider-trigger-main {
@@ -805,9 +822,13 @@ async function removeRow(row) {
   height: calc(42px * var(--ui-scale));
   padding: calc(8px * var(--ui-scale));
   border-radius: calc(14px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  box-shadow: 0 12px 24px var(--provider-icon-glow);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 12px 24px var(--provider-icon-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .provider-trigger-icon img {
@@ -859,12 +880,13 @@ async function removeRow(row) {
   justify-content: center;
   min-height: calc(46px * var(--ui-scale));
   padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   border-radius: calc(16px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   font-weight: 600;
   line-height: 1.4;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -880,12 +902,12 @@ async function removeRow(row) {
 }
 
 .role-option.active {
-  border-color: rgba(47, 131, 116, 0.26);
-  background: linear-gradient(135deg, rgba(47, 131, 116, 0.16), rgba(237, 124, 71, 0.14));
-  color: #1f5e53;
+  border-color: rgba(34, 211, 238, 0.22);
+  background: linear-gradient(135deg, var(--surface-accent), var(--surface-accent-alt));
+  color: var(--text-main);
   box-shadow:
-    0 12px 24px rgba(47, 131, 116, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    0 12px 24px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .field-hint {
@@ -930,13 +952,16 @@ async function removeRow(row) {
   gap: calc(14px * var(--ui-scale));
   min-height: calc(96px * var(--ui-scale));
   padding: calc(16px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   border-radius: calc(20px * var(--ui-scale));
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 253, 0.88)),
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
     linear-gradient(140deg, var(--provider-surface-start), var(--provider-surface-end));
   color: var(--text-main);
   text-align: left;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -966,15 +991,15 @@ async function removeRow(row) {
 
 .provider-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(27, 37, 54, 0.14);
-  box-shadow: 0 16px 30px rgba(29, 35, 52, 0.08);
+  border-color: rgba(34, 211, 238, 0.18);
+  box-shadow: 0 16px 30px rgba(29, 35, 52, 0.18);
 }
 
 .provider-card.active {
   border-color: var(--provider-accent);
   box-shadow:
-    0 16px 30px rgba(29, 35, 52, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+    0 16px 30px rgba(29, 35, 52, 0.18),
+    inset 0 0 0 1px var(--surface-inset);
 }
 
 .provider-card-icon {
@@ -986,11 +1011,13 @@ async function removeRow(row) {
   height: calc(54px * var(--ui-scale));
   padding: calc(10px * var(--ui-scale));
   border-radius: calc(18px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.84);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
     0 14px 24px var(--provider-icon-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .provider-card-icon img {

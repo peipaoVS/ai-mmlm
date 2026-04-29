@@ -3,8 +3,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
+import deepseekLogo from '../assets/providers/deepseek-logo.svg'
+import ollamaLogo from '../assets/providers/ollama-logo.png'
+import openaiSymbol from '../assets/providers/openai-symbol.svg'
+import qianfanLogo from '../assets/providers/qianfan-logo.png'
+import qwenLogo from '../assets/providers/qwen-logo.png'
+import zhipuLogo from '../assets/providers/zhipu-logo.svg'
 
 const session = useSession()
 const loading = ref(false)
@@ -75,7 +81,45 @@ const showAllTasks = ref(false)
 const modelMenuVisible = ref(false)
 const modelMenuRef = ref(null)
 const messagePanelRef = ref(null)
+const roleBoundModels = ref([])
+const roleModelRotationPaused = ref(false)
 const defaultModelLabel = '规则答疑'
+
+const MODEL_PROVIDER_META = {
+  deepseek: {
+    icon: deepseekLogo,
+    badge: 'DS'
+  },
+  ollama: {
+    icon: ollamaLogo,
+    badge: 'OL'
+  },
+  openai: {
+    icon: openaiSymbol,
+    badge: 'OA'
+  },
+  tongyi: {
+    icon: qwenLogo,
+    badge: 'TY'
+  },
+  qianfan: {
+    icon: qianfanLogo,
+    badge: 'QF'
+  },
+  zhipu: {
+    icon: zhipuLogo,
+    badge: 'ZP'
+  }
+}
+
+const HABIT_KEY_SUGGESTIONS = [
+  { key: 'response_tone', hint: '回答风格（例：只说结论 / 详细解释）' },
+  { key: 'report_fields', hint: '报告常用字段（例：存款新增,贷款余额）' },
+  { key: 'report_generate_time', hint: '报告推送时间（例：早上 8:00）' },
+  { key: 'visit_time_preference', hint: '拜访时间偏好（例：上午 9:00）' },
+  { key: 'focus_branch', hint: '关注分行（例：南京分行）' },
+  { key: 'preferred_format', hint: '回答格式（例：表格 / Markdown）' }
+]
 
 const modelOptions = [
   {
@@ -109,11 +153,19 @@ const recentSessionList = computed(() =>
 )
 
 const visibleRecentSessions = computed(() =>
-  showAllSessions.value ? recentSessionList.value : recentSessionList.value.slice(0, 3)
+  showAllSessions.value ? recentSessionList.value : []
 )
 
 const visibleTaskJobs = computed(() =>
   showAllTasks.value ? taskJobs.value : taskJobs.value.slice(0, 2)
+)
+
+const shouldMarqueeRoleModels = computed(() => roleBoundModels.value.length > 3)
+
+const roleBoundModelLoop = computed(() =>
+  shouldMarqueeRoleModels.value
+    ? [...roleBoundModels.value, ...roleBoundModels.value]
+    : roleBoundModels.value
 )
 
 // ---- 访前报告列表（侧栏第三块）----
@@ -148,11 +200,31 @@ const visibleTodos = computed(() =>
 )
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
+const genPollSeconds = computed(() => Math.max(1, Math.round(genPollMs.value / 1000)))
+const habitsDialogVisible = ref(false)
+const habitsLoading = ref(false)
+const habitEventsLoading = ref(false)
+const habitSaving = ref(false)
+const habitClearing = ref(false)
+const habitsItems = ref([])
+const habitEvents = ref([])
+const habitEditorVisible = ref(false)
+const habitEditorMode = ref('create')
+const habitEditorKey = ref('')
+const habitEditorValue = ref('')
+const habitEditorReadonly = computed(() => habitEditorMode.value === 'edit')
+const habitEditorHint = computed(() => {
+  return HABIT_KEY_SUGGESTIONS.find((item) => item.key === habitEditorKey.value)?.hint
+    || '自定义偏好名（任意字符串），可先点下方推荐按钮快速选取。'
+})
+const latestHabitEvent = computed(() => habitEvents.value[0] || null)
+const olderHabitEvents = computed(() => habitEvents.value.slice(1))
 
 onMounted(() => {
   startFreshConversation()
   startFreshConver()
   loadTaskJobs()
+  loadRoleBoundModels()
   loadReports()
   loadPostSummaries()
   loadTodos()
@@ -162,6 +234,218 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
 })
+
+function pauseRoleModelRotation() {
+  if (!shouldMarqueeRoleModels.value) {
+    return
+  }
+
+  roleModelRotationPaused.value = !roleModelRotationPaused.value
+}
+
+function formatHabitRelativeTime(value) {
+  if (!value) return ''
+
+  const normalized = String(value).replace(' ', 'T')
+  const date = new Date(normalized)
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
+
+  const diff = Math.max(0, Date.now() - date.getTime())
+  const minutes = Math.floor(diff / 60000)
+
+  if (minutes < 1) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours} 小时前`
+
+  const days = Math.floor(hours / 24)
+  return `${days} 天前`
+}
+
+function formatHabitValue(value) {
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (value == null) {
+    return ''
+  }
+
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function resolveHabitLabel(key) {
+  const matched = HABIT_KEY_SUGGESTIONS.find((item) => item.key === key)
+  return matched ? matched.hint.split('（')[0] : key || '未命名偏好'
+}
+
+function resolveHabitHint(key) {
+  return HABIT_KEY_SUGGESTIONS.find((item) => item.key === key)?.hint || ''
+}
+
+function resetHabitEditor() {
+  habitEditorVisible.value = false
+  habitEditorMode.value = 'create'
+  habitEditorKey.value = ''
+  habitEditorValue.value = ''
+}
+
+function openHabitEditor(item) {
+  habitEditorVisible.value = true
+
+  if (item) {
+    habitEditorMode.value = 'edit'
+    habitEditorKey.value = String(item.habit_key || '')
+    habitEditorValue.value = formatHabitValue(item.habit_value)
+    return
+  }
+
+  habitEditorMode.value = 'create'
+  habitEditorKey.value = ''
+  habitEditorValue.value = ''
+}
+
+function applyHabitSuggestion(key) {
+  if (habitEditorReadonly.value) {
+    return
+  }
+
+  habitEditorKey.value = key
+}
+
+async function loadHabits() {
+  habitsLoading.value = true
+  try {
+    const resp = await HabitsApi.listHabits()
+    habitsItems.value = Array.isArray(resp?.items) ? resp.items : []
+  } catch (error) {
+    habitsItems.value = []
+    window.alert(error.message)
+  } finally {
+    habitsLoading.value = false
+  }
+}
+
+async function loadHabitEvents() {
+  habitEventsLoading.value = true
+  try {
+    const resp = await HabitsApi.listHabitEvents({ limit: 6 })
+    habitEvents.value = Array.isArray(resp?.items) ? resp.items : []
+  } catch (error) {
+    habitEvents.value = []
+    console.warn('加载偏好事件失败', error)
+  } finally {
+    habitEventsLoading.value = false
+  }
+}
+
+async function loadHabitsPanel() {
+  await Promise.all([loadHabits(), loadHabitEvents()])
+}
+
+async function openHabitsDialog() {
+  habitsDialogVisible.value = true
+  resetHabitEditor()
+  await loadHabitsPanel()
+}
+
+function closeHabitsDialog() {
+  habitsDialogVisible.value = false
+  resetHabitEditor()
+}
+
+async function saveHabit() {
+  const key = habitEditorKey.value.trim()
+  const value = habitEditorValue.value.trim()
+
+  if (!key) {
+    window.alert('偏好名不能为空。')
+    return
+  }
+
+  if (!value) {
+    window.alert('偏好值不能为空。')
+    return
+  }
+
+  habitSaving.value = true
+  try {
+    await HabitsApi.upsertHabit({
+      habit_key: key,
+      habit_value: value,
+      source: 'manual'
+    })
+    resetHabitEditor()
+    await loadHabits()
+  } catch (error) {
+    window.alert(`保存失败：${error.message}`)
+  } finally {
+    habitSaving.value = false
+  }
+}
+
+async function removeHabit(item) {
+  const key = String(item?.habit_key || '').trim()
+  if (!key) {
+    return
+  }
+
+  if (!window.confirm(`确定删除偏好「${key}」？`)) {
+    return
+  }
+
+  try {
+    await HabitsApi.deleteHabit(key)
+    await loadHabits()
+  } catch (error) {
+    window.alert(`删除失败：${error.message}`)
+  }
+}
+
+async function clearAllHabits() {
+  if (!window.confirm('确定清空当前账号的全部偏好？此操作不可恢复。')) {
+    return
+  }
+
+  habitClearing.value = true
+  try {
+    const resp = await HabitsApi.clearHabits()
+    resetHabitEditor()
+    await loadHabits()
+    window.alert(`已清空 ${resp?.removed || 0} 条偏好。`)
+  } catch (error) {
+    window.alert(`清空失败：${error.message}`)
+  } finally {
+    habitClearing.value = false
+  }
+}
+
+async function loadRoleBoundModels() {
+  try {
+    const modules = await api.get('/api/agent-modules/available?moduleType=language')
+    const filteredModels = (Array.isArray(modules) ? modules : [])
+      .map((item) => ({
+        id: item.id,
+        name: item.name || item.baseModel || '未命名模型',
+        providerCode: item.providerCode || '',
+        providerName: item.providerName || '--'
+      }))
+      .filter((item, index, list) => list.findIndex((row) => row.id === item.id) === index)
+
+    roleBoundModels.value = filteredModels
+    roleModelRotationPaused.value = false
+  } catch (error) {
+    console.warn('加载角色绑定模型失败', error)
+    roleBoundModels.value = []
+  }
+}
 
 async function sendMessage(preset) {
   const content = (preset ?? inputValue.value).trim()
@@ -1622,10 +1906,42 @@ function stopPushPolling() {
 }
 
 /* ==================== 报告生成进度轮询 (gen polling) ==================== */
-const GEN_POLL_MS = 3000
+const DEFAULT_GEN_POLL_MS = 3000
 const genJobs = ref([])
 const genDismissed = ref(new Set())
+const genPollMs = ref(DEFAULT_GEN_POLL_MS)
 let genPollTimer = null
+
+function resolveGenStatusText(status) {
+  if (status === 'done') return '已完成'
+  if (status === 'error') return '失败'
+  return '进行中'
+}
+
+function formatGenElapsed(elapsed) {
+  return elapsed != null && elapsed !== '' ? `${elapsed}s` : '--'
+}
+
+function resolveGenPollInterval(value) {
+  const seconds = Number.parseFloat(String(value ?? '').trim())
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.round(seconds * 1000)
+  }
+  return DEFAULT_GEN_POLL_MS
+}
+
+async function loadGenPollConfig() {
+  try {
+    const rows = await api.get('/api/param-configs?keyword=dateVal')
+    const matchedRow = (Array.isArray(rows) ? rows : []).find(
+      (item) => String(item.code || '').trim() === 'dateVal'
+    )
+    genPollMs.value = resolveGenPollInterval(matchedRow?.paramValue)
+  } catch (error) {
+    console.warn('加载生成进度轮询配置失败', error)
+    genPollMs.value = DEFAULT_GEN_POLL_MS
+  }
+}
 
 async function pollReportJobs() {
   if (!session.token) return
@@ -1646,7 +1962,7 @@ function dismissGenJob(reportId) {
 function startGenPolling() {
   if (genPollTimer) clearInterval(genPollTimer)
   pollReportJobs()
-  genPollTimer = setInterval(pollReportJobs, GEN_POLL_MS)
+  genPollTimer = setInterval(pollReportJobs, genPollMs.value)
 }
 
 function stopGenPolling() {
@@ -1657,6 +1973,11 @@ function stopGenPolling() {
 onMounted(() => {
   startPushPolling()
   startGenPolling()
+  loadGenPollConfig().then(() => {
+    if (genPollTimer) {
+      startGenPolling()
+    }
+  })
 })
 onBeforeUnmount(() => {
   stopPushPolling()
@@ -1672,41 +1993,61 @@ onBeforeUnmount(() => {
       </button>
 
       <!-- ============ 报告生成进度 ============ -->
-      <section v-if="genJobs.length" class="side-section gen-section">
+      <section class="side-section gen-section">
         <div class="section-head">
           <div class="section-head-main">
             <span class="side-label">生成进度</span>
           </div>
         </div>
-        <div class="gen-list">
-          <div
+        <div v-if="genJobs.length" class="gen-list">
+          <article
             v-for="job in genJobs"
             :key="job.report_id"
             class="gen-card"
             :class="{
-              done: job.status === 'done',
-              error: job.status === 'error'
+              'is-running': job.status !== 'done' && job.status !== 'error',
+              'is-done': job.status === 'done',
+              'is-error': job.status === 'error'
             }"
           >
-            <div class="gen-icon">
-              <span v-if="job.status === 'done'">✅</span>
-              <span v-else-if="job.status === 'error'">❌</span>
-              <div v-else class="gen-spinner"></div>
+            <div
+              class="gen-icon"
+              :class="{
+                'is-running': job.status !== 'done' && job.status !== 'error',
+                'is-done': job.status === 'done',
+                'is-error': job.status === 'error'
+              }"
+            >
+              <div v-if="job.status !== 'done' && job.status !== 'error'" class="gen-spinner"></div>
+              <span v-else class="gen-state-dot"></span>
             </div>
             <div class="gen-info">
-              <div class="gen-title">#{{ job.report_id }} {{ job.company || '' }}</div>
-              <div class="gen-meta">
-                {{ job.action || '' }}
-                {{ job.status === 'running' ? ' 进行中' : job.status === 'done' ? ' 已完成' : job.status === 'error' ? ' 失败' : '' }}
-                · {{ job.elapsed != null ? `${job.elapsed}s` : '...' }}
+              <div class="gen-title-row">
+                <div class="gen-title">#{{ job.report_id }} {{ job.company || job.company_name || '报告任务' }}</div>
+                <span
+                  class="gen-status"
+                  :class="{
+                    'is-running': job.status !== 'done' && job.status !== 'error',
+                    'is-done': job.status === 'done',
+                    'is-error': job.status === 'error'
+                  }"
+                >
+                  {{ resolveGenStatusText(job.status) }}
+                </span>
               </div>
+              <div class="gen-meta">{{ job.action || '报告生成任务' }}</div>
+              <div class="gen-submeta">已用时 {{ formatGenElapsed(job.elapsed) }}</div>
             </div>
             <button
-              v-if="job.status !== 'running'"
-              class="gen-dismiss"
+              v-if="job.status === 'done' || job.status === 'error'"
+              type="button"
+              class="tiny-button gen-dismiss"
               @click="dismissGenJob(job.report_id)"
             >关闭</button>
-          </div>
+          </article>
+        </div>
+        <div v-else class="topic-empty">
+          暂无生成中的任务。生成后会在这里提示，当前每 {{ genPollSeconds }} 秒刷新一次。
         </div>
       </section>
 
@@ -1716,16 +2057,16 @@ onBeforeUnmount(() => {
             <span class="side-label">最近会话</span>
           </div>
           <button
-            v-if="recentSessionList.length > 3"
+            v-if="recentSessionList.length"
             type="button"
             class="toggle-button"
             @click="showAllSessions = !showAllSessions"
           >
-            {{ showAllSessions ? '收起' : '打开' }}
+            {{ showAllSessions ? '收起' : '展开' }}
           </button>
         </div>
 
-        <div v-if="recentSessionList.length" class="topic-list">
+        <div v-if="showAllSessions && recentSessionList.length" class="topic-list">
           <button
             v-for="item in visibleRecentSessions"
             :key="item.id"
@@ -1740,7 +2081,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div v-else class="topic-empty">
+        <div v-else-if="showAllSessions" class="topic-empty">
           开始提问后，这里会显示最近会话；当前会话会高亮显示。
         </div>
       </section>
@@ -2066,9 +2407,53 @@ onBeforeUnmount(() => {
 
     <section class="chat-main glass-card">
       <div class="chat-hero">
-        <div>
-          <span class="hero-label">{{ selectedModelLabel }}</span>
-          <h4>今天想让模型帮你完成什么？</h4>
+        <div class="hero-head">
+          <div class="hero-title-row">
+            <span class="hero-label">{{ selectedModelLabel }}</span>
+
+            <div
+              v-if="roleBoundModels.length"
+              class="hero-model-row"
+              @click="pauseRoleModelRotation"
+            >
+              <div class="hero-model-window">
+                <div
+                  class="hero-model-track"
+                  :class="{
+                    'is-animated': shouldMarqueeRoleModels,
+                    paused: roleModelRotationPaused
+                  }"
+                >
+                  <button
+                    v-for="(item, index) in roleBoundModelLoop"
+                    :key="`${item.id}-${index}`"
+                    type="button"
+                    class="hero-model-chip"
+                    @click.stop="pauseRoleModelRotation"
+                  >
+                    <span class="hero-model-chip-icon">
+                      <img
+                        v-if="MODEL_PROVIDER_META[item.providerCode]?.icon"
+                        :src="MODEL_PROVIDER_META[item.providerCode].icon"
+                        :alt="item.providerName"
+                      />
+                      <span v-else>{{ MODEL_PROVIDER_META[item.providerCode]?.badge || 'AI' }}</span>
+                    </span>
+                    <strong>{{ item.name }}</strong>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="hero-habit-trigger"
+              @click.stop="openHabitsDialog"
+            >
+              我的偏好
+            </button>
+          </div>
+
         </div>
 
         <div class="prompt-grid">
@@ -2100,11 +2485,11 @@ onBeforeUnmount(() => {
             <p>{{ item.content }}</p>
             <div v-if="item.role === 'assistant' && item.model === '访客辅助'" style="margin-top: 12px;">
               <button
-                style="padding:6px 16px; background:#1677ff; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:12px;"
+                class="tiny-button primary"
                 @click="handleConfirm(item)"
               >确认</button>
               <button
-                style="padding:6px 16px; margin-left:10px; border:1px solid #e5e6eb; border-radius:8px; background:#fff; cursor:pointer; font-size:12px;"
+                class="tiny-button"
                 @click="handleCancel(item)"
               >取消</button>
             </div>
@@ -2163,6 +2548,172 @@ onBeforeUnmount(() => {
         </div>
       </form>
     </section>
+
+    <Teleport to="body">
+      <div
+        v-if="habitsDialogVisible"
+        class="task-modal-mask"
+        @click.self="closeHabitsDialog"
+      >
+        <div class="task-modal task-modal--habit glass-card">
+          <header class="task-modal-head">
+            <h3>
+              我的偏好
+              <span class="task-revisions-count">（{{ habitsItems.length }}）</span>
+            </h3>
+            <button type="button" class="tiny-button" @click="closeHabitsDialog">关闭</button>
+          </header>
+
+          <div class="task-modal-body">
+            <p class="task-modal-hint">
+              这里列出智能体为你记录的个人偏好，会作为软性参考注入到对话上下文。偏好按当前登录账号隔离。
+            </p>
+
+            <div
+              v-if="latestHabitEvent"
+              class="habits-event-card"
+            >
+              <div class="habits-event-head">
+                <strong>最近一次偏好记录 · {{ formatHabitRelativeTime(latestHabitEvent.created_at) }}</strong>
+                <span class="habits-event-state">{{ latestHabitEvent.event || 'recorded' }}</span>
+              </div>
+              <div class="habits-event-tags">
+                <span class="habit-chip">{{ resolveHabitLabel(latestHabitEvent.habit_key) }}</span>
+                <span
+                  class="habit-source-badge"
+                  :class="{ 'is-manual': latestHabitEvent.source === 'manual' }"
+                >
+                  {{ latestHabitEvent.source === 'manual' ? '手动录入' : '自动抽取' }}
+                </span>
+              </div>
+              <div class="habits-event-text">{{ formatHabitValue(latestHabitEvent.habit_value) || '无记录内容' }}</div>
+              <details v-if="olderHabitEvents.length" class="habits-event-more">
+                <summary>查看更早记录</summary>
+                <ul class="habits-event-timeline">
+                  <li v-for="(item, index) in olderHabitEvents" :key="`${item.habit_key}-${index}`">
+                    <span>{{ formatHabitRelativeTime(item.created_at) }}</span>
+                    <strong>{{ resolveHabitLabel(item.habit_key) }}</strong>
+                    <em>{{ item.source === 'manual' ? '手动' : '自动' }}</em>
+                  </li>
+                </ul>
+              </details>
+            </div>
+
+            <div v-else class="habits-event-card habits-event-card--empty">
+              {{ habitEventsLoading ? '正在加载最近偏好记录...' : '尚未触发过偏好记录，后续自动抽取或手动新增后会在这里显示。' }}
+            </div>
+
+            <div class="habits-toolbar">
+              <button type="button" class="tiny-button" :disabled="habitsLoading" @click="loadHabitsPanel">
+                {{ habitsLoading ? '加载中...' : '刷新' }}
+              </button>
+              <button type="button" class="tiny-button primary" @click="openHabitEditor()">
+                新增偏好
+              </button>
+              <button
+                type="button"
+                class="tiny-button danger"
+                :disabled="habitClearing"
+                @click="clearAllHabits"
+              >
+                {{ habitClearing ? '清空中...' : '清空全部' }}
+              </button>
+            </div>
+
+            <div v-if="habitEditorVisible" class="habits-editor">
+              <div class="habits-editor-head">
+                <strong>{{ habitEditorMode === 'edit' ? '编辑偏好' : '新增偏好' }}</strong>
+                <button type="button" class="tiny-button" @click="resetHabitEditor">取消</button>
+              </div>
+
+              <label class="task-field">
+                <span>偏好名</span>
+                <input
+                  v-model="habitEditorKey"
+                  :readonly="habitEditorReadonly"
+                  type="text"
+                  placeholder="例如：回答风格"
+                />
+              </label>
+
+              <p class="task-modal-hint">{{ habitEditorHint }}</p>
+
+              <div v-if="!habitEditorReadonly" class="habit-suggestion-row">
+                <button
+                  v-for="item in HABIT_KEY_SUGGESTIONS"
+                  :key="item.key"
+                  type="button"
+                  class="habit-suggestion-chip"
+                  @click="applyHabitSuggestion(item.key)"
+                >
+                  {{ item.hint.split('（')[0] }}
+                </button>
+              </div>
+
+              <label class="task-field">
+                <span>偏好值</span>
+                <textarea
+                  v-model="habitEditorValue"
+                  rows="4"
+                  placeholder="例如：只说结论，不要展开过程"
+                ></textarea>
+              </label>
+
+              <div class="task-modal-foot">
+                <button
+                  type="button"
+                  class="tiny-button primary"
+                  :disabled="habitSaving"
+                  @click="saveHabit"
+                >
+                  {{ habitSaving ? '保存中...' : '保存' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="habitsLoading" class="task-revisions-empty">加载中...</div>
+
+            <div v-else-if="!habitsItems.length" class="topic-empty habits-empty">
+              暂无偏好记录。可以手动新增，也可以在对话后等待系统自动抽取。
+            </div>
+
+            <div v-else class="habits-list">
+              <article
+                v-for="item in habitsItems"
+                :key="item.habit_key"
+                class="habits-card"
+              >
+                <div class="habits-card-head">
+                  <div class="habits-card-title">
+                    <strong>{{ resolveHabitLabel(item.habit_key) }}</strong>
+                    <span
+                      class="habit-source-badge"
+                      :class="{ 'is-manual': item.source === 'manual' }"
+                    >
+                      {{ item.source === 'manual' ? '手动录入' : '自动抽取' }}
+                    </span>
+                  </div>
+                  <span class="habits-card-meta">
+                    使用 {{ item.use_count || 0 }} 次
+                    <template v-if="item.updated_at"> · {{ item.updated_at }}</template>
+                  </span>
+                </div>
+
+                <p class="habits-card-value">{{ formatHabitValue(item.habit_value) || '--' }}</p>
+                <p v-if="resolveHabitHint(item.habit_key)" class="habits-card-hint">
+                  {{ resolveHabitHint(item.habit_key) }}
+                </p>
+
+                <div class="habits-card-actions">
+                  <button type="button" class="tiny-button" @click="openHabitEditor(item)">编辑</button>
+                  <button type="button" class="tiny-button danger" @click="removeHabit(item)">删除</button>
+                </div>
+              </article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- ========== 修改任务弹窗 ========== -->
     <Teleport to="body">
@@ -2715,12 +3266,26 @@ onBeforeUnmount(() => {
   gap: calc(18px * var(--ui-scale));
   height: 100%;
   overflow: hidden;
+  font-family:
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Noto Sans SC",
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   background:
-    linear-gradient(180deg, rgba(249, 241, 230, 0.92), rgba(255, 255, 255, 0.84));
+    radial-gradient(circle at top left, var(--surface-accent), transparent 28%),
+    linear-gradient(180deg, var(--surface-panel), var(--panel-card-bg));
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .new-chat-button {
   width: 100%;
+  min-height: calc(52px * var(--ui-scale));
+  justify-content: center;
+  font-size: calc(13px * var(--ui-scale));
 }
 
 .side-section {
@@ -2734,6 +3299,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: calc(12px * var(--ui-scale));
+  padding-bottom: calc(8px * var(--ui-scale));
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .section-head-main {
@@ -2745,50 +3312,65 @@ onBeforeUnmount(() => {
 }
 
 .side-label {
-  font-size: calc(18px * var(--ui-scale));
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  font-size: calc(19px * var(--ui-scale));
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
   color: var(--text-main);
-  line-height: 1.2;
 }
 
 .head-action-button {
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   border-radius: 999px;
   padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.84);
-  color: var(--brand-alt);
+  background: var(--panel-card-bg-soft);
+  color: var(--text-main);
   font-size: calc(12px * var(--ui-scale));
-  font-weight: 600;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .toggle-button {
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.76);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   font-size: calc(12px * var(--ui-scale));
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .capability-card,
 .task-card {
   border-radius: calc(22px * var(--ui-scale));
   padding: calc(18px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
+    var(--panel-card-bg);
+  border: 1px solid var(--panel-card-border);
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .capability-card strong {
   display: block;
   margin-bottom: calc(10px * var(--ui-scale));
+  font-size: calc(15px * var(--ui-scale));
+  font-weight: 800;
+  color: var(--text-main);
 }
 
 .topic-empty,
 .capability-card li,
 .task-meta {
   color: var(--text-muted);
+  font-size: calc(12.5px * var(--ui-scale));
   line-height: 1.7;
 }
 
@@ -2800,36 +3382,48 @@ onBeforeUnmount(() => {
 }
 
 .topic-chip {
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   border-radius: calc(18px * var(--ui-scale));
   padding: calc(14px * var(--ui-scale));
   text-align: left;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .topic-chip.active {
-  background: linear-gradient(135deg, rgba(237, 124, 71, 0.18), rgba(47, 131, 116, 0.16));
-  border-color: rgba(237, 124, 71, 0.28);
-  box-shadow: 0 14px 28px rgba(47, 131, 116, 0.12);
+  background:
+    linear-gradient(135deg, var(--surface-accent), var(--surface-accent-alt)),
+    var(--panel-card-bg);
+  border-color: rgba(34, 211, 238, 0.24);
+  box-shadow: 0 14px 28px rgba(34, 211, 238, 0.12);
 }
 
 .topic-title-row,
 .task-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: calc(10px * var(--ui-scale));
 }
 
 .topic-title-row strong,
 .task-head strong {
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(15px * var(--ui-scale));
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-main);
+}
+
+.topic-title-row strong {
+  line-height: 1.45;
 }
 
 .active-badge,
@@ -2838,8 +3432,9 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.18);
   color: var(--brand-alt);
-  font-size: calc(11px * var(--ui-scale));
+  font-size: calc(11.5px * var(--ui-scale));
   font-weight: 700;
+  letter-spacing: 0.03em;
   white-space: nowrap;
 }
 
@@ -2864,16 +3459,34 @@ onBeforeUnmount(() => {
 .task-title {
   flex: 1 1 100%;
   min-width: 0;
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(15.5px * var(--ui-scale));
   display: inline-flex;
   align-items: baseline;
   gap: calc(6px * var(--ui-scale));
+  font-weight: 800;
+  color: var(--text-main);
 }
 
 .task-id {
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: calc(12px * var(--ui-scale));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(2px * var(--ui-scale)) calc(7px * var(--ui-scale));
+  border-radius: 999px;
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: calc(11px * var(--ui-scale));
+  letter-spacing: 0.04em;
+  font-family:
+    "JetBrains Mono",
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
 .task-pill {
@@ -2882,31 +3495,50 @@ onBeforeUnmount(() => {
   font-size: calc(11px * var(--ui-scale));
   font-weight: 700;
   white-space: nowrap;
-  background: rgba(47, 131, 116, 0.18);
-  color: var(--brand-alt);
+  background: var(--surface-accent);
+  color: var(--text-main);
 }
 
-.task-pill--ok      { background: rgba(40, 160, 90, 0.16);  color: #1f7a4c; }
-.task-pill--info    { background: rgba(64, 130, 220, 0.16); color: #1d4fa3; }
-.task-pill--danger  { background: rgba(207, 76, 76, 0.16);  color: var(--danger, #b9322f); }
-.task-pill--muted   { background: rgba(27, 37, 54, 0.10);   color: var(--text-muted); }
-.task-pill--pending { background: rgba(245, 158, 11, 0.16); color: #b15a00; }
-.task-pill--type    { background: rgba(122, 96, 199, 0.14); color: #5b3da3; }
+.task-pill--ok      { background: rgba(34, 197, 94, 0.16);  color: #86efac; }
+.task-pill--info    { background: rgba(59, 130, 246, 0.16); color: #93c5fd; }
+.task-pill--danger  { background: rgba(244, 63, 94, 0.18);  color: #fda4af; }
+.task-pill--muted   { background: rgba(148, 163, 184, 0.12); color: rgba(226, 232, 240, 0.74); }
+.task-pill--pending { background: rgba(245, 158, 11, 0.18); color: #fdba74; }
+.task-pill--type    { background: rgba(167, 139, 250, 0.16); color: #c4b5fd; }
 
 .task-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: calc(4px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  gap: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   margin: calc(10px * var(--ui-scale)) 0 0;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(12.5px * var(--ui-scale));
   color: var(--text-muted);
-  line-height: 1.6;
+  line-height: 1.7;
+  font-variant-numeric: tabular-nums;
 }
 
 .task-meta-grid em {
   font-style: normal;
-  color: var(--text-main);
+  color: var(--brand-alt);
+  font-weight: 700;
   margin-right: 2px;
+}
+
+.chat-sidebar code {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  color: var(--text-main);
+  font-size: 11.5px;
+  font-family:
+    "JetBrains Mono",
+    "SFMono-Regular",
+    "Cascadia Code",
+    Consolas,
+    monospace;
 }
 
 .task-meta-error {
@@ -2916,13 +3548,13 @@ onBeforeUnmount(() => {
 
 /* tiny-button 局部加多两种 variant；primary/warn 样式只在本组件生效 */
 .tiny-button.primary {
-  background: rgba(47, 131, 116, 0.18);
-  color: var(--brand-alt);
+  background: var(--surface-accent);
+  color: var(--text-main);
 }
 
 .tiny-button.warn {
   background: rgba(245, 158, 11, 0.18);
-  color: #b15a00;
+  color: var(--text-main);
 }
 
 .tiny-button[disabled] {
@@ -2932,14 +3564,25 @@ onBeforeUnmount(() => {
 
 /* ================ 待办事项 · 弹窗 ================ */
 .task-modal-mask {
+  --text-main: #e5e7eb;
+  --text-muted: #94a3b8;
+  --brand-alt: #7addc1;
+  --danger: #fb7185;
+  --line: rgba(148, 163, 184, 0.18);
+  --surface-border: rgba(148, 163, 184, 0.18);
+  --surface-inset: rgba(255, 255, 255, 0.06);
+  --surface-card-soft: rgba(15, 23, 42, 0.5);
+  --task-card-bg: rgba(15, 23, 42, 0.68);
+  --task-card-bg-strong: rgba(15, 23, 42, 0.8);
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: transparent;
+  backdrop-filter: none;
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: clamp(0.875rem, 0.5rem + 1vw, 1.5rem);
 }
 
 .task-modal {
@@ -2951,7 +3594,14 @@ onBeforeUnmount(() => {
   gap: 16px;
   padding: 22px 24px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.96);
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 32%),
+    linear-gradient(180deg, var(--task-card-bg-strong), var(--task-card-bg));
+  border: 1px solid var(--surface-border);
+  box-shadow:
+    0 24px 48px rgba(2, 6, 23, 0.4),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .task-modal-head {
@@ -2964,6 +3614,7 @@ onBeforeUnmount(() => {
 .task-modal-head h3 {
   margin: 0;
   font-size: 16px;
+  color: var(--text-main);
 }
 
 .task-revisions-count {
@@ -2976,6 +3627,16 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.task-modal--habit {
+  width: min(920px, 100%);
+  overflow: hidden;
+}
+
+.task-modal--habit .task-modal-body {
+  max-height: 72vh;
+  overflow-y: auto;
 }
 
 .task-field {
@@ -2994,11 +3655,12 @@ onBeforeUnmount(() => {
   /* width: 100%; */
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(27, 37, 54, 0.12);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card-soft);
   font: inherit;
   color: var(--text-main);
   box-sizing: border-box;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .task-field textarea {
@@ -3029,6 +3691,235 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.habits-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.habits-event-card,
+.habits-editor,
+.habits-card {
+  border-radius: 18px;
+  border: 1px solid var(--surface-border);
+  background:
+    linear-gradient(180deg, var(--task-card-bg-strong), var(--task-card-bg)),
+    var(--surface-card-soft);
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.16),
+    inset 0 1px 0 var(--surface-inset);
+}
+
+.habits-event-card {
+  padding: 14px 16px;
+  background:
+    linear-gradient(135deg, var(--surface-card-soft), var(--task-card-bg)),
+    var(--task-card-bg);
+}
+
+.habits-event-card--empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.habits-event-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.habits-event-head strong {
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.habits-event-state {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-accent);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.habits-event-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.habit-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-accent-alt);
+  color: var(--brand-alt);
+  border: 1px solid var(--surface-border);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.habit-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-card-soft);
+  color: var(--text-main);
+  border: 1px solid var(--surface-border);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.habit-source-badge.is-manual {
+  background: var(--surface-accent);
+  color: var(--text-main);
+  border-color: var(--surface-border);
+}
+
+.habits-event-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.habits-event-more {
+  margin-top: 10px;
+}
+
+.habits-event-more summary {
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.habits-event-timeline {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--text-main);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.habits-event-timeline li span,
+.habits-event-timeline li em {
+  color: var(--text-muted);
+  font-style: normal;
+}
+
+.habits-editor {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.habits-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.habits-editor .task-field input,
+.habits-editor .task-field textarea {
+  width: 100%;
+}
+
+.habits-editor .task-field input[readonly] {
+  background: var(--surface-card-soft);
+}
+
+.habit-suggestion-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.habit-suggestion-chip {
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--surface-card-soft);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
+}
+
+.habit-suggestion-chip:hover {
+  border-color: rgba(47, 131, 116, 0.22);
+  color: var(--brand-alt);
+}
+
+.habits-empty {
+  padding: 6px 0 2px;
+}
+
+.habits-list {
+  display: grid;
+  gap: 10px;
+}
+
+.habits-card {
+  padding: 16px 18px;
+}
+
+.habits-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.habits-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.habits-card-title strong {
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+.habits-card-meta {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.habits-card-value {
+  margin: 10px 0 0;
+  color: var(--text-main);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.habits-card-hint {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.habits-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .task-revisions-empty {
   padding: 16px 0;
   text-align: center;
@@ -3048,7 +3939,9 @@ onBeforeUnmount(() => {
 .task-revision {
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(27, 37, 54, 0.04);
+  background: var(--surface-card-soft);
+  border: 1px solid var(--surface-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .task-revision-head {
@@ -3080,11 +3973,12 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1px solid rgba(27, 37, 54, 0.10);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card-soft);
   font: inherit;
   color: var(--text-main);
   box-sizing: border-box;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .todo-filter-row {
@@ -3097,23 +3991,25 @@ onBeforeUnmount(() => {
   flex: 1;
   padding: 6px 10px;
   border-radius: 8px;
-  border: 1px solid rgba(27, 37, 54, 0.10);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card-soft);
   font: inherit;
   color: var(--text-main);
   box-sizing: border-box;
   font-size: calc(12px * var(--ui-scale));
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .todo-status-select {
   padding: 6px 8px;
   border-radius: 8px;
-  border: 1px solid rgba(27, 37, 54, 0.10);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-card-soft);
   font: inherit;
   color: var(--text-main);
   font-size: calc(12px * var(--ui-scale));
   cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .task-modal--wide {
@@ -3137,8 +4033,10 @@ onBeforeUnmount(() => {
   max-height: 56vh;
   overflow-y: auto;
   padding: 12px 14px;
-  background: rgba(27, 37, 54, 0.04);
+  background: var(--surface-card-soft);
+  border: 1px solid var(--surface-border);
   border-radius: 12px;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .report-detail-body pre {
@@ -3156,7 +4054,8 @@ onBeforeUnmount(() => {
   margin: calc(8px * var(--ui-scale)) 0 0;
   font-size: calc(12px * var(--ui-scale));
   line-height: 1.7;
-  color: var(--text-main);
+  color: rgba(226, 232, 240, 0.88);
+  font-weight: 500;
 }
 
 .post-summary-block {
@@ -3169,8 +4068,10 @@ onBeforeUnmount(() => {
 .post-summary-block strong {
   display: block;
   font-size: calc(11px * var(--ui-scale));
-  color: var(--text-main);
-  margin-bottom: 2px;
+  color: rgba(248, 250, 252, 0.92);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  margin-bottom: 4px;
 }
 
 .post-summary-block ul,
@@ -3182,14 +4083,14 @@ onBeforeUnmount(() => {
 .post-summary-next {
   margin: calc(6px * var(--ui-scale)) 0 0;
   font-size: calc(12px * var(--ui-scale));
-  color: #16a34a;
+  color: #86efac;
 }
 
 /* 详情弹窗内的二级标题 */
 .post-summary-h {
   margin: 14px 0 6px;
   font-size: 13px;
-  color: var(--text-muted);
+  color: rgba(226, 232, 240, 0.82);
   font-weight: 600;
 }
 
@@ -3271,8 +4172,12 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow-y: auto;
   background:
-    radial-gradient(circle at top right, rgba(255, 225, 194, 0.56), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 254, 0.88));
+    radial-gradient(circle at top right, var(--surface-accent), transparent 24%),
+    radial-gradient(circle at bottom left, var(--surface-accent-alt), transparent 22%),
+    linear-gradient(180deg, var(--surface-panel), var(--panel-card-bg));
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .chat-hero {
@@ -3281,19 +4186,167 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.hero-head {
+  display: grid;
+  gap: calc(14px * var(--ui-scale));
+}
+
+.hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: calc(10px * var(--ui-scale));
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
 .hero-label {
   display: inline-flex;
   padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: 999px;
-  background: rgba(47, 131, 116, 0.12);
-  color: var(--brand-alt);
+  background:
+    linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-soft)),
+    var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  color: var(--text-main);
   font-size: calc(12px * var(--ui-scale));
   font-weight: 700;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
-.chat-hero h2 {
+.hero-model-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-left: calc(8px * var(--ui-scale));
+}
+
+.hero-model-window {
+  position: relative;
+  width: min(100%, calc(420px * var(--ui-scale)));
+  overflow: hidden;
+  padding: calc(2px * var(--ui-scale)) 0;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+
+.hero-model-track {
+  min-width: 0;
+  display: flex;
+  align-items: stretch;
+  gap: calc(10px * var(--ui-scale));
+  width: max-content;
+}
+
+.hero-model-track.is-animated {
+  animation: hero-model-marquee 18s linear infinite;
+}
+
+.hero-model-track.paused {
+  animation-play-state: paused;
+}
+
+.hero-model-chip {
+  min-width: 0;
+  flex: 0 0 auto;
+  width: calc(132px * var(--ui-scale));
+  display: inline-flex;
+  align-items: center;
+  gap: calc(8px * var(--ui-scale));
+  border: 1px solid var(--panel-card-border);
+  border-radius: 999px;
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  background: var(--panel-card-bg-soft);
+  color: var(--text-main);
+  text-align: left;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
+}
+
+.hero-model-chip-icon {
+  flex: 0 0 auto;
+  width: calc(26px * var(--ui-scale));
+  height: calc(26px * var(--ui-scale));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(4px * var(--ui-scale));
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  box-shadow:
+    0 10px 20px rgba(2, 6, 23, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.hero-model-chip-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.hero-model-chip-icon span {
+  color: var(--brand-alt);
+  font-size: calc(10px * var(--ui-scale));
+  font-weight: 800;
+}
+
+.hero-model-chip strong {
+  display: inline-block;
+  font-size: calc(12px * var(--ui-scale));
+  line-height: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-habit-trigger {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--panel-card-border);
+  border-radius: 999px;
+  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  background:
+    linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-soft)),
+    var(--panel-card-bg-soft);
+  color: var(--text-main);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 700;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
+}
+
+.hero-habit-trigger:hover {
+  border-color: rgba(47, 131, 116, 0.22);
+  color: var(--brand-alt);
+}
+
+@keyframes hero-model-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.chat-hero h2,
+.chat-hero h4 {
   margin: calc(16px * var(--ui-scale)) 0 calc(10px * var(--ui-scale));
   font-size: calc(clamp(24px, 2.6vw, 38px) * var(--ui-scale));
+  color: rgba(255, 255, 255, 0.94);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
 }
 
 .chat-hero p {
@@ -3310,13 +4363,35 @@ onBeforeUnmount(() => {
 }
 
 .prompt-card {
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.74);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg);
   border-radius: calc(22px * var(--ui-scale));
   padding: calc(18px * var(--ui-scale));
   text-align: left;
   color: var(--text-main);
+  font-size: calc(14px * var(--ui-scale));
+  font-weight: 700;
+  line-height: 1.7;
   min-height: calc(92px * var(--ui-scale));
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease;
+}
+
+.prompt-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(237, 124, 71, 0.22);
+  box-shadow:
+    0 16px 30px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .message-panel {
@@ -3359,26 +4434,45 @@ onBeforeUnmount(() => {
   max-width: min(46rem, calc(100% - 3.375rem));
   border-radius: calc(24px * var(--ui-scale));
   padding: calc(18px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid var(--line);
+  background: var(--panel-card-bg);
+  border: 1px solid var(--panel-card-border);
+  color: var(--text-main);
+  font-size: calc(13px * var(--ui-scale));
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
+}
+
+.message-item.assistant .message-bubble {
+  border-color: rgba(47, 131, 116, 0.18);
 }
 
 .message-item.user .message-bubble {
-  background: rgba(255, 239, 228, 0.88);
+  border-color: rgba(237, 124, 71, 0.22);
+  color: var(--text-main);
 }
 
 .message-role {
   display: block;
   font-size: calc(12px * var(--ui-scale));
   color: var(--text-muted);
+  font-weight: 700;
   margin-bottom: calc(8px * var(--ui-scale));
 }
 
 .message-bubble p {
   margin: 0;
+  color: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;
+}
+
+.message-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(10px * var(--ui-scale));
+  margin-top: calc(12px * var(--ui-scale));
 }
 
 .composer {
@@ -3399,12 +4493,21 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
+.composer textarea::placeholder {
+  color: var(--text-muted);
+}
+
 .composer-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: calc(16px * var(--ui-scale));
   margin-top: calc(12px * var(--ui-scale));
+}
+
+.composer-actions > .pill-button {
+  min-width: calc(132px * var(--ui-scale));
+  justify-content: center;
 }
 
 .composer-left {
@@ -3423,11 +4526,13 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: calc(10px * var(--ui-scale));
   padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.1);
+  border: 1px solid var(--panel-card-border);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .model-trigger-label {
@@ -3456,9 +4561,13 @@ onBeforeUnmount(() => {
   width: min(18rem, calc(100vw - 3rem));
   padding: calc(10px * var(--ui-scale));
   border-radius: calc(22px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 18px 36px rgba(27, 37, 54, 0.12);
+  border: 1px solid var(--panel-card-border);
+  background:
+    radial-gradient(circle at top right, var(--surface-accent), transparent 32%),
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg));
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 var(--surface-inset);
   z-index: 20;
 }
 
@@ -3481,8 +4590,8 @@ onBeforeUnmount(() => {
 }
 
 .model-option.active {
-  background: linear-gradient(135deg, rgba(237, 124, 71, 0.14), rgba(47, 131, 116, 0.12));
-  border-color: rgba(237, 124, 71, 0.18);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(122, 221, 193, 0.12));
+  border-color: rgba(34, 211, 238, 0.2);
 }
 
 .model-option-copy strong {
@@ -3531,6 +4640,32 @@ onBeforeUnmount(() => {
     flex-wrap: wrap;
   }
 
+  .gen-title-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .hero-model-row {
+    flex-wrap: wrap;
+  }
+
+  .hero-title-row {
+    flex-wrap: wrap;
+  }
+
+  .hero-habit-trigger {
+    margin-left: 0;
+  }
+
+  .hero-model-window {
+    width: min(100%, calc(360px * var(--ui-scale)));
+  }
+
+  .habits-card-head,
+  .habits-event-head {
+    flex-wrap: wrap;
+  }
+
   .topic-title-row strong,
   .task-head strong {
     white-space: normal;
@@ -3546,6 +4681,29 @@ onBeforeUnmount(() => {
 
   .chat-main {
     height: calc(100dvh - 7.5rem);
+  }
+
+  .hero-model-window {
+    width: 100%;
+  }
+
+  .hero-habit-trigger {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .gen-card {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .gen-dismiss {
+    margin-left: calc(46px * var(--ui-scale));
+  }
+
+  .habits-toolbar,
+  .habits-card-actions {
+    justify-content: flex-start;
   }
 
   .composer-actions {
@@ -3572,11 +4730,15 @@ onBeforeUnmount(() => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #1d4ed8;
-  color: #fff;
-  border: none;
+  background:
+    linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-strong)),
+    var(--panel-card-bg);
+  color: var(--text-main);
+  border: 1px solid var(--panel-card-border);
   cursor: pointer;
-  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.35);
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
   font-size: 22px;
   display: flex;
   align-items: center;
@@ -3592,7 +4754,7 @@ onBeforeUnmount(() => {
   height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: #ef4444;
+  background: var(--danger);
   color: #fff;
   font-size: 10px;
   display: flex;
@@ -3603,9 +4765,27 @@ onBeforeUnmount(() => {
 
 /* ==================== 推送 Toast ==================== */
 .push-toast-mask {
+  --push-text-main: #e5e7eb;
+  --push-text-muted: #94a3b8;
+  --push-border: rgba(148, 163, 184, 0.18);
+  --push-inset: rgba(255, 255, 255, 0.06);
+  --push-surface: rgba(15, 23, 42, 0.84);
+  --push-surface-strong: rgba(15, 23, 42, 0.94);
+  --push-surface-soft: rgba(2, 6, 23, 0.42);
+  --push-accent: rgba(34, 211, 238, 0.12);
+  --push-head-bg: linear-gradient(90deg, #1d4ed8, #4338ca);
+  --push-head-text: #ffffff;
+  --push-badge-bg: rgba(255, 255, 255, 0.22);
+  --push-button-bg: rgba(2, 6, 23, 0.36);
+  --push-button-text: #dbeafe;
+  --push-button-border: rgba(148, 163, 184, 0.18);
+  --push-primary-bg: linear-gradient(90deg, #1d4ed8, #4338ca);
+  --push-primary-border: #1d4ed8;
+  --push-primary-text: #ffffff;
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  background: transparent;
+  backdrop-filter: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3617,14 +4797,20 @@ onBeforeUnmount(() => {
 @keyframes pushPopIn { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
 
 .push-toast {
-  background: #fff;
+  background:
+    radial-gradient(circle at top right, var(--push-accent), transparent 30%),
+    linear-gradient(180deg, var(--push-surface-strong), var(--push-surface));
+  border: 1px solid var(--push-border);
   border-radius: 12px;
   max-width: 640px;
   width: 92%;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.35);
+  color: var(--push-text-main);
+  box-shadow:
+    0 24px 48px rgba(15, 23, 42, 0.35),
+    inset 0 1px 0 var(--push-inset);
   overflow: hidden;
   animation: pushPopIn 0.25s;
 }
@@ -3634,8 +4820,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  background: linear-gradient(90deg, #1d4ed8, #4338ca);
-  color: #fff;
+  background: var(--push-head-bg);
+  color: var(--push-head-text);
 }
 
 .push-toast-head .pt-title {
@@ -3647,7 +4833,7 @@ onBeforeUnmount(() => {
 }
 
 .push-toast-head .pt-count {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--push-badge-bg);
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 11px;
@@ -3658,9 +4844,13 @@ onBeforeUnmount(() => {
   gap: 12px;
   padding: 8px 18px;
   font-size: 11px;
-  color: #64748b;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  color: var(--push-text-muted);
+  background: var(--push-surface-soft);
+  border-bottom: 1px solid var(--push-border);
+}
+
+.push-toast-meta strong {
+  color: var(--push-text-main);
 }
 
 .push-toast-body {
@@ -3669,34 +4859,35 @@ onBeforeUnmount(() => {
   padding: 14px 18px;
   font-size: 13px;
   line-height: 1.7;
-  color: #0f172a;
+  color: var(--push-text-main);
   white-space: pre-wrap;
-  background: #fff;
+  background: var(--push-surface);
 }
 
 .push-toast-foot {
   display: flex;
   gap: 8px;
   padding: 10px 18px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-top: 1px solid var(--push-border);
+  background: var(--push-surface-soft);
   justify-content: flex-end;
 }
 
 .push-toast-foot button {
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid #c7d2fe;
-  background: #fff;
-  color: #3730a3;
+  border: 1px solid var(--push-button-border);
+  background: var(--push-button-bg);
+  color: var(--push-button-text);
   cursor: pointer;
   font-size: 12px;
+  box-shadow: inset 0 1px 0 var(--push-inset);
 }
 
 .push-toast-foot button.primary {
-  background: #1d4ed8;
-  color: #fff;
-  border-color: #1d4ed8;
+  background: var(--push-primary-bg);
+  color: var(--push-primary-text);
+  border-color: var(--push-primary-border);
 }
 
 .push-toast-foot button:hover {
@@ -3707,83 +4898,162 @@ onBeforeUnmount(() => {
 .gen-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: calc(10px * var(--ui-scale));
 }
 
 .gen-card {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  font-size: 12px;
+  gap: calc(12px * var(--ui-scale));
+  padding: calc(14px * var(--ui-scale));
+  border-radius: calc(18px * var(--ui-scale));
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(19, 32, 58, 0.78), rgba(8, 16, 29, 0.66)),
+    rgba(15, 23, 42, 0.68);
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.gen-card .gen-icon {
-  width: 22px;
-  height: 22px;
+.gen-card.is-running {
+  border-color: rgba(34, 211, 238, 0.22);
+  background:
+    linear-gradient(135deg, rgba(19, 32, 58, 0.84), rgba(6, 95, 70, 0.46)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.gen-card.is-done {
+  border-color: rgba(34, 197, 94, 0.22);
+  background:
+    linear-gradient(135deg, rgba(19, 32, 58, 0.84), rgba(20, 83, 45, 0.48)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.gen-card.is-error {
+  border-color: rgba(239, 68, 68, 0.2);
+  background:
+    linear-gradient(135deg, rgba(19, 32, 58, 0.82), rgba(127, 29, 29, 0.5)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.gen-icon {
+  width: calc(34px * var(--ui-scale));
+  height: calc(34px * var(--ui-scale));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 14px;
+  border-radius: calc(14px * var(--ui-scale));
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.38);
+  color: var(--brand-alt);
 }
 
-.gen-card .gen-spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #e2e8f0;
-  border-top-color: #1d4ed8;
+.gen-icon.is-running {
+  background: rgba(47, 131, 116, 0.12);
+  color: var(--brand-alt);
+}
+
+.gen-icon.is-done {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
+}
+
+.gen-icon.is-error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fda4af;
+}
+
+.gen-spinner {
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
+  border: 2px solid rgba(47, 131, 116, 0.18);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: genSpin 0.8s linear infinite;
 }
 
 @keyframes genSpin { to { transform: rotate(360deg) } }
 
-.gen-card .gen-info {
-  flex: 1;
-  min-width: 0;
+.gen-state-dot {
+  width: calc(10px * var(--ui-scale));
+  height: calc(10px * var(--ui-scale));
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 calc(4px * var(--ui-scale)) rgba(255, 255, 255, 0.12);
 }
 
-.gen-card .gen-title {
-  font-weight: 600;
-  color: #0f172a;
-  font-size: 11px;
+.gen-info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: calc(4px * var(--ui-scale));
+}
+
+.gen-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(10px * var(--ui-scale));
+}
+
+.gen-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 800;
+  color: rgba(248, 250, 252, 0.96);
+  font-size: calc(13.5px * var(--ui-scale));
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
-.gen-card .gen-meta {
-  color: #64748b;
-  font-size: 10px;
+.gen-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  border-radius: 999px;
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 700;
+  line-height: 1;
+  background: rgba(34, 211, 238, 0.16);
+  color: #dffcff;
 }
 
-.gen-card.done {
-  border-color: #86efac;
-  background: #f0fdf4;
+.gen-status.is-done {
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
 }
 
-.gen-card.error {
-  border-color: #fca5a5;
-  background: #fef2f2;
+.gen-status.is-error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fda4af;
+}
+
+.gen-meta {
+  color: rgba(226, 232, 240, 0.9);
+  font-size: calc(12.5px * var(--ui-scale));
+  line-height: 1.65;
+  font-weight: 600;
+}
+
+.gen-submeta {
+  color: var(--text-muted);
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
 }
 
 .gen-dismiss {
   margin-left: auto;
-  font-size: 10px;
-  padding: 2px 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  background: #fff;
-  color: #64748b;
-  cursor: pointer;
-}
-
-.gen-dismiss:hover {
-  background: #f1f5f9;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* ==================== 报告详情 · 分节卡片 ==================== */
@@ -3794,27 +5064,32 @@ onBeforeUnmount(() => {
 }
 
 .rd-cards-empty {
-  color: #64748b;
+  color: var(--text-muted);
   font-size: 13px;
   padding: 16px 0;
   text-align: center;
 }
 
 .rd-card {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background:
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
+    var(--panel-card-bg);
+  border: 1px solid var(--panel-card-border);
   border-radius: 10px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .rd-card h6 {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--text-main);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3840,7 +5115,7 @@ onBeforeUnmount(() => {
   padding-left: 18px;
   font-size: 12px;
   line-height: 1.6;
-  color: #334155;
+  color: var(--text-main);
 }
 
 .rd-bullets li {
@@ -3849,7 +5124,7 @@ onBeforeUnmount(() => {
 
 .rd-body {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   line-height: 1.5;
   overflow: hidden;
   display: -webkit-box;
@@ -3864,16 +5139,18 @@ onBeforeUnmount(() => {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.7;
-  color: #0f172a;
+  color: var(--text-main);
 }
 
 .rd-json {
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   font-size: 12px;
-  background: #f1f5f9;
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   border-radius: 8px;
   padding: 12px;
-  color: #334155;
+  color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .task-modal-foot {
@@ -3888,6 +5165,205 @@ onBeforeUnmount(() => {
 
 .tiny-button.warn:hover {
   background: #d97706;
+}
+
+:global(html[data-theme='light']) .todo-status-select,
+:global(html[data-theme='light']) .rd-card,
+:global(html[data-theme='light']) .rd-json {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.9)),
+    rgba(255, 255, 255, 0.84);
+  color: #1b2536;
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+:global(html[data-theme='light']) .todo-status-select {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .push-toast-mask {
+  --push-text-main: #1b2536;
+  --push-text-muted: #677287;
+  --push-border: rgba(27, 37, 54, 0.08);
+  --push-inset: rgba(255, 255, 255, 0.84);
+  --push-surface: rgba(255, 255, 255, 0.9);
+  --push-surface-strong: rgba(255, 255, 255, 0.98);
+  --push-surface-soft: rgba(255, 255, 255, 0.82);
+  --push-accent: rgba(255, 216, 188, 0.2);
+  --push-head-bg: linear-gradient(90deg, #ed7c47, #f3a166);
+  --push-head-text: #ffffff;
+  --push-badge-bg: rgba(255, 255, 255, 0.24);
+  --push-button-bg: rgba(255, 255, 255, 0.88);
+  --push-button-text: #1b2536;
+  --push-button-border: rgba(27, 37, 54, 0.08);
+  --push-primary-bg: linear-gradient(90deg, #ed7c47, #f3a166);
+  --push-primary-border: rgba(237, 124, 71, 0.18);
+  --push-primary-text: #ffffff;
+  background: transparent;
+}
+
+:global(html[data-theme='light']) .rd-card h6,
+:global(html[data-theme='light']) .rd-pre {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .side-label,
+:global(html[data-theme='light']) .chat-hero h2,
+:global(html[data-theme='light']) .chat-hero h4,
+:global(html[data-theme='light']) .topic-title-row strong,
+:global(html[data-theme='light']) .task-head strong,
+:global(html[data-theme='light']) .task-title,
+:global(html[data-theme='light']) .gen-title {
+  color: #1b2536;
+  text-shadow: none;
+}
+
+:global(html[data-theme='light']) .topic-empty,
+:global(html[data-theme='light']) .capability-card li,
+:global(html[data-theme='light']) .task-meta,
+:global(html[data-theme='light']) .task-meta-grid,
+:global(html[data-theme='light']) .gen-meta,
+:global(html[data-theme='light']) .gen-submeta {
+  color: #677287;
+}
+
+:global(html[data-theme='light']) .head-action-button,
+:global(html[data-theme='light']) .toggle-button {
+  color: #1b2536;
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.9)),
+    rgba(255, 255, 255, 0.84);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+:global(html[data-theme='light']) .task-pill {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .task-pill--ok {
+  color: #2f8374;
+}
+
+:global(html[data-theme='light']) .task-pill--info {
+  color: #3567b7;
+}
+
+:global(html[data-theme='light']) .task-pill--danger {
+  color: #cf4c4c;
+}
+
+:global(html[data-theme='light']) .task-pill--muted {
+  color: #677287;
+}
+
+:global(html[data-theme='light']) .task-pill--pending {
+  color: #b86a1c;
+}
+
+:global(html[data-theme='light']) .task-pill--type {
+  color: #7059b7;
+}
+
+:global(html[data-theme='light']) .gen-card {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 249, 253, 0.84)),
+    rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 16px 32px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+:global(html[data-theme='light']) .topic-chip.active,
+:global(html[data-theme='light']) .gen-card.is-running,
+:global(html[data-theme='light']) .gen-card.is-done,
+:global(html[data-theme='light']) .gen-card.is-error {
+  background:
+    linear-gradient(135deg, rgba(255, 243, 234, 0.94), rgba(241, 248, 246, 0.92)),
+    rgba(255, 255, 255, 0.82);
+}
+
+:global(html[data-theme='light']) .prompt-card {
+  color: #1b2536;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 14px 28px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:global(html[data-theme='light']) .message-bubble,
+:global(html[data-theme='light']) .message-role,
+:global(html[data-theme='light']) .rd-bullets,
+:global(html[data-theme='light']) .rd-body {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .task-id,
+:global(html[data-theme='light']) .chat-sidebar code {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.88)),
+    rgba(255, 255, 255, 0.82);
+  border-color: rgba(27, 37, 54, 0.08);
+  color: #1b2536;
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+:global(html[data-theme='light']) .message-item.user .message-bubble {
+  background:
+    linear-gradient(135deg, rgba(255, 243, 234, 0.96), rgba(241, 248, 246, 0.92)),
+    rgba(255, 255, 255, 0.86);
+  border-color: rgba(237, 124, 71, 0.18);
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .model-menu {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.2), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.9));
+  box-shadow:
+    0 18px 36px rgba(27, 37, 54, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+:global(html[data-theme='light']) .model-option.active {
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.14), rgba(47, 131, 116, 0.12));
+  border-color: rgba(237, 124, 71, 0.18);
+}
+
+:global(html[data-theme='light']) .task-modal-mask {
+  --text-main: #1b2536;
+  --text-muted: #677287;
+  --brand-alt: #2f8374;
+  --danger: #cf4c4c;
+  --line: rgba(27, 37, 54, 0.08);
+  --surface-border: rgba(27, 37, 54, 0.1);
+  --surface-inset: rgba(255, 255, 255, 0.82);
+  --surface-card-soft: rgba(255, 255, 255, 0.78);
+  --task-card-bg: rgba(255, 255, 255, 0.86);
+  --task-card-bg-strong: rgba(255, 255, 255, 0.96);
+  background: transparent;
+}
+
+:global(html[data-theme='light']) .task-modal {
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.22), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.9));
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 24px 48px rgba(29, 35, 52, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 </style>
 

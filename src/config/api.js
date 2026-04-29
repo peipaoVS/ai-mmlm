@@ -1,16 +1,9 @@
-// API 基础地址配置
-export const API_CONFIG = {
-  // 主业务 API
-  // MAIN: 'http://192.168.1.43:8000',
-  MAIN: 'http://192.168.1.168:8000',
-  AUTH: 'http://192.168.1.37:8017',
-  // AUTH: 'http://192.168.1.39:8017'
-  // // 认证服务 API
-  // AUTH: 'http://127.0.0.1:9999',
-  
-  // // 文件服务 API
-  // FILE: 'http://127.0.0.1:7777',
-  
-  // // WebSocket
-  // WS: 'ws://127.0.0.1:8888/ws',
-};
+import devConfig from './dev'
+import prodConfig from './prod'
+
+const activeConfig = import.meta.env.DEV ? devConfig : prodConfig
+
+export const API_CONFIG = activeConfig.api
+export const PROXY_CONFIG = activeConfig.proxy
+export const PROVIDER_CONFIG = activeConfig.providers
+export const APP_ENV_CONFIG = activeConfig

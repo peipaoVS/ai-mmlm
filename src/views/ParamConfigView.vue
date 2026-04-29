@@ -325,8 +325,10 @@ async function removeRow(row) {
   align-items: center;
   padding: calc(6px * var(--ui-scale)) calc(10px * var(--ui-scale));
   border-radius: 999px;
-  background: rgba(27, 37, 54, 0.06);
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
   font-family: Consolas, 'Courier New', monospace;
   font-size: calc(12px * var(--ui-scale));
   word-break: break-all;
@@ -348,8 +350,10 @@ async function removeRow(row) {
   max-width: 32rem;
   padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: calc(14px * var(--ui-scale));
-  background: rgba(27, 37, 54, 0.05);
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.7;
@@ -373,11 +377,12 @@ async function removeRow(row) {
 }
 
 .type-chip {
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   border-radius: 999px;
   padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -392,9 +397,12 @@ async function removeRow(row) {
 }
 
 .type-chip.active {
-  border-color: rgba(47, 131, 116, 0.28);
-  background: linear-gradient(135deg, rgba(47, 131, 116, 0.14), rgba(237, 124, 71, 0.12));
-  color: #1f5e53;
+  border-color: rgba(34, 211, 238, 0.22);
+  background: linear-gradient(135deg, var(--surface-accent), var(--surface-accent-alt));
+  color: var(--text-main);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 var(--surface-inset);
   font-weight: 600;
 }
 

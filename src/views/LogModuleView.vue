@@ -1988,6 +1988,7 @@ async function loadRuleLibrary() {
   display: flex;
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
+  color: var(--text-main);
 }
 
 .log-scroll-body {
@@ -2028,10 +2029,13 @@ async function loadRuleLibrary() {
   align-items: center;
   padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
   border-radius: calc(14px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
   color: var(--text-main);
   font-size: calc(12px * var(--ui-scale));
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .summary-grid {
@@ -2043,11 +2047,11 @@ async function loadRuleLibrary() {
 .summary-card {
   padding: calc(16px * var(--ui-scale)) calc(18px * var(--ui-scale));
   border-radius: calc(20px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg);
   box-shadow:
-    0 14px 28px rgba(29, 35, 52, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .summary-card span {
@@ -2065,19 +2069,19 @@ async function loadRuleLibrary() {
 }
 
 .summary-card.brand {
-  background: linear-gradient(135deg, rgba(47, 131, 116, 0.12), rgba(255, 255, 255, 0.82));
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), var(--panel-card-bg));
 }
 
 .summary-card.soft {
-  background: linear-gradient(135deg, rgba(87, 103, 132, 0.1), rgba(255, 255, 255, 0.82));
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.1), var(--panel-card-bg));
 }
 
 .summary-card.success {
-  background: linear-gradient(135deg, rgba(67, 160, 71, 0.12), rgba(255, 255, 255, 0.82));
+  background: linear-gradient(135deg, rgba(47, 131, 116, 0.12), var(--panel-card-bg));
 }
 
 .summary-card.warning {
-  background: linear-gradient(135deg, rgba(237, 124, 71, 0.12), rgba(255, 255, 255, 0.82));
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.12), var(--panel-card-bg));
 }
 
 .summary-tags {
@@ -2107,20 +2111,22 @@ async function loadRuleLibrary() {
 .toolbar-input {
   width: 100%;
   min-height: calc(48px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.1);
+  border: 1px solid var(--panel-card-border);
   border-radius: calc(16px * var(--ui-scale));
   padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .toolbar-input:focus {
-  border-color: rgba(237, 124, 71, 0.36);
+  border-color: rgba(34, 211, 238, 0.34);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) rgba(237, 124, 71, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+    0 0 0 calc(3px * var(--ui-scale)) rgba(34, 211, 238, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .instruction-grid,
@@ -2135,12 +2141,11 @@ async function loadRuleLibrary() {
 .rule-scope,
 .rule-source {
   border-radius: calc(22px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.88));
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg);
   box-shadow:
-    0 16px 30px rgba(29, 35, 52, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .instruction-card,
@@ -2211,14 +2216,14 @@ async function loadRuleLibrary() {
 .status-chip.soft,
 .section-pill.soft,
 .info-tag.soft {
-  background: rgba(87, 103, 132, 0.12);
-  color: #546173;
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-muted);
 }
 
 .status-chip.success,
 .info-tag.success {
-  background: rgba(67, 160, 71, 0.14);
-  color: #2f7f32;
+  background: rgba(47, 131, 116, 0.12);
+  color: var(--brand-alt);
 }
 
 .status-chip.brand {
@@ -2234,21 +2239,23 @@ async function loadRuleLibrary() {
 }
 
 .info-tag {
-  background: rgba(247, 249, 252, 1);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
-  border: 1px solid rgba(27, 37, 54, 0.06);
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .content-block {
   margin-top: calc(14px * var(--ui-scale));
   padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
   border-radius: calc(18px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(27, 37, 54, 0.05);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .content-block.subtle {
-  background: rgba(248, 250, 254, 0.92);
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.08), var(--panel-card-bg-soft));
 }
 
 .content-block strong {
@@ -2275,12 +2282,11 @@ async function loadRuleLibrary() {
 .structured-text-card,
 .structured-section-card {
   border-radius: calc(16px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.88));
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   box-shadow:
-    0 10px 22px rgba(29, 35, 52, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .structured-highlight-card,
@@ -2449,11 +2455,12 @@ async function loadRuleLibrary() {
 }
 
 .chapter-chip {
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid var(--panel-card-border);
   border-radius: 999px;
   padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .chapter-chip:hover {
@@ -2465,8 +2472,9 @@ async function loadRuleLibrary() {
   margin-top: calc(14px * var(--ui-scale));
   padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
   border-radius: calc(18px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.74);
-  border: 1px solid rgba(27, 37, 54, 0.05);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .entry-details > summary,
@@ -2498,13 +2506,14 @@ async function loadRuleLibrary() {
   margin: calc(10px * var(--ui-scale)) 0 0;
   padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
   border-radius: calc(16px * var(--ui-scale));
-  background: rgba(248, 250, 254, 0.96);
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: "Microsoft YaHei UI", "PingFang SC", sans-serif;
   line-height: 1.75;
   color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .detail-pre.large {
@@ -2522,8 +2531,8 @@ async function loadRuleLibrary() {
 }
 
 .error-state {
-  color: #b42318;
-  background: rgba(254, 242, 242, 0.82);
+  color: var(--danger);
+  background: rgba(207, 76, 76, 0.12);
 }
 
 .log-detail-modal {
@@ -2545,8 +2554,9 @@ async function loadRuleLibrary() {
 .detail-meta-card {
   padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
   border-radius: calc(18px * var(--ui-scale));
-  background: rgba(248, 250, 254, 0.92);
-  border: 1px solid rgba(27, 37, 54, 0.06);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .detail-meta-card span {
@@ -2558,6 +2568,7 @@ async function loadRuleLibrary() {
 .detail-meta-card strong {
   display: block;
   margin-top: calc(6px * var(--ui-scale));
+  color: var(--text-main);
   line-height: 1.6;
 }
 

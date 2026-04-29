@@ -944,12 +944,12 @@ watch(
 
 .tag.green {
   background: rgba(40, 160, 90, 0.14);
-  color: #1f7a4c;
+  color: #86efac;
 }
 
 .tag.orange {
   background: rgba(237, 124, 71, 0.18);
-  color: #b75726;
+  color: #fdba74;
 }
 
 .checkbox-row .checkbox-group {

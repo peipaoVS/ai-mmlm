@@ -345,9 +345,9 @@ async function removeRow(row) {
   justify-content: center;
   min-height: calc(46px * var(--ui-scale));
   padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.16);
   border-radius: calc(16px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(2, 6, 23, 0.34);
   color: var(--text-main);
   font-weight: 600;
   line-height: 1.4;
@@ -367,12 +367,12 @@ async function removeRow(row) {
 }
 
 .role-option.active {
-  border-color: rgba(47, 131, 116, 0.26);
-  background: linear-gradient(135deg, rgba(47, 131, 116, 0.16), rgba(237, 124, 71, 0.14));
-  color: #1f5e53;
+  border-color: rgba(34, 211, 238, 0.22);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(122, 221, 193, 0.12));
+  color: #dffcff;
   box-shadow:
-    0 12px 24px rgba(47, 131, 116, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    0 12px 24px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .field-hint {
@@ -383,5 +383,27 @@ async function removeRow(row) {
 .section-tag {
   background: rgba(237, 124, 71, 0.12);
   color: var(--brand-dark);
+}
+
+:global(html[data-theme='light']) .role-option {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.88)),
+    rgba(255, 255, 255, 0.82);
+  color: #1b2536;
+  box-shadow:
+    0 10px 22px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+:global(html[data-theme='light']) .role-option:hover {
+  border-color: rgba(237, 124, 71, 0.18);
+  box-shadow: 0 10px 20px rgba(29, 35, 52, 0.08);
+}
+
+:global(html[data-theme='light']) .role-option.active {
+  border-color: rgba(237, 124, 71, 0.16);
+  background: linear-gradient(135deg, rgba(255, 243, 234, 0.96), rgba(241, 248, 246, 0.94));
+  color: #1b2536;
 }
 </style>
