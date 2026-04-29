@@ -5363,6 +5363,52 @@ onBeforeUnmount(() => {
   color: #677287;
 }
 
+:global(html[data-theme='light']) .post-summary-snippet,
+:global(html[data-theme='light']) .post-summary-detail-list,
+:global(html[data-theme='light']) .post-summary-block li,
+:global(html[data-theme='light']) .post-summary-block ol,
+:global(html[data-theme='light']) .post-summary-block ul {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .task-card .post-summary-snippet,
+:global(html[data-theme='light']) .task-card .post-summary-block,
+:global(html[data-theme='light']) .task-card .post-summary-next {
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  border-radius: calc(14px * var(--ui-scale));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 253, 0.88)),
+    rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+:global(html[data-theme='light']) .task-card .post-summary-snippet {
+  margin-top: calc(10px * var(--ui-scale));
+  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  color: #1b2536;
+  font-weight: 600;
+}
+
+:global(html[data-theme='light']) .post-summary-block {
+  color: #677287;
+  margin-top: calc(10px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
+}
+
+:global(html[data-theme='light']) .post-summary-block strong,
+:global(html[data-theme='light']) .post-summary-h {
+  color: #1b2536;
+  font-weight: 800;
+}
+
+:global(html[data-theme='light']) .post-summary-next {
+  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  color: #2f8374;
+  font-weight: 700;
+}
+
 :global(html[data-theme='light']) .head-action-button,
 :global(html[data-theme='light']) .toggle-button {
   color: #1b2536;
