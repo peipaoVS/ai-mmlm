@@ -3047,7 +3047,7 @@ onBeforeUnmount(() => {
       </section>
     </aside>
 
-    <section ref="messagePanelRef" class="chat-main glass-card">
+    <section class="chat-main glass-card">
       <div class="chat-hero">
         <div class="hero-head">
           <div class="hero-title-row">
@@ -3110,7 +3110,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="message-panel">
+      <div ref="messagePanelRef" class="message-panel">
         <article
           v-for="(item, index) in messages"
           :key="index"
@@ -4908,9 +4908,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
   height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-gutter: stable;
+  overflow: hidden;
   background:
     radial-gradient(circle at top right, var(--surface-accent), transparent 24%),
     radial-gradient(circle at bottom left, var(--surface-accent-alt), transparent 22%),
@@ -5135,16 +5133,18 @@ onBeforeUnmount(() => {
 }
 
 .message-panel {
-  flex: 0 0 auto;
-  min-height: auto;
-  overflow: visible;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   width: 100%;
   max-width: 100%;
   align-self: stretch;
-  padding-right: 0;
+  padding-right: calc(8px * var(--ui-scale));
   display: flex;
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
+  scrollbar-gutter: stable;
 }
 
 .message-item {
