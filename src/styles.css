@@ -543,7 +543,17 @@ button {
   --line: rgba(148, 163, 184, 0.18);
   --surface-border: rgba(148, 163, 184, 0.18);
   --surface-inset: rgba(255, 255, 255, 0.06);
+  --surface-panel: rgba(15, 23, 42, 0.78);
+  --surface-card: rgba(15, 23, 42, 0.62);
+  --surface-card-strong: rgba(15, 23, 42, 0.76);
   --surface-card-soft: rgba(15, 23, 42, 0.5);
+  --surface-card-faint: rgba(15, 23, 42, 0.4);
+  --panel-card-bg: var(--surface-card);
+  --panel-card-bg-strong: var(--surface-card-strong);
+  --panel-card-bg-soft: var(--surface-card-soft);
+  --panel-card-bg-faint: var(--surface-card-faint);
+  --panel-card-border: var(--surface-border);
+  --panel-card-shadow: 0 18px 42px rgba(3, 10, 26, 0.18);
   position: fixed;
   inset: 0;
   background: transparent;
@@ -710,6 +720,112 @@ button {
   padding-top: 1rem;
   border-top: 1px solid rgba(27, 37, 54, 0.08);
   flex-wrap: wrap;
+}
+
+.confirm-dialog-mask {
+  z-index: 2200 !important;
+}
+
+.confirm-dialog {
+  width: min(30rem, 100%);
+  display: grid;
+  gap: calc(18px * var(--ui-scale));
+  position: relative;
+  z-index: 1;
+}
+
+.confirm-dialog-mask.is-light-theme {
+  --text-main: #1b2536;
+  --text-muted: #677287;
+  --brand-alt: #2f8374;
+  --danger: #cf4c4c;
+  --line: rgba(27, 37, 54, 0.08);
+  --surface-border: rgba(27, 37, 54, 0.1);
+  --surface-inset: rgba(255, 255, 255, 0.84);
+  --surface-card-soft: rgba(255, 255, 255, 0.92);
+  background: transparent;
+}
+
+.confirm-dialog.is-light-theme {
+  color: #1b2536;
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.2), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 250, 255, 0.96));
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 24px 52px rgba(29, 35, 52, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: none;
+}
+
+.confirm-dialog.is-light-theme::before {
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.2), rgba(47, 131, 116, 0.12));
+}
+
+.confirm-dialog.is-light-theme,
+.confirm-dialog.is-light-theme label,
+.confirm-dialog.is-light-theme strong,
+.confirm-dialog.is-light-theme code,
+.confirm-dialog.is-light-theme h3,
+.confirm-dialog.is-light-theme p,
+.confirm-dialog.is-light-theme span {
+  color: #1b2536;
+}
+
+.confirm-dialog-symbol {
+  width: calc(56px * var(--ui-scale));
+  height: calc(56px * var(--ui-scale));
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.32), rgba(251, 113, 133, 0.18));
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  color: #ffe4e6;
+  font-size: calc(28px * var(--ui-scale));
+  font-weight: 700;
+  line-height: 1;
+  box-shadow:
+    0 16px 34px rgba(127, 29, 29, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.confirm-dialog-copy {
+  display: grid;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.confirm-dialog-copy h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: calc(clamp(22px, 2.1vw, 28px) * var(--ui-scale));
+  line-height: 1.1;
+}
+
+.confirm-dialog-message,
+.confirm-dialog-description {
+  margin: 0;
+  color: var(--text-main);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.confirm-dialog-description {
+  color: var(--text-muted);
+}
+
+.confirm-dialog.is-light-theme .confirm-dialog-symbol {
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.18), rgba(243, 161, 102, 0.32));
+  border-color: rgba(237, 124, 71, 0.18);
+  color: #cc6233;
+  box-shadow:
+    0 16px 34px rgba(237, 124, 71, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.46);
+}
+
+.confirm-dialog-actions {
+  margin-top: 0;
 }
 
 html[data-theme='light'] body {
@@ -906,7 +1022,17 @@ html[data-theme='light'] .modal-mask {
   --line: rgba(27, 37, 54, 0.08);
   --surface-border: rgba(27, 37, 54, 0.1);
   --surface-inset: rgba(255, 255, 255, 0.82);
+  --surface-panel: rgba(255, 255, 255, 0.82);
+  --surface-card: rgba(255, 255, 255, 0.72);
+  --surface-card-strong: rgba(255, 255, 255, 0.86);
   --surface-card-soft: rgba(255, 255, 255, 0.78);
+  --surface-card-faint: rgba(255, 255, 255, 0.36);
+  --panel-card-bg: var(--surface-card);
+  --panel-card-bg-strong: var(--surface-card-strong);
+  --panel-card-bg-soft: var(--surface-card-soft);
+  --panel-card-bg-faint: var(--surface-card-faint);
+  --panel-card-border: var(--surface-border);
+  --panel-card-shadow: 0 14px 32px rgba(29, 35, 52, 0.08);
   background: transparent;
 }
 
@@ -937,6 +1063,23 @@ html[data-theme='light'] .modal-panel code {
 html[data-theme='light'] .modal-panel .modal-subtext,
 html[data-theme='light'] .modal-panel .field-hint,
 html[data-theme='light'] .modal-panel .app-select-value.placeholder {
+  color: #677287;
+}
+
+html[data-theme='light'] .confirm-dialog-symbol {
+  background: linear-gradient(135deg, rgba(255, 243, 234, 0.96), rgba(255, 236, 236, 0.92));
+  border-color: rgba(207, 76, 76, 0.16);
+  color: #cf4c4c;
+  box-shadow:
+    0 12px 28px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+html[data-theme='light'] .confirm-dialog-message {
+  color: #1b2536;
+}
+
+html[data-theme='light'] .confirm-dialog-description {
   color: #677287;
 }
 

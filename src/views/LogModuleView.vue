@@ -2069,19 +2069,19 @@ async function loadRuleLibrary() {
 }
 
 .summary-card.brand {
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.12), var(--panel-card-bg));
+  background: linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg));
 }
 
 .summary-card.soft {
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.1), var(--panel-card-bg));
+  background: linear-gradient(135deg, var(--surface-neutral), var(--panel-card-bg));
 }
 
 .summary-card.success {
-  background: linear-gradient(135deg, rgba(47, 131, 116, 0.12), var(--panel-card-bg));
+  background: linear-gradient(135deg, var(--surface-success), var(--panel-card-bg));
 }
 
 .summary-card.warning {
-  background: linear-gradient(135deg, rgba(237, 124, 71, 0.12), var(--panel-card-bg));
+  background: linear-gradient(135deg, var(--surface-warning), var(--panel-card-bg));
 }
 
 .summary-tags {
@@ -2123,10 +2123,10 @@ async function loadRuleLibrary() {
 }
 
 .toolbar-input:focus {
-  border-color: rgba(34, 211, 238, 0.34);
+  border-color: var(--line-strong);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) rgba(34, 211, 238, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 0 0 calc(3px * var(--ui-scale)) var(--surface-accent),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .instruction-grid,
@@ -2209,26 +2209,26 @@ async function loadRuleLibrary() {
 
 .status-chip.warning,
 .section-pill {
-  background: rgba(237, 124, 71, 0.12);
+  background: var(--surface-warning);
   color: var(--brand);
 }
 
 .status-chip.soft,
 .section-pill.soft,
 .info-tag.soft {
-  background: rgba(148, 163, 184, 0.12);
+  background: var(--surface-neutral);
   color: var(--text-muted);
 }
 
 .status-chip.success,
 .info-tag.success {
-  background: rgba(47, 131, 116, 0.12);
+  background: var(--surface-success);
   color: var(--brand-alt);
 }
 
 .status-chip.brand {
-  background: rgba(47, 131, 116, 0.12);
-  color: var(--brand-alt);
+  background: var(--surface-accent);
+  color: var(--text-main);
 }
 
 .tag-row {
@@ -2255,7 +2255,7 @@ async function loadRuleLibrary() {
 }
 
 .content-block.subtle {
-  background: linear-gradient(135deg, rgba(237, 124, 71, 0.08), var(--panel-card-bg-soft));
+  background: linear-gradient(135deg, var(--surface-warning), var(--panel-card-bg-soft));
 }
 
 .content-block strong {
@@ -2351,7 +2351,7 @@ async function loadRuleLibrary() {
   justify-content: center;
   padding: calc(4px * var(--ui-scale)) calc(10px * var(--ui-scale));
   border-radius: 999px;
-  background: rgba(47, 131, 116, 0.12);
+  background: var(--surface-success);
   color: var(--brand-alt);
   font-size: calc(12px * var(--ui-scale));
   font-weight: 700;
@@ -2464,7 +2464,7 @@ async function loadRuleLibrary() {
 }
 
 .chapter-chip:hover {
-  border-color: rgba(47, 131, 116, 0.24);
+  border-color: var(--line-strong);
   color: var(--brand-alt);
 }
 
@@ -2532,7 +2532,7 @@ async function loadRuleLibrary() {
 
 .error-state {
   color: var(--danger);
-  background: rgba(207, 76, 76, 0.12);
+  background: var(--surface-danger);
 }
 
 .log-detail-modal {

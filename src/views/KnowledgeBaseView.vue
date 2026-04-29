@@ -14,6 +14,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSelect from '../components/AppSelect.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { formatDateTime } from '../utils/format'
 import { AdminApi } from '../api'
 
@@ -23,7 +24,10 @@ const route = useRoute()
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
+const deleteDialogVisible = ref(false)
+const deleting = ref(false)
 const editingKey = ref(null)        // 编辑时的主键值（product_id / company_name / insight id）
+const pendingDeleteRow = ref(null)
 const rows = ref([])                  // 当前 tab 加载到的所有行（已缓存）
 const filters = reactive({
   keyword: '',
@@ -34,6 +38,22 @@ const form = reactive({})             // 表单字段
 
 const kbKey = computed(() => route.meta.kbKey || 'products')
 const kindLabel = computed(() => route.meta.title || '知识库')
+const deleteDialogTitle = computed(() =>
+  kbKey.value === 'products' ? '删除产品' : kbKey.value === 'portraits' ? '删除企业' : '删除动态'
+)
+const deleteDialogMessage = computed(() => {
+  const row = pendingDeleteRow.value
+  if (!row) {
+    return ''
+  }
+  if (kbKey.value === 'products') {
+    return `确认删除产品「${row.product_name}」(${row.product_id})吗？`
+  }
+  if (kbKey.value === 'portraits') {
+    return `确认删除企业「${row.company_name}」吗？`
+  }
+  return `确认删除动态 #${row.id}「${row.title}」吗？`
+})
 
 // ---- 三个域共享的下拉枚举 ----
 const SCALE_OPTIONS = [
@@ -401,17 +421,24 @@ async function submitForm() {
   }
 }
 
-async function removeRow(row) {
+function openRemoveDialog(row) {
+  pendingDeleteRow.value = row
+  deleteDialogVisible.value = true
+}
+
+function closeRemoveDialog() {
+  deleteDialogVisible.value = false
+  pendingDeleteRow.value = null
+}
+
+async function confirmRemove() {
+  const row = pendingDeleteRow.value
   const key = kbKey.value
-  const label =
-    key === 'products'
-      ? `产品「${row.product_name}」(${row.product_id})`
-      : key === 'portraits'
-      ? `企业「${row.company_name}」`
-      : `动态 #${row.id}「${row.title}」`
-  if (!window.confirm(`确认删除${label}？删除为软删除，不影响历史数据。`)) {
+  if (!row) {
     return
   }
+
+  deleting.value = true
   try {
     if (key === 'products') {
       await AdminApi.deleteProduct(row.product_id)
@@ -420,9 +447,12 @@ async function removeRow(row) {
     } else {
       await AdminApi.deleteInsight(row.id)
     }
+    closeRemoveDialog()
     await loadData()
   } catch (e) {
     window.alert(`删除失败：${e.message}`)
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -434,6 +464,7 @@ watch(
     filters.industry_code = ''
     filters.is_active = ''
     dialogVisible.value = false
+    closeRemoveDialog()
     resetForm()
     await loadData()
     if (key === 'trends') {
@@ -534,7 +565,7 @@ watch(
               <td>
                 <div class="action-group">
                   <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                  <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
                 </div>
               </td>
             </tr>
@@ -594,7 +625,7 @@ watch(
               <td>
                 <div class="action-group">
                   <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                  <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
                 </div>
               </td>
             </tr>
@@ -634,7 +665,7 @@ watch(
               <td>
                 <div class="action-group">
                   <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                  <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
                 </div>
               </td>
             </tr>
@@ -912,6 +943,16 @@ watch(
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      v-model="deleteDialogVisible"
+      :title="deleteDialogTitle"
+      :message="deleteDialogMessage"
+      description="删除为软删除，不影响历史数据。"
+      :loading="deleting"
+      @cancel="closeRemoveDialog"
+      @confirm="confirmRemove"
+    />
   </div>
 </template>
 

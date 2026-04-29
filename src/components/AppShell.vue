@@ -324,9 +324,19 @@ onBeforeUnmount(() => {
   --surface-card-faint: rgba(15, 23, 42, 0.4);
   --surface-accent: rgba(34, 211, 238, 0.16);
   --surface-accent-alt: rgba(122, 221, 193, 0.12);
+  --surface-warning: rgba(237, 124, 71, 0.12);
+  --surface-success: var(--surface-accent-alt);
+  --surface-neutral: rgba(148, 163, 184, 0.12);
+  --surface-danger: rgba(251, 113, 133, 0.14);
   --surface-code: rgba(2, 6, 23, 0.58);
   --surface-border: rgba(148, 163, 184, 0.18);
   --surface-inset: rgba(255, 255, 255, 0.06);
+  --panel-card-bg: var(--surface-card);
+  --panel-card-bg-strong: var(--surface-card-strong);
+  --panel-card-bg-soft: var(--surface-card-soft);
+  --panel-card-bg-faint: var(--surface-card-faint);
+  --panel-card-border: var(--surface-border);
+  --panel-card-shadow: var(--shadow-md);
   --shadow-lg: 0 30px 90px rgba(3, 10, 26, 0.28);
   --shadow-md: 0 18px 42px rgba(3, 10, 26, 0.18);
 }
@@ -349,9 +359,19 @@ onBeforeUnmount(() => {
   --surface-card-faint: rgba(255, 255, 255, 0.36);
   --surface-accent: rgba(237, 124, 71, 0.14);
   --surface-accent-alt: rgba(47, 131, 116, 0.12);
+  --surface-warning: rgba(237, 124, 71, 0.12);
+  --surface-success: var(--surface-accent-alt);
+  --surface-neutral: rgba(103, 114, 135, 0.1);
+  --surface-danger: rgba(207, 76, 76, 0.12);
   --surface-code: rgba(241, 245, 249, 0.92);
   --surface-border: rgba(27, 37, 54, 0.1);
   --surface-inset: rgba(255, 255, 255, 0.78);
+  --panel-card-bg: var(--surface-card);
+  --panel-card-bg-strong: var(--surface-card-strong);
+  --panel-card-bg-soft: var(--surface-card-soft);
+  --panel-card-bg-faint: var(--surface-card-faint);
+  --panel-card-border: var(--surface-border);
+  --panel-card-shadow: var(--shadow-md);
   --shadow-lg: 0 24px 70px rgba(29, 35, 52, 0.12);
   --shadow-md: 0 14px 32px rgba(29, 35, 52, 0.08);
 }
