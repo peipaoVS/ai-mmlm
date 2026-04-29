@@ -545,30 +545,106 @@ function selectTheme(theme) {
 }
 
 .login-theme-icon {
+  --theme-icon-surface: rgba(255, 255, 255, 0.06);
+  --theme-icon-cutout: rgba(8, 16, 29, 0.92);
   position: relative;
-  width: calc(11px * var(--ui-scale));
-  height: calc(11px * var(--ui-scale));
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
   flex: 0 0 auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.24), transparent 48%),
+    var(--theme-icon-surface);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 4px 10px rgba(2, 6, 23, 0.18);
+  transform: var(--theme-icon-transform, none);
+  isolation: isolate;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.login-theme-icon::before,
+.login-theme-icon::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+
+.login-theme-button.active .login-theme-icon {
+  transform: var(--theme-icon-transform, none) translateY(-1px) scale(1.05);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 8px 18px rgba(2, 6, 23, 0.22);
+}
+
+.login-page.theme-light .login-theme-icon {
+  --theme-icon-surface: rgba(255, 255, 255, 0.78);
+  --theme-icon-cutout: rgba(247, 250, 255, 0.96);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 6px 14px rgba(148, 163, 184, 0.18);
 }
 
 .login-theme-icon.moon {
-  border-radius: 50%;
-  box-shadow: inset calc(-3px * var(--ui-scale)) 0 0 currentColor;
-  transform: rotate(-20deg);
+  --theme-icon-transform: rotate(-16deg);
+}
+
+.login-theme-icon.moon::before {
+  inset: calc(2px * var(--ui-scale));
+  background: linear-gradient(135deg, #f8fbff 12%, #dbeafe 48%, #a5b4fc 100%);
+  box-shadow: 0 0 10px rgba(191, 219, 254, 0.42);
+}
+
+.login-theme-icon.moon::after {
+  top: calc(1px * var(--ui-scale));
+  right: calc(1px * var(--ui-scale));
+  bottom: calc(1px * var(--ui-scale));
+  left: calc(7px * var(--ui-scale));
+  background: var(--theme-icon-cutout);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.login-page.theme-light .login-theme-icon.moon::before {
+  background: linear-gradient(135deg, #eff6ff 0%, #c7d2fe 52%, #93c5fd 100%);
+  box-shadow: 0 0 10px rgba(96, 165, 250, 0.24);
 }
 
 .login-theme-icon.sun {
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow:
-    0 calc(-5px * var(--ui-scale)) 0 calc(-4px * var(--ui-scale)) currentColor,
-    0 calc(5px * var(--ui-scale)) 0 calc(-4px * var(--ui-scale)) currentColor,
-    calc(5px * var(--ui-scale)) 0 0 calc(-4px * var(--ui-scale)) currentColor,
-    calc(-5px * var(--ui-scale)) 0 0 calc(-4px * var(--ui-scale)) currentColor,
-    calc(4px * var(--ui-scale)) calc(4px * var(--ui-scale)) 0 calc(-4px * var(--ui-scale)) currentColor,
-    calc(-4px * var(--ui-scale)) calc(4px * var(--ui-scale)) 0 calc(-4px * var(--ui-scale)) currentColor,
-    calc(4px * var(--ui-scale)) calc(-4px * var(--ui-scale)) 0 calc(-4px * var(--ui-scale)) currentColor,
-    calc(-4px * var(--ui-scale)) calc(-4px * var(--ui-scale)) 0 calc(-4px * var(--ui-scale)) currentColor;
+  overflow: visible;
+}
+
+.login-theme-icon.sun::before {
+  inset: calc(4px * var(--ui-scale));
+  background: radial-gradient(circle at 35% 35%, #fff7bf 0%, #fcd34d 46%, #f59e0b 100%);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+}
+
+.login-theme-icon.sun::after {
+  inset: calc(-3px * var(--ui-scale));
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(245, 158, 11, 0) 0deg 24deg,
+    rgba(245, 158, 11, 0.92) 24deg 36deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 0 52%, #000 55% 68%, transparent 72%);
+  mask: radial-gradient(circle, transparent 0 52%, #000 55% 68%, transparent 72%);
+  opacity: 0.96;
+}
+
+.login-page.theme-light .login-theme-icon.sun::before {
+  background: radial-gradient(circle at 35% 35%, #fff7d1 0%, #fdba74 42%, #ed7c47 100%);
+  box-shadow: 0 0 12px rgba(237, 124, 71, 0.28);
+}
+
+.login-page.theme-light .login-theme-icon.sun::after {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(237, 124, 71, 0) 0deg 24deg,
+    rgba(237, 124, 71, 0.86) 24deg 36deg
+  );
 }
 
 .login-intro {

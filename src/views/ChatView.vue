@@ -13,6 +13,11 @@ import qianfanLogo from '../assets/providers/qianfan-logo.png'
 import qwenLogo from '../assets/providers/qwen-logo.png'
 import zhipuLogo from '../assets/providers/zhipu-logo.svg'
 
+const POLLING_CONFIG_UPDATED_EVENT = 'mmlm:polling-config-updated'
+const POLLING_CONFIG_STORAGE_KEY = 'mmlm:polling-config-dateVal'
+const GEN_PROGRESS_ROLE_KEYWORDS = ['\u8d85\u7ea7\u7ba1\u7406\u5458', '\u6f14\u793a']
+const GEN_PROGRESS_LABEL = '\u62a5\u544a\u63d0\u9192\u95f4\u9694'
+
 const session = useSession()
 const loading = ref(false)
 const inputValue = ref('')
@@ -201,8 +206,18 @@ const visibleTodos = computed(() =>
 )
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
-const genPollSeconds = computed(() => Math.max(1, Math.round(genPollMs.value / 1000)))
+const genPollSeconds = computed(() => formatPollingSeconds(genPollMs.value))
 const isLightTheme = computed(() => session.theme === 'light')
+const canViewGenProgress = computed(() => {
+  const roles = session.user?.roleNames || []
+  return roles.some((roleName) => {
+    const text = String(roleName || '').trim()
+    const normalized = text.toUpperCase()
+    return GEN_PROGRESS_ROLE_KEYWORDS.some((keyword) => text.includes(keyword))
+      || normalized.includes('ADMIN')
+      || normalized.includes('DEMO')
+  })
+})
 const habitsDialogVisible = ref(false)
 const habitsLoading = ref(false)
 const habitEventsLoading = ref(false)
@@ -2476,11 +2491,12 @@ async function handleCancel(message) {
 }
 
 /* ==================== 推送消息轮询 (push polling) ==================== */
-const PUSH_POLL_MS = 5000
+const DEFAULT_PUSH_POLL_MS = 5000
 const PUSH_SEEN_KEY = 'aibank_push_seen'
 const pushQueue = ref([])
 const pushActiveMsg = ref(null)
 const pushShownIds = ref(new Set(JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || '[]')))
+const pushPollMs = ref(DEFAULT_PUSH_POLL_MS)
 let pushPollTimer = null
 
 function persistPushSeen() {
@@ -2540,7 +2556,7 @@ async function markAllPushRead() {
 function startPushPolling() {
   if (pushPollTimer) clearInterval(pushPollTimer)
   pollPushMessages()
-  pushPollTimer = setInterval(pollPushMessages, PUSH_POLL_MS)
+  pushPollTimer = setInterval(pollPushMessages, pushPollMs.value)
 }
 
 function stopPushPolling() {
@@ -2552,7 +2568,10 @@ const DEFAULT_GEN_POLL_MS = 3000
 const genJobs = ref([])
 const genDismissed = ref(new Set())
 const genPollMs = ref(DEFAULT_GEN_POLL_MS)
+const genCountdownMs = ref(DEFAULT_GEN_POLL_MS)
 let genPollTimer = null
+let genCountdownTimer = null
+let nextGenPollAt = 0
 
 function resolveGenStatusText(status) {
   if (status === 'done') return '已完成'
@@ -2564,28 +2583,61 @@ function formatGenElapsed(elapsed) {
   return elapsed != null && elapsed !== '' ? `${elapsed}s` : '--'
 }
 
-function resolveGenPollInterval(value) {
-  const seconds = Number.parseFloat(String(value ?? '').trim())
-  if (Number.isFinite(seconds) && seconds > 0) {
-    return Math.round(seconds * 1000)
+function formatGenCountdown(milliseconds) {
+  const nextMs = Number(milliseconds)
+  if (!Number.isFinite(nextMs) || nextMs <= 0) {
+    return '0 秒'
   }
-  return DEFAULT_GEN_POLL_MS
+
+  return `${Math.max(0, Math.ceil(nextMs / 1000))} 秒`
 }
 
-async function loadGenPollConfig() {
+function formatPollingSeconds(milliseconds) {
+  const seconds = Number(milliseconds) / 1000
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return '1'
+  }
+
+  if (Number.isInteger(seconds)) {
+    return String(seconds)
+  }
+
+  return seconds.toFixed(2).replace(/\.?0+$/, '')
+}
+
+const genCountdownText = computed(() => formatGenCountdown(genCountdownMs.value))
+const genCountdownProgress = computed(() => {
+  const total = Math.max(1, Number(genPollMs.value) || DEFAULT_GEN_POLL_MS)
+  const remaining = Math.max(0, Number(genCountdownMs.value) || 0)
+  return Math.min(1, remaining / total)
+})
+
+function resolvePollInterval(value, fallbackMs) {
+  const milliseconds = Number.parseFloat(String(value ?? '').trim())
+  if (Number.isFinite(milliseconds) && milliseconds > 0) {
+    return Math.round(milliseconds)
+  }
+  return fallbackMs
+}
+
+async function loadPollingConfig() {
   try {
     const rows = await api.get('/api/param-configs?keyword=dateVal')
     const matchedRow = (Array.isArray(rows) ? rows : []).find(
       (item) => String(item.code || '').trim() === 'dateVal'
     )
-    genPollMs.value = resolveGenPollInterval(matchedRow?.paramValue)
+    applyPollingConfigValue(matchedRow?.paramValue)
   } catch (error) {
     console.warn('加载生成进度轮询配置失败', error)
-    genPollMs.value = DEFAULT_GEN_POLL_MS
+    applyPollingConfigValue()
   }
 }
 
 async function pollReportJobs() {
+  if (!canViewGenProgress.value) {
+    genJobs.value = []
+    return
+  }
   if (!session.token) return
   try {
     const resp = await ReportsApi.listReportJobs()
@@ -2601,29 +2653,124 @@ function dismissGenJob(reportId) {
   genJobs.value = genJobs.value.filter(j => j.report_id !== reportId)
 }
 
+function refreshGenCountdown() {
+  if (!canViewGenProgress.value) {
+    genCountdownMs.value = 0
+    return
+  }
+
+  if (!nextGenPollAt) {
+    genCountdownMs.value = genPollMs.value
+    return
+  }
+
+  genCountdownMs.value = Math.max(0, nextGenPollAt - Date.now())
+}
+
+function startGenCountdown() {
+  if (genCountdownTimer) clearInterval(genCountdownTimer)
+
+  if (!canViewGenProgress.value) {
+    genCountdownMs.value = 0
+    return
+  }
+
+  refreshGenCountdown()
+  genCountdownTimer = setInterval(refreshGenCountdown, 250)
+}
+
+function stopGenCountdown() {
+  if (genCountdownTimer) {
+    clearInterval(genCountdownTimer)
+    genCountdownTimer = null
+  }
+  nextGenPollAt = 0
+}
+
+function scheduleNextGenPoll() {
+  nextGenPollAt = Date.now() + genPollMs.value
+  refreshGenCountdown()
+}
+
 function startGenPolling() {
+  if (!canViewGenProgress.value) {
+    stopGenPolling()
+    genJobs.value = []
+    return
+  }
   if (genPollTimer) clearInterval(genPollTimer)
+  scheduleNextGenPoll()
   pollReportJobs()
-  genPollTimer = setInterval(pollReportJobs, genPollMs.value)
+  startGenCountdown()
+  genPollTimer = setInterval(() => {
+    scheduleNextGenPoll()
+    pollReportJobs()
+  }, genPollMs.value)
 }
 
 function stopGenPolling() {
   if (genPollTimer) { clearInterval(genPollTimer); genPollTimer = null }
+  stopGenCountdown()
+}
+
+function applyPollingConfigValue(value) {
+  const nextGenPollMs = resolvePollInterval(value, DEFAULT_GEN_POLL_MS)
+  const nextPushPollMs = resolvePollInterval(value, DEFAULT_PUSH_POLL_MS)
+  const genChanged = genPollMs.value !== nextGenPollMs
+  const pushChanged = pushPollMs.value !== nextPushPollMs
+
+  genPollMs.value = nextGenPollMs
+  pushPollMs.value = nextPushPollMs
+
+  return { genChanged, pushChanged }
+}
+
+function restartPollingByConfigValue(value) {
+  const { genChanged, pushChanged } = applyPollingConfigValue(value)
+  if (pushChanged && pushPollTimer) {
+    startPushPolling()
+  }
+  if (genChanged && genPollTimer) {
+    startGenPolling()
+  }
+}
+
+function handlePollingConfigUpdated(event) {
+  const detail = event?.detail || {}
+  if (String(detail.code || '').trim() !== 'dateVal') {
+    return
+  }
+  restartPollingByConfigValue(detail.value)
+}
+
+function handlePollingConfigStorage(event) {
+  if (event.key !== POLLING_CONFIG_STORAGE_KEY || !event.newValue) {
+    return
+  }
+  try {
+    const payload = JSON.parse(event.newValue)
+    restartPollingByConfigValue(payload?.value)
+  } catch {}
 }
 
 // 挂载 / 卸载轮询
 onMounted(() => {
-  startPushPolling()
-  startGenPolling()
-  loadGenPollConfig().then(() => {
-    if (genPollTimer) {
-      startGenPolling()
-    }
+  if (typeof window !== 'undefined') {
+    window.addEventListener(POLLING_CONFIG_UPDATED_EVENT, handlePollingConfigUpdated)
+    window.addEventListener('storage', handlePollingConfigStorage)
+  }
+  loadPollingConfig().finally(() => {
+    startPushPolling()
+    startGenPolling()
   })
 })
 onBeforeUnmount(() => {
   stopPushPolling()
   stopGenPolling()
+  if (typeof window !== 'undefined') {
+    window.removeEventListener(POLLING_CONFIG_UPDATED_EVENT, handlePollingConfigUpdated)
+    window.removeEventListener('storage', handlePollingConfigStorage)
+  }
 })
 </script>
 
@@ -2635,15 +2782,10 @@ onBeforeUnmount(() => {
       </button>
 
       <!-- ============ 报告生成进度 ============ -->
-      <section class="side-section gen-section">
-        <div class="section-head">
-          <div class="section-head-main">
-            <span class="side-label">生成进度</span>
-          </div>
-        </div>
+      <section v-if="canViewGenProgress" class="side-section gen-section">
         <div v-if="genJobs.length" class="gen-list">
           <article
-            v-for="job in genJobs"
+            v-for="(job, index) in genJobs"
             :key="job.report_id"
             class="gen-card"
             :class="{
@@ -2652,6 +2794,7 @@ onBeforeUnmount(() => {
               'is-error': job.status === 'error'
             }"
           >
+            <span v-if="index === 0" class="gen-corner-label">{{ GEN_PROGRESS_LABEL }}</span>
             <div
               class="gen-icon"
               :class="{
@@ -2688,8 +2831,22 @@ onBeforeUnmount(() => {
             >关闭</button>
           </article>
         </div>
-        <div v-else class="topic-empty">
-          暂无生成中的任务。生成后会在这里提示，当前每 {{ genPollSeconds }} 秒刷新一次。
+        <div v-else class="gen-empty-card">
+          <div class="gen-empty-head">
+            <div class="gen-empty-icon" aria-hidden="true">
+              <span class="gen-empty-orbit"></span>
+              <span class="gen-empty-core"></span>
+            </div>
+            <span class="gen-corner-label gen-corner-label--inline">{{ GEN_PROGRESS_LABEL }}</span>
+          </div>
+          <div class="gen-empty-countdown">
+            <span class="gen-empty-count-label">下次刷新</span>
+            <strong class="gen-empty-count-value">{{ genCountdownText }}</strong>
+            <span class="gen-empty-count-hint">当前间隔 {{ genPollSeconds }} 秒</span>
+          </div>
+          <div class="gen-empty-progress" aria-hidden="true">
+            <span :style="{ transform: `scaleX(${genCountdownProgress})` }"></span>
+          </div>
         </div>
       </section>
 
@@ -2910,15 +3067,23 @@ onBeforeUnmount(() => {
           <article
             v-for="row in visiblePostSummaries"
             :key="row.report_id || row.id"
-            class="task-card"
+            class="task-card post-summary-card"
           >
             <div class="task-card-body">
               <div class="task-head">
                 <strong class="task-title">
                   📋 {{ row.company_name || row.visit_location || '-' }}
                 </strong>
-                <span class="task-pill task-pill--muted">原报告 #{{ row.report_id }}</span>
-                <span class="task-pill task-pill--type">v{{ row.version || 1 }}</span>
+                <strong class="task-title post-summary-display-title">
+                  <span class="task-id">#{{ row.report_id || row.id }}</span>
+                  {{ row.company_name || row.visit_location || '-' }}
+                </strong>
+                <span class="task-pill task-pill--muted post-summary-origin-pill">
+                  原报告 #{{ row.report_id }}
+                </span>
+                <span class="task-pill task-pill--type">
+                  v{{ row.version || 1 }}
+                </span>
               </div>
 
               <div class="task-meta-grid">
@@ -3928,6 +4093,7 @@ onBeforeUnmount(() => {
     <button
       v-if="pushBadgeCount > 0"
       class="push-bell"
+      :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
       title="查看推送通知"
       @click="showNextPushToast"
     >
@@ -3936,8 +4102,18 @@ onBeforeUnmount(() => {
 
     <!-- ============ 推送 Toast 弹窗 ============ -->
     <Teleport to="body">
-      <div v-if="pushActiveMsg" class="push-toast-mask" @click.self="closePushToast(true)">
-        <div class="push-toast" role="dialog" aria-modal="true">
+      <div
+        v-if="pushActiveMsg"
+        class="push-toast-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        @click.self="closePushToast(true)"
+      >
+        <div
+          class="push-toast"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+          role="dialog"
+          aria-modal="true"
+        >
           <div class="push-toast-head">
             <div class="pt-title">🔔 定时任务推送 <span class="pt-count">#{{ pushActiveMsg.id }}</span></div>
             <span v-if="pushQueue.length" class="pt-count">后续还有 {{ pushQueue.length }} 条</span>
@@ -4196,6 +4372,19 @@ onBeforeUnmount(() => {
   gap: calc(6px * var(--ui-scale));
   font-weight: 800;
   color: var(--text-main);
+}
+
+.post-summary-display-title {
+  display: none;
+}
+
+.post-summary-card .task-title:first-of-type,
+.post-summary-card .post-summary-origin-pill {
+  display: none;
+}
+
+.post-summary-card .post-summary-display-title {
+  display: inline-flex;
 }
 
 .task-id {
@@ -4823,6 +5012,7 @@ onBeforeUnmount(() => {
   font-size: calc(12px * var(--ui-scale));
   color: #86efac;
 }
+
 
 /* 详情弹窗内的二级标题 */
 .post-summary-h {
@@ -5487,6 +5677,14 @@ onBeforeUnmount(() => {
 
 /* ==================== 推送铃铛 ==================== */
 .push-bell {
+  --push-bell-surface: rgba(8, 16, 29, 0.84);
+  --push-bell-surface-strong: rgba(15, 23, 42, 0.96);
+  --push-bell-glow: rgba(34, 211, 238, 0.16);
+  --push-bell-text: #e5e7eb;
+  --push-bell-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.28),
+    0 0 24px rgba(34, 211, 238, 0.08);
+  --push-bell-inset: rgba(255, 255, 255, 0.08);
   position: fixed;
   right: 20px;
   bottom: 20px;
@@ -5494,19 +5692,49 @@ onBeforeUnmount(() => {
   height: 48px;
   border-radius: 50%;
   background:
-    linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-strong)),
-    var(--panel-card-bg);
-  color: var(--text-main);
-  border: 1px solid var(--panel-card-border);
+    radial-gradient(circle at top left, var(--push-bell-glow), transparent 58%),
+    linear-gradient(180deg, var(--push-bell-surface-strong), var(--push-bell-surface));
+  color: var(--push-bell-text);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   cursor: pointer;
-  box-shadow:
-    var(--panel-card-shadow),
-    inset 0 1px 0 var(--surface-inset);
+  box-shadow: var(--push-bell-shadow), inset 0 1px 0 var(--push-bell-inset);
   font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9998;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.push-bell:hover {
+  transform: translateY(-1px);
+}
+
+.push-bell.is-dark-theme {
+  --push-bell-surface: rgba(8, 16, 29, 0.84);
+  --push-bell-surface-strong: rgba(15, 23, 42, 0.96);
+  --push-bell-glow: rgba(34, 211, 238, 0.16);
+  --push-bell-text: #e5e7eb;
+  --push-bell-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.28),
+    0 0 24px rgba(34, 211, 238, 0.08);
+  --push-bell-inset: rgba(255, 255, 255, 0.08);
+}
+
+.push-bell.is-light-theme {
+  --push-bell-surface: rgba(255, 255, 255, 0.94);
+  --push-bell-surface-strong: rgba(255, 255, 255, 0.995);
+  --push-bell-glow: rgba(255, 216, 188, 0.3);
+  --push-bell-text: #1b2536;
+  --push-bell-shadow:
+    0 16px 32px rgba(29, 35, 52, 0.16),
+    0 0 20px rgba(237, 124, 71, 0.12);
+  --push-bell-inset: rgba(255, 255, 255, 0.88);
+  border-color: rgba(27, 37, 54, 0.08);
 }
 
 .push-bell .pb-dot {
@@ -5524,6 +5752,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.22);
+}
+
+.push-bell.is-light-theme .pb-dot {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 18px rgba(207, 76, 76, 0.18);
 }
 
 /* ==================== 推送 Toast ==================== */
@@ -5533,13 +5768,13 @@ onBeforeUnmount(() => {
   --push-border: rgba(148, 163, 184, 0.18);
   --push-inset: rgba(255, 255, 255, 0.06);
   --push-surface: rgba(15, 23, 42, 0.84);
-  --push-surface-strong: rgba(15, 23, 42, 0.94);
-  --push-surface-soft: rgba(2, 6, 23, 0.42);
+  --push-surface-strong: rgba(10, 20, 37, 0.96);
+  --push-surface-soft: rgba(9, 18, 34, 0.72);
   --push-accent: rgba(34, 211, 238, 0.12);
   --push-head-bg: linear-gradient(90deg, #1d4ed8, #4338ca);
   --push-head-text: #ffffff;
   --push-badge-bg: rgba(255, 255, 255, 0.22);
-  --push-button-bg: rgba(2, 6, 23, 0.36);
+  --push-button-bg: rgba(8, 16, 29, 0.72);
   --push-button-text: #dbeafe;
   --push-button-border: rgba(148, 163, 184, 0.18);
   --push-primary-bg: linear-gradient(90deg, #1d4ed8, #4338ca);
@@ -5547,42 +5782,80 @@ onBeforeUnmount(() => {
   --push-primary-text: #ffffff;
   position: fixed;
   inset: 0;
-  background: transparent;
-  backdrop-filter: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: clamp(0.875rem, 0.5rem + 1vw, 1.5rem);
   z-index: 9999;
-  animation: pushFadeIn 0.2s;
+  animation: pushFadeIn 0.2s ease;
 }
 
 @keyframes pushFadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes pushPopIn { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
 
+.push-toast-mask.is-dark-theme {
+  background: rgba(2, 6, 23, 0.16);
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.push-toast-mask.is-light-theme {
+  --push-text-main: #1b2536;
+  --push-text-muted: #677287;
+  --push-border: rgba(27, 37, 54, 0.08);
+  --push-inset: rgba(255, 255, 255, 0.88);
+  --push-surface: rgba(255, 255, 255, 0.92);
+  --push-surface-strong: rgba(255, 255, 255, 0.992);
+  --push-surface-soft: rgba(255, 255, 255, 0.84);
+  --push-accent: rgba(255, 216, 188, 0.22);
+  --push-head-bg: linear-gradient(90deg, #ed7c47, #f3a166);
+  --push-badge-bg: rgba(255, 255, 255, 0.26);
+  --push-button-bg: rgba(255, 255, 255, 0.9);
+  --push-button-text: #1b2536;
+  --push-button-border: rgba(27, 37, 54, 0.08);
+  --push-primary-bg: linear-gradient(90deg, #ed7c47, #f3a166);
+  --push-primary-border: rgba(237, 124, 71, 0.18);
+  background: rgba(246, 248, 252, 0.14);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
 .push-toast {
-  background:
-    radial-gradient(circle at top right, var(--push-accent), transparent 30%),
-    linear-gradient(180deg, var(--push-surface-strong), var(--push-surface));
-  border: 1px solid var(--push-border);
-  border-radius: 12px;
+  position: relative;
   max-width: 640px;
-  width: 92%;
-  max-height: 80vh;
+  width: min(100%, 640px);
+  max-height: calc(100dvh - 2rem);
   display: flex;
   flex-direction: column;
   color: var(--push-text-main);
-  box-shadow:
-    0 24px 48px rgba(15, 23, 42, 0.35),
-    inset 0 1px 0 var(--push-inset);
+  border: 1px solid var(--push-border);
+  border-radius: calc(24px * var(--ui-scale));
   overflow: hidden;
-  animation: pushPopIn 0.25s;
+  animation: pushPopIn 0.25s ease;
+}
+
+.push-toast.is-dark-theme {
+  background:
+    radial-gradient(circle at top right, var(--push-accent), transparent 30%),
+    linear-gradient(180deg, var(--push-surface-strong), var(--push-surface));
+  box-shadow:
+    0 30px 60px rgba(2, 6, 23, 0.42),
+    inset 0 1px 0 var(--push-inset);
+}
+
+.push-toast.is-light-theme {
+  background:
+    radial-gradient(circle at top right, var(--push-accent), transparent 32%),
+    linear-gradient(180deg, var(--push-surface-strong), rgba(247, 250, 255, 0.95));
+  box-shadow:
+    0 28px 56px rgba(29, 35, 52, 0.16),
+    inset 0 1px 0 var(--push-inset);
 }
 
 .push-toast-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  gap: 12px;
+  padding: 16px 18px;
   background: var(--push-head-bg);
   color: var(--push-head-text);
 }
@@ -5592,6 +5865,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -5604,6 +5878,7 @@ onBeforeUnmount(() => {
 
 .push-toast-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 8px 18px;
   font-size: 11px;
@@ -5619,9 +5894,9 @@ onBeforeUnmount(() => {
 .push-toast-body {
   flex: 1;
   overflow: auto;
-  padding: 14px 18px;
+  padding: 16px 18px;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.72;
   color: var(--push-text-main);
   white-space: pre-wrap;
   background: var(--push-surface);
@@ -5629,6 +5904,7 @@ onBeforeUnmount(() => {
 
 .push-toast-foot {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 18px;
   border-top: 1px solid var(--push-border);
@@ -5637,14 +5913,21 @@ onBeforeUnmount(() => {
 }
 
 .push-toast-foot button {
-  padding: 6px 14px;
-  border-radius: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
   border: 1px solid var(--push-button-border);
   background: var(--push-button-bg);
   color: var(--push-button-text);
   cursor: pointer;
   font-size: 12px;
+  font-weight: 600;
   box-shadow: inset 0 1px 0 var(--push-inset);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    filter 0.18s ease;
 }
 
 .push-toast-foot button.primary {
@@ -5654,23 +5937,178 @@ onBeforeUnmount(() => {
 }
 
 .push-toast-foot button:hover {
-  filter: brightness(1.05);
+  transform: translateY(-1px);
+  filter: brightness(1.04);
 }
 
 /* ==================== 报告生成进度卡片 ==================== */
 .gen-list {
   display: flex;
   flex-direction: column;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.gen-corner-label {
+  position: absolute;
+  top: calc(2px * var(--ui-scale));
+  right: calc(10px * var(--ui-scale));
+  transform: translateY(-45%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(22px * var(--ui-scale));
+  padding: 0 calc(9px * var(--ui-scale));
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background:
+    linear-gradient(135deg, rgba(17, 32, 54, 0.98), rgba(7, 17, 31, 0.94)),
+    rgba(15, 23, 42, 0.92);
+  color: #ecfeff;
+  font-size: calc(10.5px * var(--ui-scale));
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  box-shadow:
+    0 10px 18px rgba(3, 10, 26, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 2;
+}
+
+.gen-corner-label--inline {
+  position: static;
+  top: auto;
+  right: auto;
+  transform: none;
+  min-height: calc(30px * var(--ui-scale));
+  padding: 0 calc(13px * var(--ui-scale));
+  font-size: calc(12.5px * var(--ui-scale));
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.gen-empty-card {
+  position: relative;
+  display: grid;
   gap: calc(10px * var(--ui-scale));
+  padding: calc(12px * var(--ui-scale));
+  border-radius: calc(18px * var(--ui-scale));
+  border: 1px solid rgba(34, 211, 238, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(19, 32, 58, 0.82), rgba(8, 16, 29, 0.68)),
+    rgba(15, 23, 42, 0.7);
+  box-shadow:
+    0 14px 30px rgba(3, 10, 26, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.gen-empty-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(12px * var(--ui-scale));
+}
+
+.gen-empty-icon {
+  position: relative;
+  width: calc(34px * var(--ui-scale));
+  height: calc(34px * var(--ui-scale));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.18), transparent 52%),
+    rgba(2, 6, 23, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow:
+    0 10px 20px rgba(3, 10, 26, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gen-empty-orbit {
+  position: absolute;
+  inset: calc(5px * var(--ui-scale));
+  border-radius: 50%;
+  border: 1px dashed rgba(34, 211, 238, 0.48);
+  animation: genOrbitSpin 10s linear infinite;
+}
+
+.gen-empty-core {
+  width: calc(10px * var(--ui-scale));
+  height: calc(10px * var(--ui-scale));
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #dffcff 0%, #22d3ee 55%, #0f766e 100%);
+  box-shadow:
+    0 0 0 calc(4px * var(--ui-scale)) rgba(34, 211, 238, 0.14),
+    0 0 14px rgba(34, 211, 238, 0.24);
+}
+
+@keyframes genOrbitSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.gen-empty-countdown {
+  display: grid;
+  gap: calc(3px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: calc(15px * var(--ui-scale));
+  background: rgba(2, 6, 23, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.gen-empty-count-label {
+  color: rgba(148, 163, 184, 0.82);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.08em;
+}
+
+.gen-empty-count-value {
+  color: #f8fafc;
+  font-size: calc(17px * var(--ui-scale));
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.gen-empty-count-hint {
+  color: rgba(148, 163, 184, 0.9);
+  font-size: calc(10px * var(--ui-scale));
+}
+
+.gen-empty-progress {
+  height: calc(6px * var(--ui-scale));
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.gen-empty-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee 0%, #7addc1 50%, #f59e0b 100%);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.22);
+  transition: transform 0.24s linear;
 }
 
 .gen-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: calc(12px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  gap: calc(10px * var(--ui-scale));
+  padding: calc(11px * var(--ui-scale));
+  border-radius: calc(15px * var(--ui-scale));
   border: 1px solid var(--line);
   background:
     linear-gradient(180deg, rgba(19, 32, 58, 0.78), rgba(8, 16, 29, 0.66)),
@@ -5702,13 +6140,13 @@ onBeforeUnmount(() => {
 }
 
 .gen-icon {
-  width: calc(34px * var(--ui-scale));
-  height: calc(34px * var(--ui-scale));
+  width: calc(30px * var(--ui-scale));
+  height: calc(30px * var(--ui-scale));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: calc(14px * var(--ui-scale));
+  border-radius: calc(12px * var(--ui-scale));
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(2, 6, 23, 0.38);
   color: var(--brand-alt);
@@ -5730,8 +6168,8 @@ onBeforeUnmount(() => {
 }
 
 .gen-spinner {
-  width: calc(16px * var(--ui-scale));
-  height: calc(16px * var(--ui-scale));
+  width: calc(14px * var(--ui-scale));
+  height: calc(14px * var(--ui-scale));
   border: 2px solid rgba(47, 131, 116, 0.18);
   border-top-color: currentColor;
   border-radius: 50%;
@@ -5741,11 +6179,11 @@ onBeforeUnmount(() => {
 @keyframes genSpin { to { transform: rotate(360deg) } }
 
 .gen-state-dot {
-  width: calc(10px * var(--ui-scale));
-  height: calc(10px * var(--ui-scale));
+  width: calc(8px * var(--ui-scale));
+  height: calc(8px * var(--ui-scale));
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 0 calc(4px * var(--ui-scale)) rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 calc(3px * var(--ui-scale)) rgba(255, 255, 255, 0.12);
 }
 
 .gen-info {
@@ -5767,7 +6205,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   font-weight: 800;
   color: rgba(248, 250, 252, 0.96);
-  font-size: calc(13.5px * var(--ui-scale));
+  font-size: calc(12.5px * var(--ui-scale));
   letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -5780,9 +6218,9 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  padding: calc(3px * var(--ui-scale)) calc(7px * var(--ui-scale));
   border-radius: 999px;
-  font-size: calc(11px * var(--ui-scale));
+  font-size: calc(10px * var(--ui-scale));
   font-weight: 700;
   line-height: 1;
   background: rgba(34, 211, 238, 0.16);
@@ -5801,14 +6239,14 @@ onBeforeUnmount(() => {
 
 .gen-meta {
   color: rgba(226, 232, 240, 0.9);
-  font-size: calc(12.5px * var(--ui-scale));
-  line-height: 1.65;
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: 1.55;
   font-weight: 600;
 }
 
 .gen-submeta {
   color: var(--text-muted);
-  font-size: calc(11.5px * var(--ui-scale));
+  font-size: calc(10.5px * var(--ui-scale));
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
@@ -5967,27 +6405,6 @@ onBeforeUnmount(() => {
   color: #1b2536;
 }
 
-:global(html[data-theme='light']) .push-toast-mask {
-  --push-text-main: #1b2536;
-  --push-text-muted: #677287;
-  --push-border: rgba(27, 37, 54, 0.08);
-  --push-inset: rgba(255, 255, 255, 0.84);
-  --push-surface: rgba(255, 255, 255, 0.9);
-  --push-surface-strong: rgba(255, 255, 255, 0.98);
-  --push-surface-soft: rgba(255, 255, 255, 0.82);
-  --push-accent: rgba(255, 216, 188, 0.2);
-  --push-head-bg: linear-gradient(90deg, #ed7c47, #f3a166);
-  --push-head-text: #ffffff;
-  --push-badge-bg: rgba(255, 255, 255, 0.24);
-  --push-button-bg: rgba(255, 255, 255, 0.88);
-  --push-button-text: #1b2536;
-  --push-button-border: rgba(27, 37, 54, 0.08);
-  --push-primary-bg: linear-gradient(90deg, #ed7c47, #f3a166);
-  --push-primary-border: rgba(237, 124, 71, 0.18);
-  --push-primary-text: #ffffff;
-  background: transparent;
-}
-
 :global(html[data-theme='light']) .rd-card h6,
 :global(html[data-theme='light']) .rd-pre {
   color: #1b2536;
@@ -6019,6 +6436,77 @@ onBeforeUnmount(() => {
 :global(html[data-theme='light']) .gen-meta,
 :global(html[data-theme='light']) .gen-submeta {
   color: #677287;
+}
+
+:global(html[data-theme='light']) .gen-empty-card {
+  border-color: rgba(237, 124, 71, 0.14);
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.26), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.88)),
+    rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 14px 28px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+:global(html[data-theme='light']) .gen-corner-label {
+  border-color: rgba(237, 124, 71, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 246, 239, 0.99), rgba(249, 252, 255, 0.96)),
+    rgba(255, 255, 255, 0.94);
+  color: #9a3412;
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:global(html[data-theme='light']) .gen-empty-icon {
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.92), transparent 52%),
+    rgba(255, 255, 255, 0.92);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 10px 18px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+:global(html[data-theme='light']) .gen-empty-orbit {
+  border-color: rgba(237, 124, 71, 0.4);
+}
+
+:global(html[data-theme='light']) .gen-empty-core {
+  background: radial-gradient(circle at 35% 35%, #fff7d1 0%, #fdba74 55%, #ed7c47 100%);
+  box-shadow:
+    0 0 0 calc(5px * var(--ui-scale)) rgba(237, 124, 71, 0.12),
+    0 0 18px rgba(237, 124, 71, 0.18);
+}
+
+:global(html[data-theme='light']) .gen-empty-count-value {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .gen-empty-count-label,
+:global(html[data-theme='light']) .gen-empty-count-hint {
+  color: #677287;
+}
+
+:global(html[data-theme='light']) .gen-empty-countdown {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.88);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:global(html[data-theme='light']) .gen-empty-progress {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+:global(html[data-theme='light']) .gen-empty-progress span {
+  background: linear-gradient(90deg, #ed7c47 0%, #f3a166 52%, #7addc1 100%);
+  box-shadow: 0 0 12px rgba(237, 124, 71, 0.16);
 }
 
 :global(html[data-theme='light']) .post-summary-snippet,
@@ -6081,30 +6569,44 @@ onBeforeUnmount(() => {
 
 :global(html[data-theme='light']) .task-pill {
   color: #1b2536;
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 :global(html[data-theme='light']) .task-pill--ok {
+  background: linear-gradient(180deg, rgba(240, 253, 246, 0.98), rgba(220, 252, 231, 0.92));
+  border-color: rgba(47, 131, 116, 0.14);
   color: #2f8374;
 }
 
 :global(html[data-theme='light']) .task-pill--info {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(219, 234, 254, 0.92));
+  border-color: rgba(53, 103, 183, 0.14);
   color: #3567b7;
 }
 
 :global(html[data-theme='light']) .task-pill--danger {
+  background: linear-gradient(180deg, rgba(255, 241, 242, 0.98), rgba(255, 228, 230, 0.92));
+  border-color: rgba(207, 76, 76, 0.14);
   color: #cf4c4c;
 }
 
 :global(html[data-theme='light']) .task-pill--muted {
-  color: #677287;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
+  border-color: rgba(100, 116, 139, 0.16);
+  color: #516074;
 }
 
 :global(html[data-theme='light']) .task-pill--pending {
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92));
+  border-color: rgba(184, 106, 28, 0.14);
   color: #b86a1c;
 }
 
 :global(html[data-theme='light']) .task-pill--type {
-  color: #7059b7;
+  background: linear-gradient(180deg, rgba(245, 243, 255, 0.98), rgba(237, 233, 254, 0.92));
+  border-color: rgba(112, 89, 183, 0.16);
+  color: #5f46b6;
 }
 
 :global(html[data-theme='light']) .gen-card {
