@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
 import AppSelect from '../components/AppSelect.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { formatDateTime } from '../utils/format'
 
 const rows = ref([])
@@ -12,6 +13,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
 const submitting = ref(false)
+const deleteDialogVisible = ref(false)
+const deleting = ref(false)
+const pendingDeleteRow = ref(null)
 
 const filters = reactive({
   keyword: '',
@@ -71,6 +75,14 @@ const summary = computed(() => ({
   active: rows.value.filter((item) => item.status === 1).length,
   inactive: rows.value.filter((item) => item.status === 0).length
 }))
+
+const deleteMessage = computed(() => {
+  const row = pendingDeleteRow.value
+  if (!row) {
+    return ''
+  }
+  return `确认删除用户「${row.nickname || row.username}」吗？`
+})
 
 onMounted(() => {
   loadAll()
@@ -176,16 +188,31 @@ async function submitForm() {
   }
 }
 
-async function removeRow(row) {
-  if (!window.confirm(`确认删除用户「${row.nickname}」吗？`)) {
+function openRemoveDialog(row) {
+  pendingDeleteRow.value = row
+  deleteDialogVisible.value = true
+}
+
+function closeRemoveDialog() {
+  deleteDialogVisible.value = false
+  pendingDeleteRow.value = null
+}
+
+async function confirmRemove() {
+  const row = pendingDeleteRow.value
+  if (!row) {
     return
   }
 
+  deleting.value = true
   try {
     await api.delete(`/api/users/${row.id}`)
+    closeRemoveDialog()
     await loadAll()
   } catch (error) {
     window.alert(error.message)
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -277,7 +304,7 @@ async function removeRow(row) {
               <td>
                 <div class="action-group">
                   <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                  <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
                 </div>
               </td>
             </tr>
@@ -373,5 +400,14 @@ async function removeRow(row) {
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      v-model="deleteDialogVisible"
+      title="删除用户"
+      :message="deleteMessage"
+      :loading="deleting"
+      @cancel="closeRemoveDialog"
+      @confirm="confirmRemove"
+    />
   </div>
 </template>

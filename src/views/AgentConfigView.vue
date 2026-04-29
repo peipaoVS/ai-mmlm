@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
 import { PROVIDER_CONFIG } from '../config/api'
 import AppSelect from '../components/AppSelect.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
 import ollamaLogo from '../assets/providers/ollama-logo.png'
 import openaiSymbol from '../assets/providers/openai-symbol.svg'
@@ -125,6 +126,9 @@ const dialogVisible = ref(false)
 const providerDialogVisible = ref(false)
 const editingId = ref(null)
 const submitting = ref(false)
+const deleteDialogVisible = ref(false)
+const deleting = ref(false)
+const pendingDeleteRow = ref(null)
 const showApiKey = ref(false)
 const providerFilter = ref('')
 
@@ -151,6 +155,11 @@ const filteredProviders = computed(() => {
     return PROVIDERS
   }
   return PROVIDERS.filter((provider) => provider.types.includes(providerFilter.value))
+})
+
+const deleteMessage = computed(() => {
+  const row = pendingDeleteRow.value
+  return row ? `确认删除大模型“${row.name}”吗？` : ''
 })
 
 onMounted(() => {
@@ -350,15 +359,31 @@ async function submitForm() {
   }
 }
 
-async function removeRow(row) {
-  if (!window.confirm(`确认删除大模型“${row.name}”吗？`)) {
+function openRemoveDialog(row) {
+  pendingDeleteRow.value = row
+  deleteDialogVisible.value = true
+}
+
+function closeRemoveDialog() {
+  deleteDialogVisible.value = false
+  pendingDeleteRow.value = null
+}
+
+async function confirmRemove() {
+  const row = pendingDeleteRow.value
+  if (!row) {
     return
   }
+
+  deleting.value = true
   try {
     await api.delete(`/api/agent-modules/${row.id}`)
+    closeRemoveDialog()
     await loadAll()
   } catch (error) {
     window.alert(error.message)
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -407,7 +432,7 @@ async function removeRow(row) {
 
             <div class="module-card-actions">
               <button class="tiny-button" @click="openEdit(row)">编辑</button>
-              <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+              <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
             </div>
           </div>
 
@@ -592,6 +617,15 @@ async function removeRow(row) {
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      v-model="deleteDialogVisible"
+      title="删除大模型"
+      :message="deleteMessage"
+      :loading="deleting"
+      @cancel="closeRemoveDialog"
+      @confirm="confirmRemove"
+    />
   </div>
 </template>
 

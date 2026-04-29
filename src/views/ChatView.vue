@@ -5,6 +5,7 @@ import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
 import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
 import ollamaLogo from '../assets/providers/ollama-logo.png'
 import openaiSymbol from '../assets/providers/openai-symbol.svg'
@@ -201,6 +202,7 @@ const visibleTodos = computed(() =>
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 const genPollSeconds = computed(() => Math.max(1, Math.round(genPollMs.value / 1000)))
+const isLightTheme = computed(() => session.theme === 'light')
 const habitsDialogVisible = ref(false)
 const habitsLoading = ref(false)
 const habitEventsLoading = ref(false)
@@ -219,6 +221,13 @@ const habitEditorHint = computed(() => {
 })
 const latestHabitEvent = computed(() => habitEvents.value[0] || null)
 const olderHabitEvents = computed(() => habitEvents.value.slice(1))
+const confirmDialogVisible = ref(false)
+const confirmDialogTitle = ref('删除确认')
+const confirmDialogMessage = ref('')
+const confirmDialogDescription = ref('删除后不可恢复，请谨慎操作。')
+const confirmDialogConfirmText = ref('确认删除')
+const confirmDialogLoading = ref(false)
+let confirmDialogAction = null
 
 onMounted(() => {
   startFreshConversation()
@@ -361,6 +370,47 @@ function closeHabitsDialog() {
   resetHabitEditor()
 }
 
+function openConfirmDialog({
+  title = '删除确认',
+  message = '',
+  description = '删除后不可恢复，请谨慎操作。',
+  confirmText = '确认删除',
+  action
+}) {
+  confirmDialogTitle.value = title
+  confirmDialogMessage.value = message
+  confirmDialogDescription.value = description
+  confirmDialogConfirmText.value = confirmText
+  confirmDialogAction = action
+  confirmDialogVisible.value = true
+}
+
+function closeConfirmDialog(force = false) {
+  if (!force && confirmDialogLoading.value) {
+    return
+  }
+  confirmDialogVisible.value = false
+  confirmDialogTitle.value = '删除确认'
+  confirmDialogMessage.value = ''
+  confirmDialogDescription.value = '删除后不可恢复，请谨慎操作。'
+  confirmDialogConfirmText.value = '确认删除'
+  confirmDialogAction = null
+}
+
+async function handleConfirmDialog() {
+  if (!confirmDialogAction) {
+    return
+  }
+
+  confirmDialogLoading.value = true
+  try {
+    await confirmDialogAction()
+    closeConfirmDialog(true)
+  } finally {
+    confirmDialogLoading.value = false
+  }
+}
+
 async function saveHabit() {
   const key = habitEditorKey.value.trim()
   const value = habitEditorValue.value.trim()
@@ -397,34 +447,42 @@ async function removeHabit(item) {
     return
   }
 
-  if (!window.confirm(`确定删除偏好「${key}」？`)) {
-    return
-  }
-
-  try {
-    await HabitsApi.deleteHabit(key)
-    await loadHabits()
-  } catch (error) {
-    window.alert(`删除失败：${error.message}`)
-  }
+  openConfirmDialog({
+    title: '删除偏好',
+    message: `确定删除偏好「${key}」？`,
+    action: async () => {
+      try {
+        await HabitsApi.deleteHabit(key)
+        await loadHabits()
+      } catch (error) {
+        window.alert(`删除失败：${error.message}`)
+        throw error
+      }
+    }
+  })
 }
 
 async function clearAllHabits() {
-  if (!window.confirm('确定清空当前账号的全部偏好？此操作不可恢复。')) {
-    return
-  }
-
-  habitClearing.value = true
-  try {
-    const resp = await HabitsApi.clearHabits()
-    resetHabitEditor()
-    await loadHabits()
-    window.alert(`已清空 ${resp?.removed || 0} 条偏好。`)
-  } catch (error) {
-    window.alert(`清空失败：${error.message}`)
-  } finally {
-    habitClearing.value = false
-  }
+  openConfirmDialog({
+    title: '清空偏好',
+    message: '确定清空当前账号的全部偏好？',
+    description: '此操作不可恢复。',
+    confirmText: '确认清空',
+    action: async () => {
+      habitClearing.value = true
+      try {
+        const resp = await HabitsApi.clearHabits()
+        resetHabitEditor()
+        await loadHabits()
+        window.alert(`已清空 ${resp?.removed || 0} 条偏好。`)
+      } catch (error) {
+        window.alert(`清空失败：${error.message}`)
+        throw error
+      } finally {
+        habitClearing.value = false
+      }
+    }
+  })
 }
 
 async function loadRoleBoundModels() {
@@ -1171,16 +1229,21 @@ async function submitPostVisitUpload() {
 
 async function removeReport(report) {
   const label = `${report.company_name || report.visit_location || ''} #${report.id}`
-  if (!window.confirm(`确认删除报告「${label}」？此操作会一并删除所有版本，不可撤销。`)) {
-    return
-  }
-  try {
-    await ReportsApi.deleteReport(report.id)
-    window.alert('删除成功')
-    await loadReports()
-  } catch (error) {
-    window.alert('删除失败：' + error.message)
-  }
+  openConfirmDialog({
+    title: '删除报告',
+    message: `确认删除报告「${label}」？`,
+    description: '此操作会一并删除所有版本，不可撤销。',
+    action: async () => {
+      try {
+        await ReportsApi.deleteReport(report.id)
+        window.alert('删除成功')
+        await loadReports()
+      } catch (error) {
+        window.alert('删除失败：' + error.message)
+        throw error
+      }
+    }
+  })
 }
 
 /* =================================================================
@@ -1316,16 +1379,21 @@ function reuploadPostSummary(row) {
 
 async function removePostSummary(row) {
   const company = row.company_name || row.visit_location || ''
-  if (!window.confirm(`删除「${company}」的访后纪要（原报告 #${row.report_id}）？此操作不可撤销。`)) {
-    return
-  }
-  try {
-    await ReportsApi.deletePostVisitSummary(row.report_id)
-    window.alert('删除成功')
-    await loadPostSummaries()
-  } catch (error) {
-    window.alert('删除失败：' + error.message)
-  }
+  openConfirmDialog({
+    title: '删除访后纪要',
+    message: `删除「${company}」的访后纪要（原报告 #${row.report_id}）？`,
+    description: '此操作不可撤销。',
+    action: async () => {
+      try {
+        await ReportsApi.deletePostVisitSummary(row.report_id)
+        window.alert('删除成功')
+        await loadPostSummaries()
+      } catch (error) {
+        window.alert('删除失败：' + error.message)
+        throw error
+      }
+    }
+  })
 }
 
 // ---- 访后纪要 · 补充重写 ----
@@ -1983,16 +2051,21 @@ async function viewTaskReport(task) {
 }
 
 async function deleteTask(task) {
-  if (!window.confirm(`删除任务 #${task.id}「${task.title || task.company_name || ''}」？此操作不可撤销。`)) {
-    return
-  }
-  try {
-    await VisitApi.deleteTask(task.id)
-    window.alert('删除成功')
-    loadTaskJobs()
-  } catch (error) {
-    window.alert('删除失败：' + error.message)
-  }
+  openConfirmDialog({
+    title: '删除任务',
+    message: `删除任务 #${task.id}「${task.title || task.company_name || ''}」？`,
+    description: '此操作不可撤销。',
+    action: async () => {
+      try {
+        await VisitApi.deleteTask(task.id)
+        window.alert('删除成功')
+        await loadTaskJobs()
+      } catch (error) {
+        window.alert('删除失败：' + error.message)
+        throw error
+      }
+    }
+  })
 }
 
 function importTask() {
@@ -3092,10 +3165,14 @@ onBeforeUnmount(() => {
     <Teleport to="body">
       <div
         v-if="habitsDialogVisible"
-        class="task-modal-mask"
+        class="task-modal-mask preferences-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closeHabitsDialog"
       >
-        <div class="task-modal task-modal--habit glass-card">
+        <div
+          class="task-modal task-modal--habit preferences-modal"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               我的偏好
@@ -3260,9 +3337,13 @@ onBeforeUnmount(() => {
       <div
         v-if="taskEditDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closeTaskEditor"
       >
-        <div class="task-modal glass-card">
+        <div
+          class="task-modal glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>修改任务 <span class="task-id">#{{ taskEditingId }}</span></h3>
             <button type="button" class="tiny-button" @click="closeTaskEditor">关闭</button>
@@ -3322,9 +3403,13 @@ onBeforeUnmount(() => {
       <div
         v-if="postSummaryDetailDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closePostSummaryDetail"
       >
-        <div class="task-modal task-modal--wide glass-card">
+        <div
+          class="task-modal task-modal--wide glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               访后纪要 · 原报告
@@ -3463,9 +3548,13 @@ onBeforeUnmount(() => {
       <div
         v-if="postSummaryVersionsDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closePostSummaryVersions"
       >
-        <div class="task-modal glass-card">
+        <div
+          class="task-modal glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               访后纪要版本历史 · 原报告
@@ -3507,9 +3596,13 @@ onBeforeUnmount(() => {
       <div
         v-if="reportDetailDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closeReportDetail"
       >
-        <div class="task-modal task-modal--wide glass-card">
+        <div
+          class="task-modal task-modal--wide glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               报告
@@ -3656,9 +3749,13 @@ onBeforeUnmount(() => {
       <div
         v-if="reportHistoryDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closeReportHistory"
       >
-        <div class="task-modal glass-card">
+        <div
+          class="task-modal glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               报告 <span class="task-id">#{{ reportHistoryReportId }}</span> 版本历史
@@ -3696,9 +3793,13 @@ onBeforeUnmount(() => {
       <div
         v-if="postVisitDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closePostVisitUpload"
       >
-        <div class="task-modal glass-card">
+        <div
+          class="task-modal glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               访后纪要 · 报告
@@ -3747,9 +3848,13 @@ onBeforeUnmount(() => {
       <div
         v-if="taskRevisionsDialog"
         class="task-modal-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
         @click.self="closeTaskRevisions"
       >
-        <div class="task-modal glass-card">
+        <div
+          class="task-modal glass-card"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        >
           <header class="task-modal-head">
             <h3>
               任务 <span class="task-id">#{{ taskRevisionsTaskId }}</span> 修改记录
@@ -3808,6 +3913,17 @@ onBeforeUnmount(() => {
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      v-model="confirmDialogVisible"
+      :title="confirmDialogTitle"
+      :message="confirmDialogMessage"
+      :description="confirmDialogDescription"
+      :confirm-text="confirmDialogConfirmText"
+      :loading="confirmDialogLoading"
+      @cancel="closeConfirmDialog"
+      @confirm="handleConfirmDialog"
+    />
   </div>
 </template>
 
@@ -4142,6 +4258,15 @@ onBeforeUnmount(() => {
   --surface-card-soft: rgba(15, 23, 42, 0.5);
   --task-card-bg: rgba(15, 23, 42, 0.68);
   --task-card-bg-strong: rgba(15, 23, 42, 0.8);
+  --task-section-bg:
+    linear-gradient(180deg, var(--task-card-bg-strong), var(--task-card-bg)),
+    var(--surface-card-soft);
+  --task-section-bg-accent:
+    linear-gradient(135deg, var(--surface-card-soft), var(--task-card-bg)),
+    var(--task-card-bg);
+  --task-section-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.16),
+    inset 0 1px 0 var(--surface-inset);
   position: fixed;
   inset: 0;
   background: transparent;
@@ -4200,6 +4325,10 @@ onBeforeUnmount(() => {
 .task-modal--habit {
   width: min(920px, 100%);
   overflow: hidden;
+}
+
+.preferences-modal {
+  backdrop-filter: none;
 }
 
 .task-modal--habit .task-modal-body {
@@ -4271,19 +4400,13 @@ onBeforeUnmount(() => {
 .habits-card {
   border-radius: 18px;
   border: 1px solid var(--surface-border);
-  background:
-    linear-gradient(180deg, var(--task-card-bg-strong), var(--task-card-bg)),
-    var(--surface-card-soft);
-  box-shadow:
-    0 12px 24px rgba(29, 35, 52, 0.16),
-    inset 0 1px 0 var(--surface-inset);
+  background: var(--task-section-bg);
+  box-shadow: var(--task-section-shadow);
 }
 
 .habits-event-card {
   padding: 14px 16px;
-  background:
-    linear-gradient(135deg, var(--surface-card-soft), var(--task-card-bg)),
-    var(--task-card-bg);
+  background: var(--task-section-bg-accent);
 }
 
 .habits-event-card--empty {
@@ -4738,7 +4861,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   background:
     radial-gradient(circle at top right, var(--surface-accent), transparent 24%),
     radial-gradient(circle at bottom left, var(--surface-accent-alt), transparent 22%),
@@ -4966,20 +5089,26 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding-right: calc(4px * var(--ui-scale));
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
+  padding-right: calc(8px * var(--ui-scale));
   display: flex;
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
+  scrollbar-gutter: stable;
 }
 
 .message-item {
   display: flex;
+  width: 100%;
+  box-sizing: border-box;
   gap: calc(12px * var(--ui-scale));
   align-items: flex-start;
 }
 
 .message-item.user {
-  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
 
 .message-avatar {
@@ -4995,6 +5124,7 @@ onBeforeUnmount(() => {
 }
 
 .message-item.user .message-avatar {
+  order: 2;
   background: linear-gradient(135deg, #ed7c47, #f2ab7d);
 }
 
@@ -5016,6 +5146,7 @@ onBeforeUnmount(() => {
 }
 
 .message-item.user .message-bubble {
+  order: 1;
   border-color: rgba(237, 124, 71, 0.22);
   color: var(--text-main);
 }
@@ -5826,6 +5957,52 @@ onBeforeUnmount(() => {
   color: #677287;
 }
 
+:global(html[data-theme='light']) .post-summary-snippet,
+:global(html[data-theme='light']) .post-summary-detail-list,
+:global(html[data-theme='light']) .post-summary-block li,
+:global(html[data-theme='light']) .post-summary-block ol,
+:global(html[data-theme='light']) .post-summary-block ul {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .task-card .post-summary-snippet,
+:global(html[data-theme='light']) .task-card .post-summary-block,
+:global(html[data-theme='light']) .task-card .post-summary-next {
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  border-radius: calc(14px * var(--ui-scale));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 253, 0.88)),
+    rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+:global(html[data-theme='light']) .task-card .post-summary-snippet {
+  margin-top: calc(10px * var(--ui-scale));
+  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  color: #1b2536;
+  font-weight: 600;
+}
+
+:global(html[data-theme='light']) .post-summary-block {
+  color: #677287;
+  margin-top: calc(10px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
+}
+
+:global(html[data-theme='light']) .post-summary-block strong,
+:global(html[data-theme='light']) .post-summary-h {
+  color: #1b2536;
+  font-weight: 800;
+}
+
+:global(html[data-theme='light']) .post-summary-next {
+  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  color: #2f8374;
+  font-weight: 700;
+}
+
 :global(html[data-theme='light']) .head-action-button,
 :global(html[data-theme='light']) .toggle-button {
   color: #1b2536;
@@ -5946,10 +6123,34 @@ onBeforeUnmount(() => {
   --line: rgba(27, 37, 54, 0.08);
   --surface-border: rgba(27, 37, 54, 0.1);
   --surface-inset: rgba(255, 255, 255, 0.82);
-  --surface-card-soft: rgba(255, 255, 255, 0.78);
-  --task-card-bg: rgba(255, 255, 255, 0.86);
-  --task-card-bg-strong: rgba(255, 255, 255, 0.96);
+  --surface-card-soft: rgba(255, 255, 255, 0.92);
+  --task-card-bg: rgba(255, 255, 255, 0.96);
+  --task-card-bg-strong: rgba(255, 255, 255, 0.995);
+  --task-section-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 249, 253, 0.95)),
+    rgba(255, 255, 255, 0.94);
+  --task-section-bg-accent:
+    linear-gradient(135deg, rgba(255, 243, 234, 0.96), rgba(241, 248, 246, 0.94)),
+    rgba(255, 255, 255, 0.96);
+  --task-section-shadow:
+    0 14px 28px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
   background: transparent;
+}
+
+:global(html[data-theme='light']) .preferences-modal-mask {
+  --surface-card-soft: rgba(255, 255, 255, 0.96);
+  --task-card-bg: rgba(255, 255, 255, 0.985);
+  --task-card-bg-strong: rgba(255, 255, 255, 1);
+  --task-section-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(247, 249, 253, 0.96)),
+    rgba(255, 255, 255, 0.98);
+  --task-section-bg-accent:
+    linear-gradient(135deg, rgba(255, 243, 234, 0.98), rgba(241, 248, 246, 0.96)),
+    rgba(255, 255, 255, 0.98);
+  --task-section-shadow:
+    0 16px 30px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 :global(html[data-theme='light']) .task-modal {
@@ -5960,6 +6161,386 @@ onBeforeUnmount(() => {
   box-shadow:
     0 24px 48px rgba(29, 35, 52, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+:global(html[data-theme='light']) .preferences-modal {
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.24), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 250, 255, 0.95));
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 26px 52px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: none;
+}
+
+:global(html[data-theme='light']) .preferences-modal .habits-event-card,
+:global(html[data-theme='light']) .preferences-modal .habits-editor,
+:global(html[data-theme='light']) .preferences-modal .habits-card {
+  background: var(--task-section-bg) !important;
+  box-shadow: var(--task-section-shadow);
+}
+
+:global(html[data-theme='light']) .preferences-modal .habits-event-card {
+  background: var(--task-section-bg-accent) !important;
+}
+
+:global(html[data-theme='light']) .task-modal--habit .task-field input,
+:global(html[data-theme='light']) .task-modal--habit .task-field textarea,
+:global(html[data-theme='light']) .task-modal--habit .habit-source-badge,
+:global(html[data-theme='light']) .task-modal--habit .habit-suggestion-chip,
+:global(html[data-theme='light']) .task-modal--habit .task-revision {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  border-color: rgba(27, 37, 54, 0.08);
+  color: #1b2536;
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+:global(html[data-theme='light']) .task-modal--habit .task-field input[readonly] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(243, 246, 250, 0.9)),
+    rgba(255, 255, 255, 0.9);
+}
+
+:global(html[data-theme='light']) .task-modal--habit .habit-chip {
+  background: rgba(47, 131, 116, 0.12);
+  border-color: rgba(27, 37, 54, 0.08);
+  color: #2f8374;
+}
+
+:global(html[data-theme='light']) .task-modal--habit .habit-source-badge.is-manual,
+:global(html[data-theme='light']) .task-modal--habit .habits-event-state {
+  background: rgba(237, 124, 71, 0.14);
+  color: #1b2536;
+  border-color: rgba(237, 124, 71, 0.16);
+}
+
+:global(html[data-theme='light']) .task-modal--habit .habits-event-card--empty,
+:global(html[data-theme='light']) .task-modal--habit .habits-card-hint,
+:global(html[data-theme='light']) .task-modal--habit .habits-card-meta,
+:global(html[data-theme='light']) .task-modal--habit .habits-event-more summary,
+:global(html[data-theme='light']) .task-modal--habit .habits-event-timeline li span,
+:global(html[data-theme='light']) .task-modal--habit .habits-event-timeline li em {
+  color: #677287;
+}
+
+.task-modal-mask.is-light-theme {
+  --text-main: #1b2536;
+  --text-muted: #677287;
+  --brand-alt: #2f8374;
+  --danger: #cf4c4c;
+  --line: rgba(27, 37, 54, 0.08);
+  --surface-border: rgba(27, 37, 54, 0.1);
+  --surface-inset: rgba(255, 255, 255, 0.82);
+  --surface-card-soft: rgba(255, 255, 255, 0.92);
+  --task-card-bg: rgba(255, 255, 255, 0.96);
+  --task-card-bg-strong: rgba(255, 255, 255, 0.995);
+  --task-section-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 249, 253, 0.95)),
+    rgba(255, 255, 255, 0.94);
+  --task-section-bg-accent:
+    linear-gradient(135deg, rgba(255, 243, 234, 0.96), rgba(241, 248, 246, 0.94)),
+    rgba(255, 255, 255, 0.96);
+  --task-section-shadow:
+    0 14px 28px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  background: transparent;
+}
+
+.task-modal.is-light-theme {
+  color: #1b2536;
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.22), transparent 32%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(247, 250, 255, 0.94));
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 24px 48px rgba(29, 35, 52, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  backdrop-filter: none;
+}
+
+.task-modal.is-light-theme .task-modal-head h3,
+.task-modal.is-light-theme .task-field input,
+.task-modal.is-light-theme .task-field textarea,
+.task-modal.is-light-theme .task-revision-desc,
+.task-modal.is-light-theme .report-detail-meta strong,
+.task-modal.is-light-theme .post-summary-h,
+.task-modal.is-light-theme .rd-card h6,
+.task-modal.is-light-theme .rd-pre,
+.task-modal.is-light-theme .rd-bullets,
+.task-modal.is-light-theme .task-id {
+  color: #1b2536;
+}
+
+.task-modal.is-light-theme .task-revisions-count,
+.task-modal.is-light-theme .task-modal-hint,
+.task-modal.is-light-theme .task-revision-time,
+.task-modal.is-light-theme .task-revisions-empty,
+.task-modal.is-light-theme .report-detail-meta,
+.task-modal.is-light-theme .rd-body,
+.task-modal.is-light-theme .rd-cards-empty,
+.task-modal.is-light-theme .pv-tab-btn {
+  color: #677287;
+}
+
+.task-modal.is-light-theme .task-id,
+.task-modal.is-light-theme .task-revision,
+.task-modal.is-light-theme .report-detail-body,
+.task-modal.is-light-theme .pv-rewrite-textarea,
+.task-modal.is-light-theme .rd-card,
+.task-modal.is-light-theme .rd-json {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.task-modal.is-light-theme .task-field input,
+.task-modal.is-light-theme .task-field textarea {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.task-modal.is-light-theme .pv-tab-bar {
+  border-bottom-color: rgba(27, 37, 54, 0.1);
+}
+
+.task-modal.is-light-theme .pv-tab-btn.active {
+  color: #2f8374;
+  border-bottom-color: #2f8374;
+}
+
+.task-modal.is-light-theme .task-pill {
+  color: #1b2536;
+}
+
+.task-modal.is-light-theme .task-pill--ok {
+  color: #2f8374;
+}
+
+.task-modal.is-light-theme .task-pill--info {
+  color: #3567b7;
+}
+
+.task-modal.is-light-theme .task-pill--danger {
+  color: #cf4c4c;
+}
+
+.task-modal.is-light-theme .task-pill--muted {
+  color: #677287;
+}
+
+.task-modal.is-light-theme .task-pill--pending {
+  color: #b86a1c;
+}
+
+.task-modal.is-light-theme .task-pill--type {
+  color: #7059b7;
+}
+
+.task-modal.is-light-theme .tiny-button {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  color: #1b2536;
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.task-modal.is-light-theme .tiny-button.primary {
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.18), rgba(243, 161, 102, 0.26));
+  border-color: rgba(237, 124, 71, 0.18);
+}
+
+.task-modal.is-light-theme .tiny-button.warn {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(251, 191, 36, 0.24));
+  border-color: rgba(245, 158, 11, 0.2);
+  color: #8a4b00;
+}
+
+.task-modal.is-light-theme .pv-rewrite-status--loading {
+  background: rgba(47, 131, 116, 0.12);
+  color: #2f8374;
+}
+
+.task-modal.is-light-theme .pv-rewrite-status--error {
+  background: rgba(207, 76, 76, 0.12);
+  color: #b91c1c;
+}
+
+.preferences-modal-mask.is-light-theme {
+  --text-main: #1b2536;
+  --text-muted: #677287;
+  --brand-alt: #2f8374;
+  --danger: #cf4c4c;
+  --line: rgba(27, 37, 54, 0.08);
+  --surface-border: rgba(27, 37, 54, 0.1);
+  --surface-inset: rgba(255, 255, 255, 0.84);
+  --surface-card-soft: rgba(255, 255, 255, 0.96);
+  --task-card-bg: rgba(255, 255, 255, 0.985);
+  --task-card-bg-strong: rgba(255, 255, 255, 1);
+  --task-section-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(247, 249, 253, 0.96)),
+    rgba(255, 255, 255, 0.985);
+  --task-section-bg-accent:
+    linear-gradient(135deg, rgba(255, 243, 234, 0.98), rgba(241, 248, 246, 0.96)),
+    rgba(255, 255, 255, 0.985);
+  --task-section-shadow:
+    0 16px 30px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  background: transparent;
+}
+
+.preferences-modal-mask.is-dark-theme {
+  --surface-card-soft: rgba(9, 18, 34, 0.72);
+  --task-card-bg: rgba(8, 16, 29, 0.9);
+  --task-card-bg-strong: rgba(10, 20, 37, 0.96);
+  --task-section-bg:
+    linear-gradient(180deg, rgba(11, 22, 40, 0.98), rgba(8, 16, 29, 0.94)),
+    rgba(9, 18, 34, 0.84);
+  --task-section-bg-accent:
+    linear-gradient(135deg, rgba(14, 28, 48, 0.98), rgba(9, 18, 34, 0.94)),
+    rgba(8, 16, 29, 0.92);
+  --task-section-shadow:
+    0 20px 40px rgba(2, 6, 23, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.preferences-modal.is-light-theme {
+  color: #1b2536;
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.24), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(247, 250, 255, 0.965));
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 28px 56px rgba(29, 35, 52, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  backdrop-filter: none;
+}
+
+.preferences-modal.is-dark-theme {
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 30%),
+    linear-gradient(180deg, rgba(10, 20, 37, 0.97), rgba(8, 16, 29, 0.94));
+  border-color: rgba(148, 163, 184, 0.18);
+  box-shadow:
+    0 30px 60px rgba(2, 6, 23, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.preferences-modal.is-light-theme .task-modal-head h3,
+.preferences-modal.is-light-theme .habits-event-head strong,
+.preferences-modal.is-light-theme .habits-card-title strong,
+.preferences-modal.is-light-theme .habits-card-value,
+.preferences-modal.is-light-theme .habits-event-text,
+.preferences-modal.is-light-theme .task-field input,
+.preferences-modal.is-light-theme .task-field textarea {
+  color: #1b2536;
+}
+
+.preferences-modal.is-light-theme .task-revisions-count,
+.preferences-modal.is-light-theme .task-modal-hint,
+.preferences-modal.is-light-theme .habits-card-meta,
+.preferences-modal.is-light-theme .habits-card-hint,
+.preferences-modal.is-light-theme .habits-event-more summary,
+.preferences-modal.is-light-theme .habits-event-timeline li span,
+.preferences-modal.is-light-theme .habits-event-timeline li em,
+.preferences-modal.is-light-theme .habits-event-card--empty,
+.preferences-modal.is-light-theme .habits-empty,
+.preferences-modal.is-light-theme .topic-empty {
+  color: #677287;
+}
+
+.preferences-modal.is-light-theme .habits-event-card,
+.preferences-modal.is-light-theme .habits-editor,
+.preferences-modal.is-light-theme .habits-card {
+  background: var(--task-section-bg) !important;
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow: var(--task-section-shadow);
+}
+
+.preferences-modal.is-light-theme .habits-event-card {
+  background: var(--task-section-bg-accent) !important;
+}
+
+.preferences-modal.is-dark-theme .habits-event-card,
+.preferences-modal.is-dark-theme .habits-editor,
+.preferences-modal.is-dark-theme .habits-card {
+  background: var(--task-section-bg) !important;
+  box-shadow: var(--task-section-shadow);
+}
+
+.preferences-modal.is-dark-theme .habits-event-card {
+  background: var(--task-section-bg-accent) !important;
+}
+
+.preferences-modal.is-light-theme .task-field input,
+.preferences-modal.is-light-theme .task-field textarea,
+.preferences-modal.is-light-theme .habit-source-badge,
+.preferences-modal.is-light-theme .habit-suggestion-chip,
+.preferences-modal.is-light-theme .task-revision {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.985), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.92);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.preferences-modal.is-light-theme .task-field input[readonly] {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(243, 246, 250, 0.9)),
+    rgba(255, 255, 255, 0.9);
+}
+
+.preferences-modal.is-light-theme .habit-chip {
+  background: rgba(47, 131, 116, 0.12);
+  border-color: rgba(27, 37, 54, 0.08);
+  color: #2f8374;
+}
+
+.preferences-modal.is-light-theme .habit-source-badge.is-manual,
+.preferences-modal.is-light-theme .habits-event-state {
+  background: rgba(237, 124, 71, 0.14);
+  color: #1b2536;
+  border-color: rgba(237, 124, 71, 0.16);
+}
+
+.preferences-modal.is-light-theme .tiny-button {
+  border-color: rgba(27, 37, 54, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.9);
+  color: #1b2536;
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.preferences-modal.is-light-theme .tiny-button.primary {
+  background: linear-gradient(135deg, rgba(237, 124, 71, 0.18), rgba(243, 161, 102, 0.26));
+  border-color: rgba(237, 124, 71, 0.18);
+}
+
+.preferences-modal.is-light-theme .tiny-button.danger {
+  background: rgba(207, 76, 76, 0.08);
+  border-color: rgba(207, 76, 76, 0.16);
+  color: #c24646;
 }
 </style>
 
