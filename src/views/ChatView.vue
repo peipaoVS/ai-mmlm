@@ -1560,6 +1560,35 @@ function buildReportDisplayText(lines) {
   return text
 }
 
+function hasReportBodyContent(data) {
+  return !!data
+    && typeof data === 'object'
+    && !Array.isArray(data)
+    && (
+      typeof data.report_content === 'string'
+      || typeof data.full_report_content === 'string'
+      || typeof data.brief_report_content === 'string'
+    )
+}
+
+function shouldRenderRichReportMessage(message) {
+  if (message?.role !== 'assistant') {
+    return false
+  }
+
+  if (hasReportBodyContent(message?.rawPayload)) {
+    return true
+  }
+
+  return getTextOrEmpty(message?.content).includes('点此前往管理后台录入')
+}
+
+function getRichReportMessageLines(message) {
+  const text = sanitizeReportPlainText(getTextOrEmpty(message?.content))
+  const lines = buildReportTextDisplayLines(text)
+  return lines.length ? lines : [{ segments: [{ type: 'text', text: text || '（暂无内容）' }] }]
+}
+
 const REPORT_STRUCTURED_ACTION_LABELS = {
   parse: '解析需求',
   confirm: '确认生成',
@@ -2039,7 +2068,7 @@ async function viewTaskReport(task) {
     const data = response || {}
     const index = messages.value.indexOf(assistantMessage)
     if (index !== -1) {
-      messages.value[index] = { ...assistantMessage, content: formatToFriendlyMarkdown(data) }
+      messages.value[index] = { ...assistantMessage, content: formatToFriendlyMarkdown(data), rawPayload: data }
     }
   } catch (error) {
     const index = messages.value.indexOf(assistantMessage)
@@ -2897,23 +2926,23 @@ onBeforeUnmount(() => {
                 <span v-if="row.created_at"><em>生成：</em>{{ row.created_at }}</span>
               </div>
 
-              <p v-if="postSummaryShort(row)" class="post-summary-snippet">
+              <!-- <p v-if="postSummaryShort(row)" class="post-summary-snippet">
                 {{ postSummaryShort(row) }}
-              </p>
+              </p> -->
 
-              <div v-if="row.highlights_list && row.highlights_list.length" class="post-summary-block">
+              <!-- <div v-if="row.highlights_list && row.highlights_list.length" class="post-summary-block">
                 <strong>关键要点</strong>
                 <ul>
                   <li v-for="(h, i) in row.highlights_list.slice(0, 3)" :key="i">{{ h }}</li>
                 </ul>
-              </div>
+              </div> -->
 
-              <div v-if="row.todos && row.todos.length" class="post-summary-block">
+              <!-- <div v-if="row.todos && row.todos.length" class="post-summary-block">
                 <strong>跟进待办</strong>
                 <ol>
                   <li v-for="(t, i) in row.todos.slice(0, 3)" :key="i">{{ t }}</li>
                 </ol>
-              </div>
+              </div> -->
 
               <p v-if="row.next_visit_time" class="post-summary-next">
                 📅 下次会面：{{ row.next_visit_time }}
@@ -3018,7 +3047,7 @@ onBeforeUnmount(() => {
       </section>
     </aside>
 
-    <section class="chat-main glass-card">
+    <section ref="messagePanelRef" class="chat-main glass-card">
       <div class="chat-hero">
         <div class="hero-head">
           <div class="hero-title-row">
@@ -3081,7 +3110,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div ref="messagePanelRef" class="message-panel">
+      <div class="message-panel">
         <article
           v-for="(item, index) in messages"
           :key="index"
@@ -3095,7 +3124,21 @@ onBeforeUnmount(() => {
             <span class="message-role">
               {{ item.role === 'assistant' ? '智能助理' : session.user?.nickname || '当前用户' }}
             </span>
-            <p>{{ item.content }}</p>
+            <div v-if="shouldRenderRichReportMessage(item)" class="message-rich">
+              <div v-for="(line, lineIndex) in getRichReportMessageLines(item)" :key="`msg-${index}-${lineIndex}`" class="message-rich-line">
+                <template v-for="(segment, segmentIndex) in line.segments" :key="`msg-${index}-${lineIndex}-${segmentIndex}`">
+                  <a
+                    v-if="segment.type === 'link'"
+                    class="rd-link"
+                    :href="segment.href"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >{{ segment.text }}</a>
+                  <span v-else>{{ segment.text }}</span>
+                </template>
+              </div>
+            </div>
+            <p v-else>{{ item.content }}</p>
             <div v-if="item.role === 'assistant' && item.model === '访客辅助'" style="margin-top: 12px;">
               <button
                 class="tiny-button primary"
@@ -3934,7 +3977,9 @@ onBeforeUnmount(() => {
   grid-template-columns: clamp(18rem, 28vw, 24rem) minmax(0, 1fr);
   gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
   align-items: stretch;
-  min-height: calc(100dvh - 10.5rem);
+  height: calc(100dvh - 10.5rem);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-sidebar,
@@ -3949,7 +3994,9 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   font-family:
     "PingFang SC",
     "Microsoft YaHei",
@@ -4861,7 +4908,9 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
   background:
     radial-gradient(circle at top right, var(--surface-accent), transparent 24%),
     radial-gradient(circle at bottom left, var(--surface-accent-alt), transparent 22%),
@@ -5086,17 +5135,16 @@ onBeforeUnmount(() => {
 }
 
 .message-panel {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
   width: 100%;
   max-width: 100%;
   align-self: stretch;
-  padding-right: calc(8px * var(--ui-scale));
+  padding-right: 0;
   display: flex;
   flex-direction: column;
   gap: calc(18px * var(--ui-scale));
-  scrollbar-gutter: stable;
 }
 
 .message-item {
@@ -5165,6 +5213,18 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.8;
+}
+
+.message-rich {
+  margin: 0;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+
+.message-rich-line:empty::before {
+  content: '\00a0';
 }
 
 .message-confirm-actions {
@@ -5325,11 +5385,14 @@ onBeforeUnmount(() => {
 @media (max-width: 1280px) {
   .chat-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    height: calc(100dvh - 9rem);
     min-height: 0;
+    overflow: hidden;
   }
 
   .chat-main {
-    height: calc(100dvh - 9rem);
+    height: 100%;
   }
 }
 
@@ -5376,9 +5439,10 @@ onBeforeUnmount(() => {
   .chat-main {
     padding: 1rem;
     border-radius: calc(24px * var(--ui-scale));
+    height: 100%;
   }
 
-  .chat-main {
+  .chat-layout {
     height: calc(100dvh - 7.5rem);
   }
 
