@@ -5,6 +5,9 @@ import AppSelect from '../components/AppSelect.vue'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { formatDateTime } from '../utils/format'
 
+const POLLING_CONFIG_UPDATED_EVENT = 'mmlm:polling-config-updated'
+const POLLING_CONFIG_STORAGE_KEY = 'mmlm:polling-config-dateVal'
+
 const PRESET_PARAM_TYPES = [
   { label: '生成参数', value: 'generation' },
   { label: 'Prompt 参数', value: 'prompt' },
@@ -176,6 +179,14 @@ async function submitForm() {
       await api.put(`/api/param-configs/${editingId.value}`, payload)
     } else {
       await api.post('/api/param-configs', payload)
+    }
+    if (payload.code === 'dateVal' && typeof window !== 'undefined') {
+      const detail = { code: payload.code, value: payload.paramValue }
+      window.dispatchEvent(new CustomEvent(POLLING_CONFIG_UPDATED_EVENT, { detail }))
+      localStorage.setItem(POLLING_CONFIG_STORAGE_KEY, JSON.stringify({
+        ...detail,
+        updatedAt: Date.now()
+      }))
     }
     closeDialog()
     await loadData()

@@ -13,6 +13,9 @@ import qianfanLogo from '../assets/providers/qianfan-logo.png'
 import qwenLogo from '../assets/providers/qwen-logo.png'
 import zhipuLogo from '../assets/providers/zhipu-logo.svg'
 
+const POLLING_CONFIG_UPDATED_EVENT = 'mmlm:polling-config-updated'
+const POLLING_CONFIG_STORAGE_KEY = 'mmlm:polling-config-dateVal'
+
 const session = useSession()
 const loading = ref(false)
 const inputValue = ref('')
@@ -201,7 +204,7 @@ const visibleTodos = computed(() =>
 )
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
-const genPollSeconds = computed(() => Math.max(1, Math.round(genPollMs.value / 1000)))
+const genPollSeconds = computed(() => formatPollingSeconds(genPollMs.value))
 const isLightTheme = computed(() => session.theme === 'light')
 const habitsDialogVisible = ref(false)
 const habitsLoading = ref(false)
@@ -2476,11 +2479,12 @@ async function handleCancel(message) {
 }
 
 /* ==================== 推送消息轮询 (push polling) ==================== */
-const PUSH_POLL_MS = 5000
+const DEFAULT_PUSH_POLL_MS = 5000
 const PUSH_SEEN_KEY = 'aibank_push_seen'
 const pushQueue = ref([])
 const pushActiveMsg = ref(null)
 const pushShownIds = ref(new Set(JSON.parse(localStorage.getItem(PUSH_SEEN_KEY) || '[]')))
+const pushPollMs = ref(DEFAULT_PUSH_POLL_MS)
 let pushPollTimer = null
 
 function persistPushSeen() {
@@ -2540,7 +2544,7 @@ async function markAllPushRead() {
 function startPushPolling() {
   if (pushPollTimer) clearInterval(pushPollTimer)
   pollPushMessages()
-  pushPollTimer = setInterval(pollPushMessages, PUSH_POLL_MS)
+  pushPollTimer = setInterval(pollPushMessages, pushPollMs.value)
 }
 
 function stopPushPolling() {
@@ -2564,24 +2568,37 @@ function formatGenElapsed(elapsed) {
   return elapsed != null && elapsed !== '' ? `${elapsed}s` : '--'
 }
 
-function resolveGenPollInterval(value) {
-  const seconds = Number.parseFloat(String(value ?? '').trim())
-  if (Number.isFinite(seconds) && seconds > 0) {
-    return Math.round(seconds * 1000)
+function formatPollingSeconds(milliseconds) {
+  const seconds = Number(milliseconds) / 1000
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return '1'
   }
-  return DEFAULT_GEN_POLL_MS
+
+  if (Number.isInteger(seconds)) {
+    return String(seconds)
+  }
+
+  return seconds.toFixed(2).replace(/\.?0+$/, '')
 }
 
-async function loadGenPollConfig() {
+function resolvePollInterval(value, fallbackMs) {
+  const milliseconds = Number.parseFloat(String(value ?? '').trim())
+  if (Number.isFinite(milliseconds) && milliseconds > 0) {
+    return Math.round(milliseconds)
+  }
+  return fallbackMs
+}
+
+async function loadPollingConfig() {
   try {
     const rows = await api.get('/api/param-configs?keyword=dateVal')
     const matchedRow = (Array.isArray(rows) ? rows : []).find(
       (item) => String(item.code || '').trim() === 'dateVal'
     )
-    genPollMs.value = resolveGenPollInterval(matchedRow?.paramValue)
+    applyPollingConfigValue(matchedRow?.paramValue)
   } catch (error) {
     console.warn('加载生成进度轮询配置失败', error)
-    genPollMs.value = DEFAULT_GEN_POLL_MS
+    applyPollingConfigValue()
   }
 }
 
@@ -2611,19 +2628,64 @@ function stopGenPolling() {
   if (genPollTimer) { clearInterval(genPollTimer); genPollTimer = null }
 }
 
+function applyPollingConfigValue(value) {
+  const nextGenPollMs = resolvePollInterval(value, DEFAULT_GEN_POLL_MS)
+  const nextPushPollMs = resolvePollInterval(value, DEFAULT_PUSH_POLL_MS)
+  const genChanged = genPollMs.value !== nextGenPollMs
+  const pushChanged = pushPollMs.value !== nextPushPollMs
+
+  genPollMs.value = nextGenPollMs
+  pushPollMs.value = nextPushPollMs
+
+  return { genChanged, pushChanged }
+}
+
+function restartPollingByConfigValue(value) {
+  const { genChanged, pushChanged } = applyPollingConfigValue(value)
+  if (pushChanged && pushPollTimer) {
+    startPushPolling()
+  }
+  if (genChanged && genPollTimer) {
+    startGenPolling()
+  }
+}
+
+function handlePollingConfigUpdated(event) {
+  const detail = event?.detail || {}
+  if (String(detail.code || '').trim() !== 'dateVal') {
+    return
+  }
+  restartPollingByConfigValue(detail.value)
+}
+
+function handlePollingConfigStorage(event) {
+  if (event.key !== POLLING_CONFIG_STORAGE_KEY || !event.newValue) {
+    return
+  }
+  try {
+    const payload = JSON.parse(event.newValue)
+    restartPollingByConfigValue(payload?.value)
+  } catch {}
+}
+
 // 挂载 / 卸载轮询
 onMounted(() => {
-  startPushPolling()
-  startGenPolling()
-  loadGenPollConfig().then(() => {
-    if (genPollTimer) {
-      startGenPolling()
-    }
+  if (typeof window !== 'undefined') {
+    window.addEventListener(POLLING_CONFIG_UPDATED_EVENT, handlePollingConfigUpdated)
+    window.addEventListener('storage', handlePollingConfigStorage)
+  }
+  loadPollingConfig().finally(() => {
+    startPushPolling()
+    startGenPolling()
   })
 })
 onBeforeUnmount(() => {
   stopPushPolling()
   stopGenPolling()
+  if (typeof window !== 'undefined') {
+    window.removeEventListener(POLLING_CONFIG_UPDATED_EVENT, handlePollingConfigUpdated)
+    window.removeEventListener('storage', handlePollingConfigStorage)
+  }
 })
 </script>
 
@@ -2910,15 +2972,23 @@ onBeforeUnmount(() => {
           <article
             v-for="row in visiblePostSummaries"
             :key="row.report_id || row.id"
-            class="task-card"
+            class="task-card post-summary-card"
           >
             <div class="task-card-body">
               <div class="task-head">
                 <strong class="task-title">
                   📋 {{ row.company_name || row.visit_location || '-' }}
                 </strong>
-                <span class="task-pill task-pill--muted">原报告 #{{ row.report_id }}</span>
-                <span class="task-pill task-pill--type">v{{ row.version || 1 }}</span>
+                <strong class="task-title post-summary-display-title">
+                  <span class="task-id">#{{ row.report_id || row.id }}</span>
+                  {{ row.company_name || row.visit_location || '-' }}
+                </strong>
+                <span class="task-pill task-pill--muted post-summary-origin-pill">
+                  原报告 #{{ row.report_id }}
+                </span>
+                <span class="task-pill task-pill--type">
+                  v{{ row.version || 1 }}
+                </span>
               </div>
 
               <div class="task-meta-grid">
@@ -3928,6 +3998,7 @@ onBeforeUnmount(() => {
     <button
       v-if="pushBadgeCount > 0"
       class="push-bell"
+      :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
       title="查看推送通知"
       @click="showNextPushToast"
     >
@@ -3936,8 +4007,18 @@ onBeforeUnmount(() => {
 
     <!-- ============ 推送 Toast 弹窗 ============ -->
     <Teleport to="body">
-      <div v-if="pushActiveMsg" class="push-toast-mask" @click.self="closePushToast(true)">
-        <div class="push-toast" role="dialog" aria-modal="true">
+      <div
+        v-if="pushActiveMsg"
+        class="push-toast-mask"
+        :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+        @click.self="closePushToast(true)"
+      >
+        <div
+          class="push-toast"
+          :class="{ 'is-light-theme': isLightTheme, 'is-dark-theme': !isLightTheme }"
+          role="dialog"
+          aria-modal="true"
+        >
           <div class="push-toast-head">
             <div class="pt-title">🔔 定时任务推送 <span class="pt-count">#{{ pushActiveMsg.id }}</span></div>
             <span v-if="pushQueue.length" class="pt-count">后续还有 {{ pushQueue.length }} 条</span>
@@ -4196,6 +4277,19 @@ onBeforeUnmount(() => {
   gap: calc(6px * var(--ui-scale));
   font-weight: 800;
   color: var(--text-main);
+}
+
+.post-summary-display-title {
+  display: none;
+}
+
+.post-summary-card .task-title:first-of-type,
+.post-summary-card .post-summary-origin-pill {
+  display: none;
+}
+
+.post-summary-card .post-summary-display-title {
+  display: inline-flex;
 }
 
 .task-id {
@@ -4823,6 +4917,7 @@ onBeforeUnmount(() => {
   font-size: calc(12px * var(--ui-scale));
   color: #86efac;
 }
+
 
 /* 详情弹窗内的二级标题 */
 .post-summary-h {
@@ -5487,6 +5582,14 @@ onBeforeUnmount(() => {
 
 /* ==================== 推送铃铛 ==================== */
 .push-bell {
+  --push-bell-surface: rgba(8, 16, 29, 0.84);
+  --push-bell-surface-strong: rgba(15, 23, 42, 0.96);
+  --push-bell-glow: rgba(34, 211, 238, 0.16);
+  --push-bell-text: #e5e7eb;
+  --push-bell-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.28),
+    0 0 24px rgba(34, 211, 238, 0.08);
+  --push-bell-inset: rgba(255, 255, 255, 0.08);
   position: fixed;
   right: 20px;
   bottom: 20px;
@@ -5494,19 +5597,49 @@ onBeforeUnmount(() => {
   height: 48px;
   border-radius: 50%;
   background:
-    linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-strong)),
-    var(--panel-card-bg);
-  color: var(--text-main);
-  border: 1px solid var(--panel-card-border);
+    radial-gradient(circle at top left, var(--push-bell-glow), transparent 58%),
+    linear-gradient(180deg, var(--push-bell-surface-strong), var(--push-bell-surface));
+  color: var(--push-bell-text);
+  border: 1px solid rgba(148, 163, 184, 0.18);
   cursor: pointer;
-  box-shadow:
-    var(--panel-card-shadow),
-    inset 0 1px 0 var(--surface-inset);
+  box-shadow: var(--push-bell-shadow), inset 0 1px 0 var(--push-bell-inset);
   font-size: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9998;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.push-bell:hover {
+  transform: translateY(-1px);
+}
+
+.push-bell.is-dark-theme {
+  --push-bell-surface: rgba(8, 16, 29, 0.84);
+  --push-bell-surface-strong: rgba(15, 23, 42, 0.96);
+  --push-bell-glow: rgba(34, 211, 238, 0.16);
+  --push-bell-text: #e5e7eb;
+  --push-bell-shadow:
+    0 18px 36px rgba(2, 6, 23, 0.28),
+    0 0 24px rgba(34, 211, 238, 0.08);
+  --push-bell-inset: rgba(255, 255, 255, 0.08);
+}
+
+.push-bell.is-light-theme {
+  --push-bell-surface: rgba(255, 255, 255, 0.94);
+  --push-bell-surface-strong: rgba(255, 255, 255, 0.995);
+  --push-bell-glow: rgba(255, 216, 188, 0.3);
+  --push-bell-text: #1b2536;
+  --push-bell-shadow:
+    0 16px 32px rgba(29, 35, 52, 0.16),
+    0 0 20px rgba(237, 124, 71, 0.12);
+  --push-bell-inset: rgba(255, 255, 255, 0.88);
+  border-color: rgba(27, 37, 54, 0.08);
 }
 
 .push-bell .pb-dot {
@@ -5524,6 +5657,13 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.22);
+}
+
+.push-bell.is-light-theme .pb-dot {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 18px rgba(207, 76, 76, 0.18);
 }
 
 /* ==================== 推送 Toast ==================== */
@@ -5533,13 +5673,13 @@ onBeforeUnmount(() => {
   --push-border: rgba(148, 163, 184, 0.18);
   --push-inset: rgba(255, 255, 255, 0.06);
   --push-surface: rgba(15, 23, 42, 0.84);
-  --push-surface-strong: rgba(15, 23, 42, 0.94);
-  --push-surface-soft: rgba(2, 6, 23, 0.42);
+  --push-surface-strong: rgba(10, 20, 37, 0.96);
+  --push-surface-soft: rgba(9, 18, 34, 0.72);
   --push-accent: rgba(34, 211, 238, 0.12);
   --push-head-bg: linear-gradient(90deg, #1d4ed8, #4338ca);
   --push-head-text: #ffffff;
   --push-badge-bg: rgba(255, 255, 255, 0.22);
-  --push-button-bg: rgba(2, 6, 23, 0.36);
+  --push-button-bg: rgba(8, 16, 29, 0.72);
   --push-button-text: #dbeafe;
   --push-button-border: rgba(148, 163, 184, 0.18);
   --push-primary-bg: linear-gradient(90deg, #1d4ed8, #4338ca);
@@ -5547,42 +5687,80 @@ onBeforeUnmount(() => {
   --push-primary-text: #ffffff;
   position: fixed;
   inset: 0;
-  background: transparent;
-  backdrop-filter: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: clamp(0.875rem, 0.5rem + 1vw, 1.5rem);
   z-index: 9999;
-  animation: pushFadeIn 0.2s;
+  animation: pushFadeIn 0.2s ease;
 }
 
 @keyframes pushFadeIn { from { opacity: 0 } to { opacity: 1 } }
 @keyframes pushPopIn { from { transform: translateY(20px) scale(0.96); opacity: 0 } to { transform: none; opacity: 1 } }
 
+.push-toast-mask.is-dark-theme {
+  background: rgba(2, 6, 23, 0.16);
+  backdrop-filter: blur(14px) saturate(135%);
+}
+
+.push-toast-mask.is-light-theme {
+  --push-text-main: #1b2536;
+  --push-text-muted: #677287;
+  --push-border: rgba(27, 37, 54, 0.08);
+  --push-inset: rgba(255, 255, 255, 0.88);
+  --push-surface: rgba(255, 255, 255, 0.92);
+  --push-surface-strong: rgba(255, 255, 255, 0.992);
+  --push-surface-soft: rgba(255, 255, 255, 0.84);
+  --push-accent: rgba(255, 216, 188, 0.22);
+  --push-head-bg: linear-gradient(90deg, #ed7c47, #f3a166);
+  --push-badge-bg: rgba(255, 255, 255, 0.26);
+  --push-button-bg: rgba(255, 255, 255, 0.9);
+  --push-button-text: #1b2536;
+  --push-button-border: rgba(27, 37, 54, 0.08);
+  --push-primary-bg: linear-gradient(90deg, #ed7c47, #f3a166);
+  --push-primary-border: rgba(237, 124, 71, 0.18);
+  background: rgba(246, 248, 252, 0.14);
+  backdrop-filter: blur(12px) saturate(130%);
+}
+
 .push-toast {
-  background:
-    radial-gradient(circle at top right, var(--push-accent), transparent 30%),
-    linear-gradient(180deg, var(--push-surface-strong), var(--push-surface));
-  border: 1px solid var(--push-border);
-  border-radius: 12px;
+  position: relative;
   max-width: 640px;
-  width: 92%;
-  max-height: 80vh;
+  width: min(100%, 640px);
+  max-height: calc(100dvh - 2rem);
   display: flex;
   flex-direction: column;
   color: var(--push-text-main);
-  box-shadow:
-    0 24px 48px rgba(15, 23, 42, 0.35),
-    inset 0 1px 0 var(--push-inset);
+  border: 1px solid var(--push-border);
+  border-radius: calc(24px * var(--ui-scale));
   overflow: hidden;
-  animation: pushPopIn 0.25s;
+  animation: pushPopIn 0.25s ease;
+}
+
+.push-toast.is-dark-theme {
+  background:
+    radial-gradient(circle at top right, var(--push-accent), transparent 30%),
+    linear-gradient(180deg, var(--push-surface-strong), var(--push-surface));
+  box-shadow:
+    0 30px 60px rgba(2, 6, 23, 0.42),
+    inset 0 1px 0 var(--push-inset);
+}
+
+.push-toast.is-light-theme {
+  background:
+    radial-gradient(circle at top right, var(--push-accent), transparent 32%),
+    linear-gradient(180deg, var(--push-surface-strong), rgba(247, 250, 255, 0.95));
+  box-shadow:
+    0 28px 56px rgba(29, 35, 52, 0.16),
+    inset 0 1px 0 var(--push-inset);
 }
 
 .push-toast-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  gap: 12px;
+  padding: 16px 18px;
   background: var(--push-head-bg);
   color: var(--push-head-text);
 }
@@ -5592,6 +5770,7 @@ onBeforeUnmount(() => {
   font-weight: 600;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -5604,6 +5783,7 @@ onBeforeUnmount(() => {
 
 .push-toast-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 8px 18px;
   font-size: 11px;
@@ -5619,9 +5799,9 @@ onBeforeUnmount(() => {
 .push-toast-body {
   flex: 1;
   overflow: auto;
-  padding: 14px 18px;
+  padding: 16px 18px;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.72;
   color: var(--push-text-main);
   white-space: pre-wrap;
   background: var(--push-surface);
@@ -5629,6 +5809,7 @@ onBeforeUnmount(() => {
 
 .push-toast-foot {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 10px 18px;
   border-top: 1px solid var(--push-border);
@@ -5637,14 +5818,21 @@ onBeforeUnmount(() => {
 }
 
 .push-toast-foot button {
-  padding: 6px 14px;
-  border-radius: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
   border: 1px solid var(--push-button-border);
   background: var(--push-button-bg);
   color: var(--push-button-text);
   cursor: pointer;
   font-size: 12px;
+  font-weight: 600;
   box-shadow: inset 0 1px 0 var(--push-inset);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    filter 0.18s ease;
 }
 
 .push-toast-foot button.primary {
@@ -5654,7 +5842,8 @@ onBeforeUnmount(() => {
 }
 
 .push-toast-foot button:hover {
-  filter: brightness(1.05);
+  transform: translateY(-1px);
+  filter: brightness(1.04);
 }
 
 /* ==================== 报告生成进度卡片 ==================== */
@@ -5967,27 +6156,6 @@ onBeforeUnmount(() => {
   color: #1b2536;
 }
 
-:global(html[data-theme='light']) .push-toast-mask {
-  --push-text-main: #1b2536;
-  --push-text-muted: #677287;
-  --push-border: rgba(27, 37, 54, 0.08);
-  --push-inset: rgba(255, 255, 255, 0.84);
-  --push-surface: rgba(255, 255, 255, 0.9);
-  --push-surface-strong: rgba(255, 255, 255, 0.98);
-  --push-surface-soft: rgba(255, 255, 255, 0.82);
-  --push-accent: rgba(255, 216, 188, 0.2);
-  --push-head-bg: linear-gradient(90deg, #ed7c47, #f3a166);
-  --push-head-text: #ffffff;
-  --push-badge-bg: rgba(255, 255, 255, 0.24);
-  --push-button-bg: rgba(255, 255, 255, 0.88);
-  --push-button-text: #1b2536;
-  --push-button-border: rgba(27, 37, 54, 0.08);
-  --push-primary-bg: linear-gradient(90deg, #ed7c47, #f3a166);
-  --push-primary-border: rgba(237, 124, 71, 0.18);
-  --push-primary-text: #ffffff;
-  background: transparent;
-}
-
 :global(html[data-theme='light']) .rd-card h6,
 :global(html[data-theme='light']) .rd-pre {
   color: #1b2536;
@@ -6081,30 +6249,44 @@ onBeforeUnmount(() => {
 
 :global(html[data-theme='light']) .task-pill {
   color: #1b2536;
+  border: 1px solid rgba(27, 37, 54, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
 :global(html[data-theme='light']) .task-pill--ok {
+  background: linear-gradient(180deg, rgba(240, 253, 246, 0.98), rgba(220, 252, 231, 0.92));
+  border-color: rgba(47, 131, 116, 0.14);
   color: #2f8374;
 }
 
 :global(html[data-theme='light']) .task-pill--info {
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.98), rgba(219, 234, 254, 0.92));
+  border-color: rgba(53, 103, 183, 0.14);
   color: #3567b7;
 }
 
 :global(html[data-theme='light']) .task-pill--danger {
+  background: linear-gradient(180deg, rgba(255, 241, 242, 0.98), rgba(255, 228, 230, 0.92));
+  border-color: rgba(207, 76, 76, 0.14);
   color: #cf4c4c;
 }
 
 :global(html[data-theme='light']) .task-pill--muted {
-  color: #677287;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.94));
+  border-color: rgba(100, 116, 139, 0.16);
+  color: #516074;
 }
 
 :global(html[data-theme='light']) .task-pill--pending {
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(254, 243, 199, 0.92));
+  border-color: rgba(184, 106, 28, 0.14);
   color: #b86a1c;
 }
 
 :global(html[data-theme='light']) .task-pill--type {
-  color: #7059b7;
+  background: linear-gradient(180deg, rgba(245, 243, 255, 0.98), rgba(237, 233, 254, 0.92));
+  border-color: rgba(112, 89, 183, 0.16);
+  color: #5f46b6;
 }
 
 :global(html[data-theme='light']) .gen-card {
