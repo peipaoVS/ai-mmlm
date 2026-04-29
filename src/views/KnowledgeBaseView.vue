@@ -818,11 +818,11 @@ watch(
                 <input v-model.number="form.employee_count" type="number" />
               </label>
               <label class="field">
-                <span>AUM（展示文本）</span>
+                <span>AUM(展示文本)</span>
                 <input v-model="form.aum" placeholder="如 2800万元" />
               </label>
               <label class="field">
-                <span>AUM 数值（万元）</span>
+                <span>AUM 数值(万元)</span>
                 <input v-model.number="form.aum_numeric" type="number" step="0.01" />
               </label>
               <label class="field">
@@ -901,7 +901,7 @@ watch(
                 <span>行业码 *</span>
                 <input
                   v-model="form.industry_code"
-                  placeholder="如 C3815，需与企业画像 industry_code 对齐"
+                  placeholder="如 C3815,需与企业画像 industry_code 对齐"
                 />
               </label>
               <label class="field">
