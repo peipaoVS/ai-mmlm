@@ -1375,35 +1375,573 @@ async function submitPostVisitRewrite() {
   }
 }
 
+function sanitizeReportPlainText(raw) {
+  if (!raw) return ''
+
+  return String(raw)
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => line
+      .replace(/^\s{0,3}>\s?/g, '')
+      .replace(/^\s{0,3}#{1,6}\s*/g, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/__([^_]+)__/g, '$1')
+      .replace(/`([^`]+)`/g, '$1')
+      .trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+const REPORT_ADMIN_LINK_RE = /点此前往管理后台录入[:：]?\s*(?:\[([^\]]+)\]\(([^)\s]+)\)|((?:https?:\/\/|www\.|\/|#\/)[^\s]+))/g
+const REPORT_BRANCH_NAME_RE = /[A-Za-z0-9\u4e00-\u9fa5（）()·\-]+营业部/g
+
+function normalizeReportJumpUrl(url) {
+  const normalized = getTextOrEmpty(url).replace(/[。，；、）)\]]+$/g, '')
+  if (!normalized) {
+    return ''
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized
+  }
+  if (/^www\./i.test(normalized)) {
+    return `https://${normalized}`
+  }
+  return normalized
+}
+
+function extractLastReportBranchName(text) {
+  const matches = getTextOrEmpty(text).match(REPORT_BRANCH_NAME_RE)
+  return matches?.length ? matches[matches.length - 1] : ''
+}
+
+function pushReportTextSegment(segments, text) {
+  if (!text) {
+    return
+  }
+
+  const value = String(text)
+  if (!value) {
+    return
+  }
+
+  const last = segments[segments.length - 1]
+  if (last?.type === 'text') {
+    last.text += value
+    return
+  }
+
+  segments.push({ type: 'text', text: value })
+}
+
+function buildReportTextDisplayLines(text) {
+  if (!text) {
+    return []
+  }
+
+  let fallbackBranch = ''
+
+  return String(text).split('\n').map((line) => {
+    const sourceLine = line || ''
+    const segments = []
+    let cursor = 0
+    let match
+
+    REPORT_ADMIN_LINK_RE.lastIndex = 0
+    while ((match = REPORT_ADMIN_LINK_RE.exec(sourceLine))) {
+      const prefix = sourceLine.slice(cursor, match.index)
+      const branchFromContext = extractLastReportBranchName(sourceLine.slice(0, match.index)) || fallbackBranch
+      const branch = getTextOrEmpty(match[1]) || branchFromContext
+      const href = normalizeReportJumpUrl(match[2] || match[3])
+
+      pushReportTextSegment(segments, prefix)
+      pushReportTextSegment(segments, '点此前往管理后台录入：')
+
+      if (branch && href) {
+        segments.push({ type: 'link', text: branch, href })
+        fallbackBranch = branch
+      } else if (branch) {
+        pushReportTextSegment(segments, branch)
+        fallbackBranch = branch
+      }
+
+      cursor = match.index + match[0].length
+    }
+
+    const currentLineBranch = extractLastReportBranchName(sourceLine)
+    if (currentLineBranch) {
+      fallbackBranch = currentLineBranch
+    }
+
+    pushReportTextSegment(segments, sourceLine.slice(cursor))
+
+    return {
+      segments
+    }
+  })
+}
+
+function buildReportDisplayText(lines) {
+  const text = lines
+    .map((line) => line.segments.map((segment) => segment.text).join(''))
+    .join('\n')
+    .replace(/[ \t]+([，。；：])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+
+  return text
+}
+
+const REPORT_STRUCTURED_ACTION_LABELS = {
+  parse: '解析需求',
+  confirm: '确认生成',
+  supplement: '补充信息',
+  correct: '修正内容',
+  rewrite: '改写内容',
+  regenerate: '重新生成',
+  view: '查看报告',
+  list: '查询列表',
+  query: '规则问答',
+  answer: '生成答复',
+  generate: '生成内容',
+  export: '导出内容'
+}
+
+const REPORT_GENERATION_STATUS_LABELS = {
+  pending: '待处理',
+  preparing: '准备中',
+  generating: '生成中',
+  completed: '已完成',
+  failed: '失败'
+}
+
+const REPORT_STRUCTURED_FIELD_LABELS = {
+  id: '报告ID',
+  report_id: '报告ID',
+  version: '版本',
+  action: '操作',
+  status: '状态',
+  generation_status: '生成状态',
+  report_title: '报告标题',
+  title: '标题',
+  type: '类型',
+  visit_time: '拜访时间',
+  visit_location: '拜访地点',
+  company_name: '客户',
+  customer_name: '客户名称',
+  person: '拜访对象',
+  report_send_time: '发送时间',
+  remark: '备注',
+  created_at: '创建时间',
+  updated_at: '更新时间',
+  started_at: '开始时间',
+  next_visit_time: '下次拜访时间',
+  next_visit_location: '下次拜访地点',
+  branch: '分行',
+  home_branch: '所属分行',
+  user_branch: '用户分行',
+  user_level: '用户级别',
+  user_level_label: '用户级别',
+  sections: '报告章节',
+  brief_sections: '简版章节',
+  heading: '标题',
+  numeral: '序号',
+  index: '序号',
+  body: '内容',
+  bullets: '要点',
+  summary: '摘要',
+  result: '结果',
+  content: '内容',
+  tags: '标签',
+  payload: '结构化数据',
+  task_payload: '任务参数',
+  report_content: '报告正文',
+  full_report_content: '完整报告',
+  brief_report_content: '简版报告'
+}
+
+const REPORT_STRUCTURED_BODY_FIELD_KEYS = [
+  'summary',
+  'result',
+  'content',
+  'report_content',
+  'full_report_content',
+  'brief_report_content'
+]
+
+const REPORT_STRUCTURED_META_FIELD_KEYS = [
+  'report_title',
+  'title',
+  'action',
+  'report_id',
+  'version',
+  'status',
+  'generation_status',
+  'visit_time',
+  'visit_location',
+  'company_name',
+  'customer_name',
+  'person',
+  'report_send_time',
+  'remark',
+  'next_visit_time',
+  'next_visit_location',
+  'branch',
+  'home_branch',
+  'user_branch',
+  'user_level_label',
+  'user_level',
+  'created_at',
+  'updated_at',
+  'started_at'
+]
+
+function asArray(value) {
+  return Array.isArray(value) ? value : []
+}
+
+function toDisplayText(value, fallback = '--') {
+  if (value === null || value === undefined || value === '') {
+    return fallback
+  }
+  return String(value)
+}
+
+function isPlainObject(value) {
+  return Object.prototype.toString.call(value) === '[object Object]'
+}
+
+function hasMeaningfulValue(value) {
+  if (value === null || value === undefined) {
+    return false
+  }
+  if (typeof value === 'string') {
+    return value.trim() !== ''
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0
+  }
+  return true
+}
+
+function isPrimitiveArray(value) {
+  return Array.isArray(value)
+    && value.every((item) => item === null || ['string', 'number', 'boolean'].includes(typeof item))
+}
+
+function getTextOrEmpty(value) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  return String(value).trim()
+}
+
+function getReportStructuredFieldLabel(key) {
+  return REPORT_STRUCTURED_FIELD_LABELS[key] || key
+}
+
+function localizeReportAction(action) {
+  return REPORT_STRUCTURED_ACTION_LABELS[action] || toDisplayText(action, '（无）')
+}
+
+function localizeReportGenerationStatus(status) {
+  return REPORT_GENERATION_STATUS_LABELS[status] || toDisplayText(status, '（无）')
+}
+
+function formatReportStructuredValue(key, value) {
+  if (!hasMeaningfulValue(value)) {
+    return '（无）'
+  }
+
+  if (key === 'action') {
+    return localizeReportAction(value)
+  }
+
+  if (key === 'generation_status') {
+    return localizeReportGenerationStatus(value)
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? '是' : '否'
+  }
+
+  if (isPrimitiveArray(value)) {
+    return value.map((item) => toDisplayText(item, '（空）')).join('、')
+  }
+
+  if (REPORT_STRUCTURED_BODY_FIELD_KEYS.includes(key) && typeof value === 'string') {
+    return sanitizeReportPlainText(value) || '（无）'
+  }
+
+  return toDisplayText(value, '（无）')
+}
+
+function formatReportStructuredFieldLine(key, value) {
+  return `${getReportStructuredFieldLabel(key)}：${formatReportStructuredValue(key, value)}`
+}
+
+function normalizeReportStructuredSections(items, groupLabel) {
+  return asArray(items)
+    .map((section, index) => {
+      if (typeof section === 'string') {
+        return {
+          groupLabel,
+          title: `${groupLabel} ${index + 1}`,
+          subtitle: '',
+          body: sanitizeReportPlainText(section),
+          bullets: []
+        }
+      }
+
+      if (!isPlainObject(section)) {
+        return null
+      }
+
+      const numeral = getTextOrEmpty(section.numeral)
+      const baseTitle = section.title || section.heading || `第 ${index + 1} 节`
+      const title = numeral ? `${numeral}. ${baseTitle}` : baseTitle
+      const subtitle = section.heading && section.heading !== section.title ? section.heading : ''
+
+      return {
+        groupLabel,
+        title,
+        subtitle,
+        body: sanitizeReportPlainText(section.body || ''),
+        bullets: asArray(section.bullets).map((item) => sanitizeReportPlainText(String(item))).filter(Boolean)
+      }
+    })
+    .filter(Boolean)
+}
+
+function localizeReportStructuredKeys(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => localizeReportStructuredKeys(item))
+  }
+
+  if (isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        getReportStructuredFieldLabel(key),
+        localizeReportStructuredKeys(nestedValue)
+      ])
+    )
+  }
+
+  return value
+}
+
+function formatReportAnswerTextAsChinese(value, options = {}) {
+  if (!hasMeaningfulValue(value)) {
+    return '（无）'
+  }
+
+  if (isPlainObject(value) || Array.isArray(value)) {
+    return formatReportStructuredDataAsChineseText(value, options)
+  }
+
+  return sanitizeReportPlainText(toDisplayText(value, '（无）')) || '（无）'
+}
+
+function formatReportStructuredSectionText(section, includeGroupLabel = true) {
+  const lines = []
+  lines.push(includeGroupLabel ? `${section.groupLabel}：${section.title}` : section.title)
+
+  if (section.subtitle) {
+    lines.push(section.subtitle)
+  }
+
+  if (section.body) {
+    lines.push(formatReportAnswerTextAsChinese(section.body, { preferBodyOnly: true, depth: 1 }))
+  }
+
+  if (section.bullets.length) {
+    section.bullets.forEach((bullet) => {
+      lines.push(`- ${bullet}`)
+    })
+  }
+
+  return lines.filter(Boolean).join('\n')
+}
+
+function extractReportStructuredBodyText(data, depth = 0) {
+  if (!hasMeaningfulValue(data) || depth > 2) {
+    return ''
+  }
+
+  if (Array.isArray(data)) {
+    const parts = data
+      .map((item) => {
+        if (!hasMeaningfulValue(item)) {
+          return ''
+        }
+
+        if (isPlainObject(item) || Array.isArray(item)) {
+          return formatReportStructuredDataAsChineseText(item, {
+            preferBodyOnly: true,
+            depth: depth + 1
+          })
+        }
+
+        return sanitizeReportPlainText(String(item))
+      })
+      .filter(Boolean)
+
+    return parts
+      .map((item, index) => (parts.length > 1 ? `条目 ${index + 1}\n${item}` : item))
+      .join('\n\n')
+  }
+
+  if (!isPlainObject(data)) {
+    return sanitizeReportPlainText(toDisplayText(data, ''))
+  }
+
+  const sections = [
+    ...normalizeReportStructuredSections(data.sections, '报告章节'),
+    ...normalizeReportStructuredSections(data.brief_sections, '简版章节')
+  ]
+
+  if (sections.length) {
+    return sections.map((section) => formatReportStructuredSectionText(section, true)).join('\n\n')
+  }
+
+  for (const key of REPORT_STRUCTURED_BODY_FIELD_KEYS) {
+    if (!hasMeaningfulValue(data[key])) {
+      continue
+    }
+
+    const content = data[key]
+    if ((isPlainObject(content) || Array.isArray(content)) && depth < 2) {
+      return formatReportStructuredDataAsChineseText(content, {
+        preferBodyOnly: true,
+        depth: depth + 1
+      })
+    }
+
+    return sanitizeReportPlainText(String(content)) || ''
+  }
+
+  return ''
+}
+
+function formatReportStructuredDataAsChineseText(data, options = {}) {
+  const { preferBodyOnly = false, depth = 0 } = options
+
+  if (!hasMeaningfulValue(data)) {
+    return '（无）'
+  }
+
+  if (depth > 2) {
+    return JSON.stringify(localizeReportStructuredKeys(data), null, 2)
+  }
+
+  if (Array.isArray(data)) {
+    const bodyText = extractReportStructuredBodyText(data, depth)
+    return bodyText || JSON.stringify(localizeReportStructuredKeys(data), null, 2)
+  }
+
+  if (!isPlainObject(data)) {
+    return sanitizeReportPlainText(toDisplayText(data, '（无）')) || '（无）'
+  }
+
+  const bodyText = extractReportStructuredBodyText(data, depth)
+  if (preferBodyOnly && bodyText) {
+    return bodyText
+  }
+
+  const metaLines = REPORT_STRUCTURED_META_FIELD_KEYS
+    .filter((key) => hasMeaningfulValue(data[key]))
+    .map((key) => formatReportStructuredFieldLine(key, data[key]))
+
+  const extraBlocks = Object.entries(data)
+    .filter(([key, value]) => !REPORT_STRUCTURED_META_FIELD_KEYS.includes(key) && hasMeaningfulValue(value))
+    .filter(([key]) => !REPORT_STRUCTURED_BODY_FIELD_KEYS.includes(key) && key !== 'sections' && key !== 'brief_sections')
+    .filter(([, value]) => typeof value !== 'function')
+    .map(([key, value]) => {
+      if (isPlainObject(value) || Array.isArray(value)) {
+        return `${getReportStructuredFieldLabel(key)}：\n${formatReportStructuredDataAsChineseText(value, { depth: depth + 1 })}`
+      }
+      return formatReportStructuredFieldLine(key, value)
+    })
+
+  const parts = []
+  if (metaLines.length) {
+    parts.push(metaLines.join('\n'))
+  }
+  if (bodyText) {
+    parts.push(bodyText)
+  }
+  if (extraBlocks.length) {
+    parts.push(extraBlocks.join('\n\n'))
+  }
+
+  return parts.filter(Boolean).join('\n\n') || JSON.stringify(localizeReportStructuredKeys(data), null, 2)
+}
+
+function buildReportStructuredDisplayData(report) {
+  const payload = isPlainObject(report?.payload) ? report.payload : {}
+  const data = {
+    report_id: report?.report_id || report?.id || '',
+    version: report?.version || '',
+    action: report?.action || payload.action || '',
+    status: report?.status || payload.status || '',
+    generation_status: report?.generation_status || payload.generation_status || '',
+    report_title: report?.report_title || payload.report_title || '',
+    title: report?.title || payload.title || '',
+    visit_time: payload.visit_time || report?.visit_time || '',
+    visit_location: payload.visit_location || report?.visit_location || '',
+    company_name: report?.company_name || payload.company_name || '',
+    customer_name: report?.customer_name || payload.customer_name || '',
+    person: payload.person || report?.person || '',
+    report_send_time: payload.report_send_time || report?.report_send_time || '',
+    remark: payload.remark || report?.remark || '',
+    next_visit_time: payload.next_visit_time || report?.next_visit_time || '',
+    next_visit_location: payload.next_visit_location || report?.next_visit_location || '',
+    created_at: report?.created_at || '',
+    updated_at: report?.updated_at || '',
+    sections: Array.isArray(report?.sections) ? report.sections : asArray(payload.sections),
+    brief_sections: Array.isArray(report?.brief_sections) ? report.brief_sections : asArray(payload.brief_sections)
+  }
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (!hasMeaningfulValue(data[key])) {
+      data[key] = value
+    }
+  })
+
+  return data
+}
+
 // 报告详情：精简版 / 完整版 / 分节卡片
-const reportBriefContent = computed(() => {
+const reportBriefRawContent = computed(() => {
   const r = reportDetail.value
-  return (r?.brief_report_content || '').trim() || '（暂无精简版）'
+  return sanitizeReportPlainText(r?.brief_report_content || '')
+})
+const reportFullRawContent = computed(() => {
+  const r = reportDetail.value
+  return sanitizeReportPlainText(r?.full_report_content || r?.report_content || '')
+})
+const reportBriefDisplayLines = computed(() => {
+  const lines = buildReportTextDisplayLines(reportBriefRawContent.value)
+  return lines.length ? lines : [{ segments: [{ type: 'text', text: '（暂无精简版）' }] }]
+})
+const reportFullDisplayLines = computed(() => {
+  const lines = buildReportTextDisplayLines(reportFullRawContent.value)
+  return lines.length ? lines : [{ segments: [{ type: 'text', text: '（暂无完整版）' }] }]
+})
+const reportBriefContent = computed(() => {
+  return buildReportDisplayText(reportBriefDisplayLines.value) || '（暂无精简版）'
 })
 const reportFullContent = computed(() => {
-  const r = reportDetail.value
-  return (r?.full_report_content || r?.report_content || '').trim() || '（暂无完整版）'
+  return buildReportDisplayText(reportFullDisplayLines.value) || '（暂无完整版）'
 })
 const reportSections = computed(() => {
   const r = reportDetail.value
   return Array.isArray(r?.sections) ? r.sections : []
 })
-const reportStructuredJson = computed(() => {
+const reportStructuredText = computed(() => {
   const r = reportDetail.value
-  if (!r) return '{}'
-  const pl = r.payload || {}
-  return JSON.stringify({
-    report_id: r.report_id || r.id,
-    version: r.version,
-    visit_time: pl.visit_time || r.visit_time || '',
-    visit_location: pl.visit_location || r.visit_location || '',
-    person: pl.person || r.person || '',
-    report_send_time: pl.report_send_time || r.report_send_time || '',
-    remark: pl.remark || r.remark || '',
-    created_at: r.created_at || '',
-    updated_at: r.updated_at || '',
-    payload: pl,
-  }, null, 2)
+  if (!r) return '（暂无结构化内容）'
+  return formatReportStructuredDataAsChineseText(buildReportStructuredDisplayData(r))
 })
 
 function copyReportText(key) {
@@ -1508,7 +2046,7 @@ function formatRuleQaResponse(data) {
   let md = ''
   // 标题
   if (data.title) {
-    md += `### ${data.title}\n\n`
+    md += ` ${data.title}\n\n`
   }
   // 答案正文
   if (data.answer_text) {
@@ -1517,7 +2055,7 @@ function formatRuleQaResponse(data) {
   // 分段显示
   if (data.sections && data.sections.length > 0) {
     data.sections.forEach((section, index) => {
-      md += `**${section.title || `部分 ${index + 1}`}**\n`
+      md += `${section.title || `部分 ${index + 1}`}\n`
       if (section.body) {
         md += `${section.body}\n`
       }
@@ -1531,9 +2069,9 @@ function formatRuleQaResponse(data) {
   }
   // 推理步骤
   if (data.reasoning_steps && data.reasoning_steps.length > 0) {
-    md += '**推理过程**\n'
+    md += '推理过程\n'
     data.reasoning_steps.forEach((step, index) => {
-      md += `${index + 1}. **${step.title}**\n`
+      md += `${index + 1}. ${step.title}\n`
       if (step.body) {
         md += `   ${step.body}\n`
       }
@@ -1580,21 +2118,21 @@ function formatToFriendlyMarkdown(data) {
   const baseFields = ['action', 'report_id', 'version', 'visit_time', 'visit_location', 'person', 'report_send_time', 'remark', 'created_at', 'updated_at']
   baseFields.forEach(key => {
     if (data[key] !== undefined) {
-      md += `**${fieldMap[key] || key}**: ${data[key]}\n`
+      md += `${fieldMap[key] || key}: ${data[key]}\n`
     }
   })
   
   // 处理 generation_status
   if (data.generation_status) {
     const statusMap = { preparing: '准备中', generating: '生成中', completed: '已完成', failed: '失败' }
-    md += `**生成状态**: ${statusMap[data.generation_status] || data.generation_status}\n`
+    md += `生成状态: ${statusMap[data.generation_status] || data.generation_status}\n`
   }
   
   // 处理 sections
   if (data.sections && data.sections.length > 0) {
-    md += '\n**报告详情**\n'
+    md += '\n报告详情\n'
     data.sections.forEach((section, index) => {
-      md += `\n##### ${section.numeral || index + 1}. ${section.title || section.heading}\n`
+      md += `\n ${section.numeral || index + 1}. ${section.title || section.heading}\n`
       if (section.body) {
         md += `${section.body}\n`
       }
@@ -1608,9 +2146,9 @@ function formatToFriendlyMarkdown(data) {
   
   // 处理 brief_sections
   if (data.brief_sections && data.brief_sections.length > 0) {
-    md += '\n**简略报告**\n'
+    md += '\n简略报告\n'
     data.brief_sections.forEach((section, index) => {
-      md += `\n##### ${section.numeral || index + 1}. ${section.title || section.heading}\n`
+      md += `\n ${section.numeral || index + 1}. ${section.title || section.heading}\n`
       if (section.body) {
         md += `${section.body}\n`
       }
@@ -3028,17 +3566,45 @@ onBeforeUnmount(() => {
 
             <!-- Tab: 精简版 -->
             <div v-show="reportDetailTab === 'brief'" class="report-detail-body">
-              <pre class="rd-pre">{{ reportBriefContent }}</pre>
+              <div class="rd-pre rd-rich">
+                <template v-for="(line, lineIndex) in reportBriefDisplayLines" :key="`brief-${lineIndex}`">
+                  <template v-for="(segment, segmentIndex) in line.segments" :key="`brief-${lineIndex}-${segmentIndex}`">
+                    <a
+                      v-if="segment.type === 'link'"
+                      class="rd-link"
+                      :href="segment.href"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{{ segment.text }}</a>
+                    <span v-else>{{ segment.text }}</span>
+                  </template>
+                  <br v-if="lineIndex < reportBriefDisplayLines.length - 1" />
+                </template>
+              </div>
             </div>
 
             <!-- Tab: 完整版 -->
             <div v-show="reportDetailTab === 'full'" class="report-detail-body">
-              <pre class="rd-pre">{{ reportFullContent }}</pre>
+              <div class="rd-pre rd-rich">
+                <template v-for="(line, lineIndex) in reportFullDisplayLines" :key="`full-${lineIndex}`">
+                  <template v-for="(segment, segmentIndex) in line.segments" :key="`full-${lineIndex}-${segmentIndex}`">
+                    <a
+                      v-if="segment.type === 'link'"
+                      class="rd-link"
+                      :href="segment.href"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >{{ segment.text }}</a>
+                    <span v-else>{{ segment.text }}</span>
+                  </template>
+                  <br v-if="lineIndex < reportFullDisplayLines.length - 1" />
+                </template>
+              </div>
             </div>
 
-            <!-- Tab: 结构化 JSON -->
+            <!-- Tab: 结构化内容 -->
             <div v-show="reportDetailTab === 'json'" class="report-detail-body">
-              <pre class="rd-pre rd-json">{{ reportStructuredJson }}</pre>
+              <pre class="rd-pre rd-json rd-structured">{{ reportStructuredText }}</pre>
             </div>
 
             <!-- Tab: 补充改写 -->
@@ -5144,6 +5710,21 @@ onBeforeUnmount(() => {
   color: var(--text-main);
 }
 
+.rd-rich {
+  display: block;
+}
+
+.rd-link {
+  color: #60a5fa;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.rd-link:hover {
+  color: #93c5fd;
+}
+
 .rd-json {
   font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
   font-size: 12px;
@@ -5153,6 +5734,11 @@ onBeforeUnmount(() => {
   padding: 12px;
   color: var(--text-main);
   box-shadow: inset 0 1px 0 var(--surface-inset);
+}
+
+.rd-structured {
+  font-family: inherit;
+  font-size: 13px;
 }
 
 .task-modal-foot {
@@ -5210,6 +5796,14 @@ onBeforeUnmount(() => {
 :global(html[data-theme='light']) .rd-card h6,
 :global(html[data-theme='light']) .rd-pre {
   color: #1b2536;
+}
+
+:global(html[data-theme='light']) .rd-link {
+  color: #2563eb;
+}
+
+:global(html[data-theme='light']) .rd-link:hover {
+  color: #1d4ed8;
 }
 
 :global(html[data-theme='light']) .side-label,
