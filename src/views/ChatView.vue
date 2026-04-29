@@ -15,6 +15,8 @@ import zhipuLogo from '../assets/providers/zhipu-logo.svg'
 
 const POLLING_CONFIG_UPDATED_EVENT = 'mmlm:polling-config-updated'
 const POLLING_CONFIG_STORAGE_KEY = 'mmlm:polling-config-dateVal'
+const GEN_PROGRESS_ROLE_KEYWORDS = ['\u8d85\u7ea7\u7ba1\u7406\u5458', '\u6f14\u793a']
+const GEN_PROGRESS_LABEL = '\u62a5\u544a\u63d0\u9192\u95f4\u9694'
 
 const session = useSession()
 const loading = ref(false)
@@ -206,6 +208,16 @@ const visibleTodos = computed(() =>
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 const genPollSeconds = computed(() => formatPollingSeconds(genPollMs.value))
 const isLightTheme = computed(() => session.theme === 'light')
+const canViewGenProgress = computed(() => {
+  const roles = session.user?.roleNames || []
+  return roles.some((roleName) => {
+    const text = String(roleName || '').trim()
+    const normalized = text.toUpperCase()
+    return GEN_PROGRESS_ROLE_KEYWORDS.some((keyword) => text.includes(keyword))
+      || normalized.includes('ADMIN')
+      || normalized.includes('DEMO')
+  })
+})
 const habitsDialogVisible = ref(false)
 const habitsLoading = ref(false)
 const habitEventsLoading = ref(false)
@@ -2556,7 +2568,10 @@ const DEFAULT_GEN_POLL_MS = 3000
 const genJobs = ref([])
 const genDismissed = ref(new Set())
 const genPollMs = ref(DEFAULT_GEN_POLL_MS)
+const genCountdownMs = ref(DEFAULT_GEN_POLL_MS)
 let genPollTimer = null
+let genCountdownTimer = null
+let nextGenPollAt = 0
 
 function resolveGenStatusText(status) {
   if (status === 'done') return '已完成'
@@ -2566,6 +2581,15 @@ function resolveGenStatusText(status) {
 
 function formatGenElapsed(elapsed) {
   return elapsed != null && elapsed !== '' ? `${elapsed}s` : '--'
+}
+
+function formatGenCountdown(milliseconds) {
+  const nextMs = Number(milliseconds)
+  if (!Number.isFinite(nextMs) || nextMs <= 0) {
+    return '0 秒'
+  }
+
+  return `${Math.max(0, Math.ceil(nextMs / 1000))} 秒`
 }
 
 function formatPollingSeconds(milliseconds) {
@@ -2580,6 +2604,13 @@ function formatPollingSeconds(milliseconds) {
 
   return seconds.toFixed(2).replace(/\.?0+$/, '')
 }
+
+const genCountdownText = computed(() => formatGenCountdown(genCountdownMs.value))
+const genCountdownProgress = computed(() => {
+  const total = Math.max(1, Number(genPollMs.value) || DEFAULT_GEN_POLL_MS)
+  const remaining = Math.max(0, Number(genCountdownMs.value) || 0)
+  return Math.min(1, remaining / total)
+})
 
 function resolvePollInterval(value, fallbackMs) {
   const milliseconds = Number.parseFloat(String(value ?? '').trim())
@@ -2603,6 +2634,10 @@ async function loadPollingConfig() {
 }
 
 async function pollReportJobs() {
+  if (!canViewGenProgress.value) {
+    genJobs.value = []
+    return
+  }
   if (!session.token) return
   try {
     const resp = await ReportsApi.listReportJobs()
@@ -2618,14 +2653,64 @@ function dismissGenJob(reportId) {
   genJobs.value = genJobs.value.filter(j => j.report_id !== reportId)
 }
 
+function refreshGenCountdown() {
+  if (!canViewGenProgress.value) {
+    genCountdownMs.value = 0
+    return
+  }
+
+  if (!nextGenPollAt) {
+    genCountdownMs.value = genPollMs.value
+    return
+  }
+
+  genCountdownMs.value = Math.max(0, nextGenPollAt - Date.now())
+}
+
+function startGenCountdown() {
+  if (genCountdownTimer) clearInterval(genCountdownTimer)
+
+  if (!canViewGenProgress.value) {
+    genCountdownMs.value = 0
+    return
+  }
+
+  refreshGenCountdown()
+  genCountdownTimer = setInterval(refreshGenCountdown, 250)
+}
+
+function stopGenCountdown() {
+  if (genCountdownTimer) {
+    clearInterval(genCountdownTimer)
+    genCountdownTimer = null
+  }
+  nextGenPollAt = 0
+}
+
+function scheduleNextGenPoll() {
+  nextGenPollAt = Date.now() + genPollMs.value
+  refreshGenCountdown()
+}
+
 function startGenPolling() {
+  if (!canViewGenProgress.value) {
+    stopGenPolling()
+    genJobs.value = []
+    return
+  }
   if (genPollTimer) clearInterval(genPollTimer)
+  scheduleNextGenPoll()
   pollReportJobs()
-  genPollTimer = setInterval(pollReportJobs, genPollMs.value)
+  startGenCountdown()
+  genPollTimer = setInterval(() => {
+    scheduleNextGenPoll()
+    pollReportJobs()
+  }, genPollMs.value)
 }
 
 function stopGenPolling() {
   if (genPollTimer) { clearInterval(genPollTimer); genPollTimer = null }
+  stopGenCountdown()
 }
 
 function applyPollingConfigValue(value) {
@@ -2697,15 +2782,10 @@ onBeforeUnmount(() => {
       </button>
 
       <!-- ============ 报告生成进度 ============ -->
-      <section class="side-section gen-section">
-        <div class="section-head">
-          <div class="section-head-main">
-            <span class="side-label">生成进度</span>
-          </div>
-        </div>
+      <section v-if="canViewGenProgress" class="side-section gen-section">
         <div v-if="genJobs.length" class="gen-list">
           <article
-            v-for="job in genJobs"
+            v-for="(job, index) in genJobs"
             :key="job.report_id"
             class="gen-card"
             :class="{
@@ -2714,6 +2794,7 @@ onBeforeUnmount(() => {
               'is-error': job.status === 'error'
             }"
           >
+            <span v-if="index === 0" class="gen-corner-label">{{ GEN_PROGRESS_LABEL }}</span>
             <div
               class="gen-icon"
               :class="{
@@ -2750,8 +2831,22 @@ onBeforeUnmount(() => {
             >关闭</button>
           </article>
         </div>
-        <div v-else class="topic-empty">
-          暂无生成中的任务。生成后会在这里提示，当前每 {{ genPollSeconds }} 秒刷新一次。
+        <div v-else class="gen-empty-card">
+          <div class="gen-empty-head">
+            <div class="gen-empty-icon" aria-hidden="true">
+              <span class="gen-empty-orbit"></span>
+              <span class="gen-empty-core"></span>
+            </div>
+            <span class="gen-corner-label gen-corner-label--inline">{{ GEN_PROGRESS_LABEL }}</span>
+          </div>
+          <div class="gen-empty-countdown">
+            <span class="gen-empty-count-label">下次刷新</span>
+            <strong class="gen-empty-count-value">{{ genCountdownText }}</strong>
+            <span class="gen-empty-count-hint">当前间隔 {{ genPollSeconds }} 秒</span>
+          </div>
+          <div class="gen-empty-progress" aria-hidden="true">
+            <span :style="{ transform: `scaleX(${genCountdownProgress})` }"></span>
+          </div>
         </div>
       </section>
 
@@ -5850,16 +5945,170 @@ onBeforeUnmount(() => {
 .gen-list {
   display: flex;
   flex-direction: column;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.gen-corner-label {
+  position: absolute;
+  top: calc(2px * var(--ui-scale));
+  right: calc(10px * var(--ui-scale));
+  transform: translateY(-45%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(22px * var(--ui-scale));
+  padding: 0 calc(9px * var(--ui-scale));
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background:
+    linear-gradient(135deg, rgba(17, 32, 54, 0.98), rgba(7, 17, 31, 0.94)),
+    rgba(15, 23, 42, 0.92);
+  color: #ecfeff;
+  font-size: calc(10.5px * var(--ui-scale));
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  box-shadow:
+    0 10px 18px rgba(3, 10, 26, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 2;
+}
+
+.gen-corner-label--inline {
+  position: static;
+  top: auto;
+  right: auto;
+  transform: none;
+  min-height: calc(30px * var(--ui-scale));
+  padding: 0 calc(13px * var(--ui-scale));
+  font-size: calc(12.5px * var(--ui-scale));
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.gen-empty-card {
+  position: relative;
+  display: grid;
   gap: calc(10px * var(--ui-scale));
+  padding: calc(12px * var(--ui-scale));
+  border-radius: calc(18px * var(--ui-scale));
+  border: 1px solid rgba(34, 211, 238, 0.16);
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(19, 32, 58, 0.82), rgba(8, 16, 29, 0.68)),
+    rgba(15, 23, 42, 0.7);
+  box-shadow:
+    0 14px 30px rgba(3, 10, 26, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.gen-empty-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(12px * var(--ui-scale));
+}
+
+.gen-empty-icon {
+  position: relative;
+  width: calc(34px * var(--ui-scale));
+  height: calc(34px * var(--ui-scale));
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.18), transparent 52%),
+    rgba(2, 6, 23, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow:
+    0 10px 20px rgba(3, 10, 26, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.gen-empty-orbit {
+  position: absolute;
+  inset: calc(5px * var(--ui-scale));
+  border-radius: 50%;
+  border: 1px dashed rgba(34, 211, 238, 0.48);
+  animation: genOrbitSpin 10s linear infinite;
+}
+
+.gen-empty-core {
+  width: calc(10px * var(--ui-scale));
+  height: calc(10px * var(--ui-scale));
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #dffcff 0%, #22d3ee 55%, #0f766e 100%);
+  box-shadow:
+    0 0 0 calc(4px * var(--ui-scale)) rgba(34, 211, 238, 0.14),
+    0 0 14px rgba(34, 211, 238, 0.24);
+}
+
+@keyframes genOrbitSpin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.gen-empty-countdown {
+  display: grid;
+  gap: calc(3px * var(--ui-scale));
+  padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: calc(15px * var(--ui-scale));
+  background: rgba(2, 6, 23, 0.34);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.gen-empty-count-label {
+  color: rgba(148, 163, 184, 0.82);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.08em;
+}
+
+.gen-empty-count-value {
+  color: #f8fafc;
+  font-size: calc(17px * var(--ui-scale));
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.gen-empty-count-hint {
+  color: rgba(148, 163, 184, 0.9);
+  font-size: calc(10px * var(--ui-scale));
+}
+
+.gen-empty-progress {
+  height: calc(6px * var(--ui-scale));
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.gen-empty-progress span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee 0%, #7addc1 50%, #f59e0b 100%);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.22);
+  transition: transform 0.24s linear;
 }
 
 .gen-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: calc(12px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  gap: calc(10px * var(--ui-scale));
+  padding: calc(11px * var(--ui-scale));
+  border-radius: calc(15px * var(--ui-scale));
   border: 1px solid var(--line);
   background:
     linear-gradient(180deg, rgba(19, 32, 58, 0.78), rgba(8, 16, 29, 0.66)),
@@ -5891,13 +6140,13 @@ onBeforeUnmount(() => {
 }
 
 .gen-icon {
-  width: calc(34px * var(--ui-scale));
-  height: calc(34px * var(--ui-scale));
+  width: calc(30px * var(--ui-scale));
+  height: calc(30px * var(--ui-scale));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border-radius: calc(14px * var(--ui-scale));
+  border-radius: calc(12px * var(--ui-scale));
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(2, 6, 23, 0.38);
   color: var(--brand-alt);
@@ -5919,8 +6168,8 @@ onBeforeUnmount(() => {
 }
 
 .gen-spinner {
-  width: calc(16px * var(--ui-scale));
-  height: calc(16px * var(--ui-scale));
+  width: calc(14px * var(--ui-scale));
+  height: calc(14px * var(--ui-scale));
   border: 2px solid rgba(47, 131, 116, 0.18);
   border-top-color: currentColor;
   border-radius: 50%;
@@ -5930,11 +6179,11 @@ onBeforeUnmount(() => {
 @keyframes genSpin { to { transform: rotate(360deg) } }
 
 .gen-state-dot {
-  width: calc(10px * var(--ui-scale));
-  height: calc(10px * var(--ui-scale));
+  width: calc(8px * var(--ui-scale));
+  height: calc(8px * var(--ui-scale));
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 0 calc(4px * var(--ui-scale)) rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 calc(3px * var(--ui-scale)) rgba(255, 255, 255, 0.12);
 }
 
 .gen-info {
@@ -5956,7 +6205,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   font-weight: 800;
   color: rgba(248, 250, 252, 0.96);
-  font-size: calc(13.5px * var(--ui-scale));
+  font-size: calc(12.5px * var(--ui-scale));
   letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -5969,9 +6218,9 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: calc(4px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  padding: calc(3px * var(--ui-scale)) calc(7px * var(--ui-scale));
   border-radius: 999px;
-  font-size: calc(11px * var(--ui-scale));
+  font-size: calc(10px * var(--ui-scale));
   font-weight: 700;
   line-height: 1;
   background: rgba(34, 211, 238, 0.16);
@@ -5990,14 +6239,14 @@ onBeforeUnmount(() => {
 
 .gen-meta {
   color: rgba(226, 232, 240, 0.9);
-  font-size: calc(12.5px * var(--ui-scale));
-  line-height: 1.65;
+  font-size: calc(11.5px * var(--ui-scale));
+  line-height: 1.55;
   font-weight: 600;
 }
 
 .gen-submeta {
   color: var(--text-muted);
-  font-size: calc(11.5px * var(--ui-scale));
+  font-size: calc(10.5px * var(--ui-scale));
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
@@ -6187,6 +6436,77 @@ onBeforeUnmount(() => {
 :global(html[data-theme='light']) .gen-meta,
 :global(html[data-theme='light']) .gen-submeta {
   color: #677287;
+}
+
+:global(html[data-theme='light']) .gen-empty-card {
+  border-color: rgba(237, 124, 71, 0.14);
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.26), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.88)),
+    rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 14px 28px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+:global(html[data-theme='light']) .gen-corner-label {
+  border-color: rgba(237, 124, 71, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 246, 239, 0.99), rgba(249, 252, 255, 0.96)),
+    rgba(255, 255, 255, 0.94);
+  color: #9a3412;
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:global(html[data-theme='light']) .gen-empty-icon {
+  background:
+    radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.92), transparent 52%),
+    rgba(255, 255, 255, 0.92);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 10px 18px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+:global(html[data-theme='light']) .gen-empty-orbit {
+  border-color: rgba(237, 124, 71, 0.4);
+}
+
+:global(html[data-theme='light']) .gen-empty-core {
+  background: radial-gradient(circle at 35% 35%, #fff7d1 0%, #fdba74 55%, #ed7c47 100%);
+  box-shadow:
+    0 0 0 calc(5px * var(--ui-scale)) rgba(237, 124, 71, 0.12),
+    0 0 18px rgba(237, 124, 71, 0.18);
+}
+
+:global(html[data-theme='light']) .gen-empty-count-value {
+  color: #1b2536;
+}
+
+:global(html[data-theme='light']) .gen-empty-count-label,
+:global(html[data-theme='light']) .gen-empty-count-hint {
+  color: #677287;
+}
+
+:global(html[data-theme='light']) .gen-empty-countdown {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 249, 253, 0.92)),
+    rgba(255, 255, 255, 0.88);
+  border-color: rgba(27, 37, 54, 0.08);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+:global(html[data-theme='light']) .gen-empty-progress {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+:global(html[data-theme='light']) .gen-empty-progress span {
+  background: linear-gradient(90deg, #ed7c47 0%, #f3a166 52%, #7addc1 100%);
+  box-shadow: 0 0 12px rgba(237, 124, 71, 0.16);
 }
 
 :global(html[data-theme='light']) .post-summary-snippet,
