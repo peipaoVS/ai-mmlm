@@ -2874,9 +2874,9 @@ onBeforeUnmount(() => {
             <span class="gen-corner-label gen-corner-label--inline">{{ GEN_PROGRESS_LABEL }}</span>
           </div>
           <div class="gen-empty-countdown">
-            <span class="gen-empty-count-label">下次刷新</span>
-            <strong class="gen-empty-count-value">{{ genCountdownText }}</strong>
-            <span class="gen-empty-count-hint">当前间隔 {{ genPollSeconds }} 秒</span>
+            <!-- <span class="gen-empty-count-label">下次刷新</span>
+            <strong class="gen-empty-count-value">{{ genCountdownText }}</strong> -->
+            <span class="gen-empty-count-value">间隔 {{ genPollSeconds }} -> 剩余间隔 {{ genCountdownText }}</span>
           </div>
           <div class="gen-empty-progress" aria-hidden="true">
             <span :style="{ transform: `scaleX(${genCountdownProgress})` }"></span>
