@@ -244,6 +244,10 @@ const confirmDialogConfirmText = ref('确认删除')
 const confirmDialogLoading = ref(false)
 let confirmDialogAction = null
 
+// 规则答疑推理过程折叠状态
+const ruleReasoningExpanded = ref(true)
+const ruleEvidenceExpanded = ref(false)
+
 onMounted(() => {
   startFreshConversation()
   startFreshConver()
@@ -2184,20 +2188,6 @@ function formatRuleQaResponse(data) {
       md += '\n'
     })
   }
-  // 推理步骤
-  if (data.reasoning_steps && data.reasoning_steps.length > 0) {
-    md += '推理过程\n'
-    data.reasoning_steps.forEach((step, index) => {
-      md += `${index + 1}. ${step.title}\n`
-      if (step.body) {
-        md += `   ${step.body}\n`
-      }
-      if (step.chips && step.chips.length > 0) {
-        md += `   标签: ${step.chips.join(', ')}\n`
-      }
-    })
-    md += '\n'
-  }
   return md || data.raw_final_answer || '暂无答案'
 }
 function formatToFriendlyMarkdown(data) {
@@ -2277,7 +2267,51 @@ function formatToFriendlyMarkdown(data) {
     })
   }
   
-  return md
+return md
+}
+
+// 格式化推理输入，提取关键信息
+function formatReasoningInput(input) {
+  if (!input) return ''
+  try {
+    const parsed = typeof input === 'string' ? JSON.parse(input) : input
+    const result = {}
+    if (parsed.query) result.query = parsed.query
+    if (parsed.branch) result.branch = parsed.branch
+    if (parsed.action) result.action = parsed.action
+    if (parsed.state) result.state = parsed.state
+    if (Object.keys(result).length > 0) {
+      return JSON.stringify(result, null, 2)
+    }
+    return typeof input === 'string' ? input : JSON.stringify(input, null, 2)
+  } catch {
+    return typeof input === 'string' ? input : JSON.stringify(input, null, 2)
+  }
+}
+
+// 格式化推理观察，提取关键信息
+function formatReasoningObservation(obs) {
+  if (!obs) return ''
+  try {
+    const parsed = typeof obs === 'string' ? JSON.parse(obs) : obs
+    if (parsed.type === 'rule_query_result') {
+      let result = '查询: ' + (parsed.query || '') + '\n'
+      result += '分行: ' + (parsed.branch || '') + '\n'
+      result += '命中: ' + (parsed.hit_count || 0) + ' 条规则\n'
+      if (parsed.evidence_items && parsed.evidence_items.length > 0) {
+        result += '\n证据摘要:\n'
+        parsed.evidence_items.forEach(function(item, idx) {
+          var source = item.source || item.label || '证据' + (idx + 1)
+          var quote = item.quote || ''
+          result += '  ' + (idx + 1) + '. [' + source + '] ' + quote.substring(0, 100) + '...\n'
+        })
+      }
+      return result
+    }
+    return typeof obs === 'string' ? obs : JSON.stringify(obs, null, 2)
+  } catch {
+    return typeof obs === 'string' ? obs : JSON.stringify(obs, null, 2)
+  }
 }
 
 // 确认拜访安排
@@ -3303,6 +3337,59 @@ onBeforeUnmount(() => {
                 </template>
               </div>
             </div>
+            <!-- 规则答疑消息显示 -->
+            <template v-else-if="item.model === '规则答疑' && item.rawPayload">
+              <p>{{ item.content }}</p>
+              <!-- 推理过程折叠区域 -->
+              <div v-if="item.rawPayload.reasoning_steps && item.rawPayload.reasoning_steps.length > 0" class="rule-reasoning-section">
+                <div class="rule-reasoning-header" @click="ruleReasoningExpanded = !ruleReasoningExpanded">
+                  <span class="rule-reasoning-title">推理过程</span>
+                  <span class="rule-reasoning-toggle">{{ ruleReasoningExpanded ? '收起' : '展开' }}</span>
+                </div>
+                <div v-if="ruleReasoningExpanded" class="rule-reasoning-content">
+                  <div
+                    v-for="(step, stepIndex) in item.rawPayload.reasoning_steps"
+                    :key="stepIndex"
+                    class="rule-reasoning-step"
+                  >
+                    <div class="rule-reasoning-step-title">{{ stepIndex + 1 }}. {{ step.thought?.match(/^Thought: (.+)/)?.[1] || '步骤 ' + (stepIndex + 1) }}</div>
+                    <div v-if="step.action" class="rule-reasoning-step-action">
+                      <span class="rule-reasoning-label">操作:</span>
+                      <code>{{ step.action }}</code>
+                    </div>
+                    <div v-if="step.action_input" class="rule-reasoning-step-input">
+                      <span class="rule-reasoning-label">输入:</span>
+                      <pre>{{ formatReasoningInput(step.action_input) }}</pre>
+                    </div>
+                    <div v-if="step.observation" class="rule-reasoning-step-observation">
+                      <span class="rule-reasoning-label">观察:</span>
+                      <pre>{{ formatReasoningObservation(step.observation) }}</pre>
+                    </div>
+                    <div v-if="step.final_answer" class="rule-reasoning-step-final">
+                      <span class="rule-reasoning-label">最终答案:</span>
+                      <p>{{ step.final_answer }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+<!-- 证据列表 -->
+              <div v-if="item.rawPayload.evidence_items && item.rawPayload.evidence_items.length > 0" class="rule-evidence-section">
+                <div class="rule-evidence-header" @click="ruleEvidenceExpanded = !ruleEvidenceExpanded">
+                  <span class="rule-evidence-title">参考依据</span>
+                  <span class="rule-evidence-toggle">{{ ruleEvidenceExpanded ? '收起' : '展开' }}</span>
+                </div>
+                <div v-if="ruleEvidenceExpanded" class="rule-evidence-content">
+                  <div
+                    v-for="(evidence, evidenceIndex) in item.rawPayload.evidence_items"
+                    :key="evidenceIndex"
+                    class="rule-evidence-item"
+                  >
+                    <div class="rule-evidence-label">{{ evidence.label || evidence.source }}</div>
+                    <div v-if="evidence.quote" class="rule-evidence-quote">{{ evidence.quote }}</div>
+                  </div>
+                </div>
+              </div>
+            </template>
             <p v-else>{{ item.content }}</p>
             <div v-if="item.role === 'assistant' && item.model === '访客辅助'" style="margin-top: 12px;">
               <button
@@ -5422,6 +5509,167 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: calc(10px * var(--ui-scale));
   margin-top: calc(12px * var(--ui-scale));
+}
+
+/* 规则答疑推理过程样式 */
+.rule-reasoning-section {
+  margin-top: calc(12px * var(--ui-scale));
+  border: 1px solid var(--panel-card-border);
+  border-radius: calc(12px * var(--ui-scale));
+  overflow: hidden;
+}
+
+.rule-reasoning-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  background: var(--panel-card-bg-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.rule-reasoning-header:hover {
+  background: var(--surface-hover);
+}
+
+.rule-reasoning-title {
+  font-weight: 600;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--text-main);
+}
+
+.rule-reasoning-toggle {
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--text-muted);
+}
+
+.rule-reasoning-content {
+  padding: calc(12px * var(--ui-scale));
+  background: var(--panel-bg);
+  max-height: calc(400px * var(--ui-scale));
+  overflow-y: auto;
+}
+
+.rule-reasoning-step {
+  margin-bottom: calc(16px * var(--ui-scale));
+  padding-bottom: calc(12px * var(--ui-scale));
+  border-bottom: 1px solid var(--panel-card-border);
+}
+
+.rule-reasoning-step:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.rule-reasoning-step-title {
+  font-weight: 600;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--text-main);
+  margin-bottom: calc(8px * var(--ui-scale));
+}
+
+.rule-reasoning-step-action,
+.rule-reasoning-step-input,
+.rule-reasoning-step-observation,
+.rule-reasoning-step-final {
+  margin-bottom: calc(6px * var(--ui-scale));
+}
+
+.rule-reasoning-label {
+  display: inline-block;
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: calc(6px * var(--ui-scale));
+}
+
+.rule-reasoning-step-action code {
+  font-size: calc(11px * var(--ui-scale));
+  background: var(--surface-inset);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #2f8374;
+}
+
+.rule-reasoning-step pre,
+.rule-reasoning-step-input pre,
+.rule-reasoning-step-observation pre {
+  margin: calc(4px * var(--ui-scale)) 0 0 0;
+  padding: calc(8px * var(--ui-scale));
+  background: var(--surface-inset);
+  border-radius: calc(8px * var(--ui-scale));
+  font-size: calc(11px * var(--ui-scale));
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-secondary);
+  max-height: calc(150px * var(--ui-scale));
+  overflow-y: auto;
+}
+
+.rule-reasoning-step-final p {
+  margin: calc(4px * var(--ui-scale)) 0 0 0;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--text-main);
+  line-height: 1.6;
+}
+
+/* 规则答疑证据列表样式 */
+.rule-evidence-section {
+  margin-top: calc(12px * var(--ui-scale));
+  padding-top: calc(12px * var(--ui-scale));
+  border-top: 1px solid var(--panel-card-border);
+}
+
+.rule-evidence-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: calc(6px * var(--ui-scale)) 0;
+}
+
+.rule-evidence-header:hover .rule-evidence-title {
+  color: var(--text-main);
+}
+
+.rule-evidence-title {
+  font-weight: 600;
+  font-size: calc(12px * var(--ui-scale));
+  color: var(--text-muted);
+}
+
+.rule-evidence-toggle {
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--text-muted);
+}
+
+.rule-evidence-content {
+  padding-top: calc(8px * var(--ui-scale));
+}
+
+.rule-evidence-item {
+  padding: calc(8px * var(--ui-scale));
+  margin-bottom: calc(6px * var(--ui-scale));
+  background: var(--surface-inset);
+  border-radius: calc(8px * var(--ui-scale));
+}
+
+.rule-evidence-label {
+  font-size: calc(11px * var(--ui-scale));
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: calc(4px * var(--ui-scale));
+}
+
+.rule-evidence-quote {
+  font-size: calc(11px * var(--ui-scale));
+  color: var(--text-secondary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .composer {
