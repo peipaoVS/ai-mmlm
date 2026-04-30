@@ -1008,7 +1008,6 @@ async function loadReports() {
     // 后端 /api/reports 直接返回数组
     const resp = await ReportsApi.listReports(params)
     reportList.value = Array.isArray(resp) ? resp : (resp?.reports || [])
-    console.log('访前报告列表:', reportList.value)
   } catch (error) {
     reportList.value = []
     window.alert('报告列表加载失败：' + error.message)
@@ -1260,7 +1259,7 @@ async function removeReport(report) {
         // window.alert('删除成功')
         await loadTodos() // 删除任务后待办可能会变，刷新待办列表
         await loadPostSummaries() // 删除任务后相关的访后纪要可能会变，刷新访后纪要列表
-        await loadTaskJobs()
+        await loadTaskJobs() 
         await loadReports() // 删除任务后相关的报告可能会变，刷新访前报告列表
       } catch (error) {
         window.alert('删除失败：' + error.message)
@@ -4222,7 +4221,7 @@ onBeforeUnmount(() => {
             <span>客户：<strong>{{ pushActiveMsg.company_name || '—' }}</strong></span>
             <span>时间：{{ pushActiveMsg.created_at || '' }}</span>
           </div>
-          <div class="push-toast-body">{{ pushActiveMsg.content || '' }}</div>
+          <div class="push-toast-body">{{ sanitizeReportPlainText(pushActiveMsg.content) || '' }}</div>
           <div class="push-toast-foot">
             <button v-if="pushQueue.length" @click="showNextPushToast">下一条 →</button>
             <button @click="closePushToast(true)">稍后再看</button>
