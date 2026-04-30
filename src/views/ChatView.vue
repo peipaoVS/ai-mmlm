@@ -998,6 +998,7 @@ const postVisitCompany = ref('')
 const postVisitFile = ref(null)
 const postVisitSupplement = ref('')
 
+// 访前报告列表
 async function loadReports() {
   reportLoading.value = true
   try {
@@ -1007,6 +1008,7 @@ async function loadReports() {
     // 后端 /api/reports 直接返回数组
     const resp = await ReportsApi.listReports(params)
     reportList.value = Array.isArray(resp) ? resp : (resp?.reports || [])
+    console.log('访前报告列表:', reportList.value)
   } catch (error) {
     reportList.value = []
     window.alert('报告列表加载失败：' + error.message)
@@ -1255,8 +1257,11 @@ async function removeReport(report) {
     action: async () => {
       try {
         await ReportsApi.deleteReport(report.id)
-        window.alert('删除成功')
-        await loadReports()
+        // window.alert('删除成功')
+        await loadTodos() // 删除任务后待办可能会变，刷新待办列表
+        await loadPostSummaries() // 删除任务后相关的访后纪要可能会变，刷新访后纪要列表
+        await loadTaskJobs()
+        await loadReports() // 删除任务后相关的报告可能会变，刷新访前报告列表
       } catch (error) {
         window.alert('删除失败：' + error.message)
         throw error
@@ -1280,11 +1285,13 @@ const postSummaryVersionsLoading = ref(false)
 const postSummaryVersionsReportId = ref(null)
 const postSummaryVersions = ref([])
 
+// 访后纪要列表
 async function loadPostSummaries() {
   postSummaryLoading.value = true
   try {
     const resp = await ReportsApi.listAllPostVisitSummaries({ limit: 50 })
     postSummaryList.value = Array.isArray(resp) ? resp : (resp?.summaries || [])
+    console.log('访后纪要列表:', postSummaryList.value)
   } catch (error) {
     postSummaryList.value = []
     // 静默失败：列表加载失败不打扰用户，只在控制台留痕
@@ -1405,8 +1412,11 @@ async function removePostSummary(row) {
     action: async () => {
       try {
         await ReportsApi.deletePostVisitSummary(row.report_id)
-        window.alert('删除成功')
-        await loadPostSummaries()
+        // window.alert('删除成功')
+        await loadPostSummaries() // 删除任务后相关的访后纪要可能会变，刷新访后纪要列表
+        await loadTodos() // 删除任务后待办可能会变，刷新待办列表
+        await loadTaskJobs()
+        await loadReports() // 删除任务后相关的报告可能会变，刷新访前报告列表
       } catch (error) {
         window.alert('删除失败：' + error.message)
         throw error
@@ -2106,8 +2116,11 @@ async function deleteTask(task) {
     action: async () => {
       try {
         await VisitApi.deleteTask(task.id)
-        window.alert('删除成功')
-        await loadTaskJobs()
+        // window.alert('删除成功')
+        await loadTodos() // 删除任务后待办可能会变，刷新待办列表
+        await loadPostSummaries() // 删除任务后相关的访后纪要可能会变，刷新访后纪要列表
+        await loadReports() // 删除任务后相关的报告可能会变，刷新访前报告列表
+        await loadTaskJobs() // 删除任务后可能相关的生成任务也会变，刷新生成任务列表
       } catch (error) {
         window.alert('删除失败：' + error.message)
         throw error
