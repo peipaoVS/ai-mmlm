@@ -50,23 +50,13 @@ function resetAgentThreads() {
   visitThreadId.value = ''
   ruleThreadId.value = ''
 }
-const taskJobs = ref([
-  {
-    id: 1,
-    title: '测试访客提醒任务',
-    prepared_at: '0 0/30 * * * ?',
-    status: '启用',
-    remark: '前端写死的测试数据，后续再切换为真实接口。'
-  }
-])
+const taskJobs = ref([])
 // 最近会话接口
 async function startFreshConver() {
-  loading.value = true
   try {
     const response = await VisitApi.listHistory()
     recentSessions.value = response.messages.filter(item => item.role === 'user')
   } finally {
-    loading.value = false
   }
 }
 // 待办事项接口
@@ -86,10 +76,13 @@ const showAllSessions = ref(false)
 const showAllTasks = ref(false)
 const modelMenuVisible = ref(false)
 const modelMenuRef = ref(null)
+const aiMenuVisible = ref(false)
+const aiMenuRef = ref(null)
 const messagePanelRef = ref(null)
 const roleBoundModels = ref([])
 const roleModelRotationPaused = ref(false)
 const defaultModelLabel = '规则答疑'
+const defaultAiLabel = '未选择AI'
 
 const MODEL_PROVIDER_META = {
   deepseek: {
@@ -121,10 +114,10 @@ const MODEL_PROVIDER_META = {
 const HABIT_KEY_SUGGESTIONS = [
   { key: 'response_tone', hint: '回答风格（例：只说结论 / 详细解释）' },
   { key: 'report_fields', hint: '报告常用字段（例：存款新增,贷款余额）' },
-  { key: 'report_generate_time', hint: '报告推送时间（例：早上 8:00）' },
-  { key: 'visit_time_preference', hint: '拜访时间偏好（例：上午 9:00）' },
+  { key: 'report_generate_time', hint: '报告推送时间（例：早上 8:00)' },
+  { key: 'visit_time_preference', hint: '拜访时间偏好（例：上午 9:00)' },
   { key: 'focus_branch', hint: '关注分行（例：南京分行）' },
-  { key: 'preferred_format', hint: '回答格式（例：表格 / Markdown）' }
+  { key: 'preferred_format', hint: '回答格式（例：表格 / Markdown)' }
 ]
 
 const modelOptions = [
@@ -139,16 +132,11 @@ const modelOptions = [
 ]
 
 const selectedModel = ref(defaultModelLabel)
+const selectedAiId = ref('')
 
 const promptCards = [
-  '我明天上午9:30需要去招商银行北京分行营业部办理一笔大额跨境汇款,请在上午8:45前准备好所有必需的申请材料清单、合规问卷以及预计费用明细。',
-  // '明天下午2:00,我约了工商银行支行的客户经理,在其VIP室洽谈企业综合授信方案,请在下午1:15前将我方最新的财务报表、融资需求及核心谈判要点整理成简报。',
-  // '我明早10:15要去建设银行总行,参加一个关于数字人民币对公钱包业务的内部研讨会,请在上午9:30前生成一份参会指引,包含会议议程、核心议题和我行关注点。',
-  // '明天下午4:45,我需要在线上面试一位应聘我行风险控制岗的候选人,请在下午4:00前准备好该候选人的详细简历分析、结构化面试问题及岗位能力评估表。',
-  // '我明天中午1:00要去浦发银行数据中心进行季度性安全检查,请在上午12:00前生成检查清单,重点包含网络安全、机房物理安全及上次整改项的复核。',
-  // '明天下午3:30,我需要在农业银行的线上对公服务平台提交年度监管报告,请在下午2:45前完成报告终稿的复核,并生成一份分步提交操作指南。',
-  // '我明早8:50要去本地银保监局报送一项创新业务的事后报告,请在今晚8:00前,将报告定稿、监管条文对应索引及可能的问答预案准备完毕。',
-  // '明天上午11:00,我与摩根士丹利分析师有关于银行业未来趋势的电话会议,请在上午10:20前准备好业绩亮点、行业对标数据及可讨论方向。',
+  // '我明天上午9:30需要去招商银行北京分行营业部办理一笔大额跨境汇款,请在上午8:45前准备好所有必需的申请材料清单、合规问卷以及预计费用明细。',
+  // '明天下午2:00,我约了工商银行支行的客户经理,在其VIP室洽谈企业综合授信方案,请在下午1:15前将我方最新的财务报表、融资需求及核心谈判要点整理成简报。
 ]
 
 const recentSessionList = computed(() =>
@@ -206,6 +194,19 @@ const visibleTodos = computed(() =>
 )
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
+const selectedAi = computed(() =>
+  roleBoundModels.value.find((item) => String(item.id) === String(selectedAiId.value)) || null
+)
+const selectedAiLabel = computed(() => selectedAi.value?.name || defaultAiLabel)
+const selectedAiAvatarMeta = computed(() => {
+  const providerCode = selectedAi.value?.providerCode || ''
+  const providerMeta = MODEL_PROVIDER_META[providerCode] || {}
+  return {
+    icon: providerMeta.icon || '',
+    badge: providerMeta.badge || 'AI',
+    alt: selectedAi.value?.providerName || selectedAi.value?.name || 'AI'
+  }
+})
 const genPollSeconds = computed(() => formatPollingSeconds(genPollMs.value))
 const isLightTheme = computed(() => session.theme === 'light')
 const canViewGenProgress = computed(() => {
@@ -311,7 +312,7 @@ function formatHabitValue(value) {
 
 function resolveHabitLabel(key) {
   const matched = HABIT_KEY_SUGGESTIONS.find((item) => item.key === key)
-  return matched ? matched.hint.split('（')[0] : key || '未命名偏好'
+  return matched ? matched.hint.split('(')[0] : key || '未命名偏好'
 }
 
 function resolveHabitHint(key) {
@@ -511,16 +512,21 @@ async function loadRoleBoundModels() {
       .map((item) => ({
         id: item.id,
         name: item.name || item.baseModel || '未命名模型',
+        baseModel: item.baseModel || '',
         providerCode: item.providerCode || '',
         providerName: item.providerName || '--'
       }))
       .filter((item, index, list) => list.findIndex((row) => row.id === item.id) === index)
 
     roleBoundModels.value = filteredModels
+    if (!filteredModels.some((item) => String(item.id) === String(selectedAiId.value))) {
+      selectedAiId.value = filteredModels[0]?.id ? String(filteredModels[0].id) : ''
+    }
     roleModelRotationPaused.value = false
   } catch (error) {
     console.warn('加载角色绑定模型失败', error)
     roleBoundModels.value = []
+    selectedAiId.value = ''
   }
 }
 
@@ -568,7 +574,12 @@ async function sendMessage(preset) {
   try {
     console.log('sendMessage', session)
     // 先添加一个空的助手消息，用于流式填充
-    const assistantMessage = { role: 'assistant', content: '', model: currentModel }
+    const assistantMessage = {
+      role: 'assistant',
+      content: '正在整理回复...',
+      model: currentModel,
+      ...buildAssistantAiMeta()
+    }
     messages.value.push(assistantMessage)
     if(selectedModel.value === '规则答疑') {
       const stream = RuleQaApi.ruleQaStream({
@@ -654,7 +665,8 @@ async function sendMessage(preset) {
   } catch (error) {
     messages.value.push({
       role: 'assistant',
-      content: `请求失败：${error.message}`
+      content: `请求失败：${error.message}`,
+      ...buildAssistantAiMeta()
     })
     await scrollMessagesToBottom()
   } finally {
@@ -668,12 +680,14 @@ function startFreshConversation() {
   conversationTitle.value = '新会话'
   selectedModel.value = defaultModelLabel
   modelMenuVisible.value = false
+  aiMenuVisible.value = false
   resetAgentThreads()
   visitTaskPayload.value = []
   messages.value = [
     {
       role: 'assistant',
-      content: `你好，${session.user?.nickname || session.user?.username || '管理员'}。我是智能助理，可以帮你处理规则答疑、内容整理和日常工作问题。`
+      content: `你好，${session.user?.nickname || session.user?.username || '管理员'}。我是智能助理，可以帮你处理规则答疑、内容整理和日常工作问题。`,
+      ...buildAssistantAiMeta()
     }
   ]
   inputValue.value = ''
@@ -779,12 +793,37 @@ function getSessionPreview(source) {
   return firstUserMessage ? firstUserMessage.content : '新会话'
 }
 
+function buildAssistantAiMeta(ai = selectedAi.value) {
+  const providerCode = ai?.providerCode || ''
+  const providerMeta = MODEL_PROVIDER_META[providerCode] || {}
+  return {
+    aiId: ai?.id ? String(ai.id) : '',
+    aiName: ai?.name || '',
+    aiProviderCode: providerCode,
+    aiProviderName: ai?.providerName || ''
+  }
+}
+
+function resolveAssistantAvatar(item) {
+  const providerCode = item?.aiProviderCode || selectedAi.value?.providerCode || ''
+  const providerMeta = MODEL_PROVIDER_META[providerCode] || {}
+  return {
+    icon: providerMeta.icon || selectedAiAvatarMeta.value.icon || '',
+    badge: providerMeta.badge || selectedAiAvatarMeta.value.badge || 'AI',
+    alt: item?.aiProviderName || item?.aiName || selectedAiAvatarMeta.value.alt || 'AI'
+  }
+}
+
 function cloneMessages(source) {
   return source.map((item) => ({
     role: item.role,
     content: item.content,
     ...(item.model ? { model: item.model } : {}),
-    ...(item.rawPayload ? { rawPayload: item.rawPayload } : {})
+    ...(item.rawPayload ? { rawPayload: item.rawPayload } : {}),
+    ...(item.aiId ? { aiId: item.aiId } : {}),
+    ...(item.aiName ? { aiName: item.aiName } : {}),
+    ...(item.aiProviderCode ? { aiProviderCode: item.aiProviderCode } : {}),
+    ...(item.aiProviderName ? { aiProviderName: item.aiProviderName } : {})
   }))
 }
 
@@ -805,6 +844,9 @@ function handleComposerKeydown(event) {
 
 function toggleModelMenu() {
   modelMenuVisible.value = !modelMenuVisible.value
+  if (modelMenuVisible.value) {
+    aiMenuVisible.value = false
+  }
 }
 
 function selectModel(label) {
@@ -815,9 +857,27 @@ function selectModel(label) {
   modelMenuVisible.value = false
 }
 
+function toggleAiMenu() {
+  if (!roleBoundModels.value.length) {
+    return
+  }
+  aiMenuVisible.value = !aiMenuVisible.value
+  if (aiMenuVisible.value) {
+    modelMenuVisible.value = false
+  }
+}
+
+function selectAi(aiId) {
+  selectedAiId.value = String(aiId || '')
+  aiMenuVisible.value = false
+}
+
 function handleDocumentClick(event) {
   if (modelMenuRef.value && !modelMenuRef.value.contains(event.target)) {
     modelMenuVisible.value = false
+  }
+  if (aiMenuRef.value && !aiMenuRef.value.contains(event.target)) {
+    aiMenuVisible.value = false
   }
 }
 
@@ -989,6 +1049,9 @@ const reportHistoryDialog = ref(false)
 const reportHistoryLoading = ref(false)
 const reportHistoryReportId = ref(null)
 const reportHistoryLogs = ref([])
+const reportHistoryBaseReport = ref(null)
+const reportHistoryRawPayload = ref(null)
+const reportDetailFromHistory = ref(false)
 
 // 访后纪要上传弹窗
 const postVisitDialog = ref(false)
@@ -1017,6 +1080,7 @@ async function loadReports() {
 }
 
 async function openReportDetail(report) {
+  reportDetailFromHistory.value = false
   reportDetailDialog.value = true
   reportDetailLoading.value = true
   reportDetail.value = null
@@ -1037,6 +1101,7 @@ async function openReportDetail(report) {
 
 function closeReportDetail() {
   reportDetailDialog.value = false
+  reportDetailFromHistory.value = false
   reportDetail.value = null
   reportDetailTab.value = 'cards'
   reportRewriteSupplement.value = ''
@@ -1045,17 +1110,24 @@ function closeReportDetail() {
 }
 
 async function openReportHistory(report) {
-  reportHistoryReportId.value = report.id
+  const reportId = report?.id || report?.report_id
+  if (!reportId) {
+    return
+  }
+
+  reportHistoryBaseReport.value = report || null
+  reportHistoryReportId.value = reportId
   reportHistoryDialog.value = true
   reportHistoryLoading.value = true
   reportHistoryLogs.value = []
+  reportHistoryRawPayload.value = null
   try {
-    const resp = await VisitApi.getReportHistory(report.id, { limit: 50 })
+    const resp = await VisitApi.getReportHistory(reportId, { limit: 50 })
+    reportHistoryRawPayload.value = isPlainObject(resp) ? resp : null
     // 后端返回 { logs: [...] } 或直接数组，统一兜底
-    reportHistoryLogs.value = resp?.logs || resp?.history || resp || []
-    if (!Array.isArray(reportHistoryLogs.value)) {
-      reportHistoryLogs.value = []
-    }
+    const history = resp?.logs || resp?.history || resp?.versions || resp?.items || resp || []
+    reportHistoryLogs.value = Array.isArray(history) ? history : []
+    console.log('报告版本历史数据：', reportHistoryLogs.value)
   } catch (error) {
     window.alert('版本历史加载失败：' + error.message)
   } finally {
@@ -1065,8 +1137,26 @@ async function openReportHistory(report) {
 
 function closeReportHistory() {
   reportHistoryDialog.value = false
+  reportHistoryBaseReport.value = null
+  reportHistoryRawPayload.value = null
   reportHistoryReportId.value = null
   reportHistoryLogs.value = []
+}
+
+function openReportHistoryEntryDetail(entry) {
+  if (!entry?.detailReport) {
+    return
+  }
+
+  reportDetailFromHistory.value = true
+  reportDetail.value = entry.detailReport
+  reportDetailDialog.value = true
+  reportDetailLoading.value = false
+  reportDetailTab.value = 'brief'
+  reportRewriteSupplement.value = ''
+  reportRewriteStatus.value = ''
+  reportRewriteError.value = ''
+  reportHistoryDialog.value = false
 }
 
 // 下载 .docx：和 exportTask 走相同路径，复用 buildDownloadUrl
@@ -1189,7 +1279,7 @@ async function submitReportRewrite() {
     const hint = result?.pending
       ? `报告 #${reportId}(${label})改写已在后台进行，稍后请刷新查看新版本。`
       : `报告 #${reportId}(${label})已改写完成。`
-    messages.value.push({ role: 'assistant', content: hint })
+    messages.value.push({ role: 'assistant', content: hint, ...buildAssistantAiMeta() })
 
     // pending 时提示用户稍后刷新
     if (result?.pending) {
@@ -1251,7 +1341,7 @@ async function removeReport(report) {
   const label = `${report.company_name || report.visit_location || ''} #${report.id}`
   openConfirmDialog({
     title: '删除报告',
-    message: `确认删除报告「${label}」？`,
+    message: `确认删除报告「${label}」?`,
     description: '此操作会一并删除所有版本，不可撤销。',
     action: async () => {
       try {
@@ -1406,7 +1496,7 @@ async function removePostSummary(row) {
   const company = row.company_name || row.visit_location || ''
   openConfirmDialog({
     title: '删除访后纪要',
-    message: `删除「${company}」的访后纪要（原报告 #${row.report_id}）？`,
+    message: `删除「${company}」的访后纪要（原报告 #${row.report_id})?`,
     description: '此操作不可撤销。',
     action: async () => {
       try {
@@ -1428,7 +1518,7 @@ async function removePostSummary(row) {
 const postSummaryDetailTab = ref('summary')       // 'summary' | 'raw' | 'rewrite'
 const pvRewriteSupplement = ref('')
 const pvRewriteSubmitting = ref(false)
-const pvRewriteStatus = ref('')     // '', 'loading', 'error'
+const pvRewriteStatus = ref('') 
 const pvRewriteError = ref('')
 
 async function submitPostVisitRewrite() {
@@ -1461,7 +1551,8 @@ async function submitPostVisitRewrite() {
     await loadPostSummaries()
     messages.value.push({
       role: 'assistant',
-      content: `纪要已重写（报告 #${reportId}）`
+      content: `纪要已重写（报告 #${reportId})`,
+      ...buildAssistantAiMeta()
     })
   } catch (error) {
     pvRewriteStatus.value = 'error'
@@ -2036,6 +2127,304 @@ function buildReportStructuredDisplayData(report) {
   return data
 }
 
+function isReportHistorySnapshot(value) {
+  if (!isPlainObject(value)) {
+    return false
+  }
+
+  return hasReportBodyContent(value)
+    || Array.isArray(value.sections)
+    || Array.isArray(value.brief_sections)
+    || isPlainObject(value.payload)
+    || [
+      'report_id',
+      'id',
+      'version',
+      'report_title',
+      'title',
+      'visit_time',
+      'visit_location',
+      'company_name',
+      'customer_name',
+      'person',
+      'report_send_time'
+    ].some((key) => hasMeaningfulValue(value[key]))
+}
+
+function parseReportHistorySnapshotCandidate(value) {
+  if (isReportHistorySnapshot(value)) {
+    return value
+  }
+
+  const parsed = tryParseAssistantPayload(value)
+  return isReportHistorySnapshot(parsed) ? parsed : null
+}
+
+function extractReportHistorySnapshot(log) {
+  const candidates = [
+    log?.snapshot,
+    log?.report_snapshot,
+    log?.version_snapshot,
+    log?.version_data,
+    log?.report,
+    log?.report_data,
+    log?.data?.snapshot,
+    log?.data?.report_snapshot,
+    log?.data?.report,
+    log?.payload?.snapshot,
+    log?.payload?.report_snapshot,
+    log?.payload?.report,
+    log?.payload,
+    log?.data,
+    log?.raw_payload,
+    log?.rawPayload
+  ]
+
+  for (const candidate of candidates) {
+    const snapshot = parseReportHistorySnapshotCandidate(candidate)
+    if (snapshot) {
+      return snapshot
+    }
+  }
+
+  return isReportHistorySnapshot(log) ? log : null
+}
+
+function getReportHistoryValue(source, key) {
+  if (!isPlainObject(source)) {
+    return ''
+  }
+
+  if (hasMeaningfulValue(source[key])) {
+    return source[key]
+  }
+
+  const payload = isPlainObject(source.payload) ? source.payload : null
+  if (payload && hasMeaningfulValue(payload[key])) {
+    return payload[key]
+  }
+
+  return ''
+}
+
+function getReportHistoryText(log, snapshot, variant = 'full') {
+  const keys = variant === 'brief'
+    ? ['brief_report_content']
+    : variant === 'full'
+      ? ['full_report_content', 'report_content', 'content']
+      : ['report_content', 'content']
+
+  for (const source of [snapshot, log]) {
+    if (!isPlainObject(source)) {
+      continue
+    }
+
+    for (const key of keys) {
+      const value = getReportHistoryValue(source, key)
+      if (typeof value === 'string' && value.trim()) {
+        return sanitizeReportPlainText(value)
+      }
+    }
+  }
+
+  return ''
+}
+
+function getReportHistorySections(log, snapshot) {
+  const candidates = [
+    snapshot?.sections,
+    snapshot?.payload?.sections,
+    snapshot?.brief_sections,
+    snapshot?.payload?.brief_sections,
+    log?.sections,
+    log?.payload?.sections,
+    log?.brief_sections,
+    log?.payload?.brief_sections
+  ]
+
+  for (const candidate of candidates) {
+    const sections = asArray(candidate)
+    if (sections.length) {
+      return sections
+    }
+  }
+
+  return []
+}
+
+function buildReportHistoryMetaSource(log, snapshot) {
+  const snapshotPayload = isPlainObject(snapshot?.payload) ? snapshot.payload : {}
+  const logPayload = isPlainObject(log?.payload) ? log.payload : {}
+  const reportId = getReportHistoryValue(snapshot, 'report_id')
+    || getReportHistoryValue(log, 'report_id')
+    || reportHistoryReportId.value
+    || ''
+
+  return buildReportStructuredDisplayData({
+    ...(isPlainObject(snapshot) ? snapshot : {}),
+    ...(isPlainObject(log) ? log : {}),
+    report_id: reportId,
+    payload: {
+      ...logPayload,
+      ...snapshotPayload
+    }
+  })
+}
+
+function buildReportHistorySummary(log, fallbackText) {
+  const candidates = [log?.description, log?.summary, log?.note, log?.remark]
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      const text = sanitizeReportPlainText(candidate)
+      if (text) {
+        return text
+      }
+    }
+  }
+
+  if (!fallbackText) {
+    return ''
+  }
+
+  return fallbackText.length > 160 ? `${fallbackText.slice(0, 160)}...` : fallbackText
+}
+
+function normalizeReportHistoryArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item === null || item === undefined) {
+          return ''
+        }
+        if (typeof item === 'string') {
+          return sanitizeReportPlainText(item)
+        }
+        if (isPlainObject(item)) {
+          const text = item.message || item.content || item.summary || item.note || item.description || item.text || ''
+          return sanitizeReportPlainText(String(text || ''))
+        }
+        return sanitizeReportPlainText(String(item))
+      })
+      .filter(Boolean)
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = tryParseAssistantPayload(value)
+    if (Array.isArray(parsed)) {
+      return normalizeReportHistoryArray(parsed)
+    }
+    return [sanitizeReportPlainText(value)].filter(Boolean)
+  }
+
+  return []
+}
+
+function collectReportHistoryLogs(log, payload) {
+  const candidates = [
+    log?.change_logs,
+    log?.change_log,
+    log?.changeLogs,
+    log?.changes,
+    log?.logs,
+    payload?.change_logs,
+    payload?.change_log,
+    payload?.changeLogs,
+    payload?.changes,
+    payload?.logs
+  ]
+
+  for (const candidate of candidates) {
+    const items = normalizeReportHistoryArray(candidate)
+    if (items.length) {
+      return items
+    }
+  }
+
+  return []
+}
+
+function collectReportHistoryMessages(log, payload) {
+  const candidates = [
+    log?.related_messages,
+    log?.relatedMessages,
+    log?.messages,
+    payload?.related_messages,
+    payload?.relatedMessages,
+    payload?.messages
+  ]
+
+  for (const candidate of candidates) {
+    const items = normalizeReportHistoryArray(candidate)
+    if (items.length) {
+      return items
+    }
+  }
+
+  return []
+}
+
+function getCurrentReportHistoryVersion() {
+  const currentVersion = reportHistoryBaseReport.value?.version
+    ?? reportHistoryRawPayload.value?.current_version
+    ?? reportHistoryRawPayload.value?.version
+
+  return currentVersion === null || currentVersion === undefined || currentVersion === ''
+    ? ''
+    : String(currentVersion)
+}
+
+const reportHistoryEntries = computed(() => {
+  return reportHistoryLogs.value.map((log, index) => {
+    const snapshot = extractReportHistorySnapshot(log)
+    const metaSource = buildReportHistoryMetaSource(log, snapshot)
+    const payload = isPlainObject(log?.payload) ? log.payload : {}
+    const sections = getReportHistorySections(log, snapshot)
+    const briefText = getReportHistoryText(log, snapshot, 'brief')
+    const fullText = getReportHistoryText(log, snapshot, 'full')
+    const mainText = fullText || getReportHistoryText(log, snapshot, 'report')
+    const structuredSource = isPlainObject(snapshot)
+      ? snapshot
+      : (isPlainObject(log?.payload) ? { ...metaSource, payload: log.payload } : null)
+    const structuredText = structuredSource
+      ? formatReportStructuredDataAsChineseText(structuredSource)
+      : ''
+    const summary = buildReportHistorySummary(log, briefText || mainText)
+    const version = metaSource.version != null && metaSource.version !== ''
+      ? String(metaSource.version)
+      : ''
+    const currentVersion = getCurrentReportHistoryVersion()
+    const changeLogs = collectReportHistoryLogs(log, payload)
+    const relatedMessages = collectReportHistoryMessages(log, payload)
+
+    return {
+      key: log?.id || `${reportHistoryReportId.value || 'report'}-${metaSource.version || index + 1}`,
+      raw: log,
+      snapshot,
+      metaSource,
+      version,
+      label: version
+        ? `v${version}`
+        : `#${log?.id || index + 1}`,
+      isCurrent: !!version && !!currentVersion && version === currentVersion,
+      actionLabel: hasMeaningfulValue(metaSource.action) ? localizeReportAction(metaSource.action) : '',
+      time: log?.created_at || log?.updated_at || metaSource.updated_at || metaSource.created_at || '',
+      summary,
+      structuredText,
+      changeLogs,
+      relatedMessages,
+      detailReport: {
+        ...metaSource,
+        sections,
+        brief_report_content: briefText || metaSource.brief_report_content || '',
+        full_report_content: fullText || mainText || metaSource.full_report_content || metaSource.report_content || '',
+        report_content: mainText || metaSource.report_content || fullText || '',
+        payload: isPlainObject(metaSource.payload) ? metaSource.payload : {}
+      }
+    }
+  })
+})
+
 // 报告详情：精简版 / 完整版 / 分节卡片
 const reportBriefRawContent = computed(() => {
   const r = reportDetail.value
@@ -2086,7 +2475,7 @@ async function viewTaskReport(task) {
     window.alert('该任务尚未生成报告。')
     return
   }
-  const assistantMessage = { role: 'assistant', content: '正在查询报告...', model: '' }
+  const assistantMessage = { role: 'assistant', content: '正在查询报告...', model: '', ...buildAssistantAiMeta() }
   messages.value.push(assistantMessage)
   await scrollMessagesToBottom()
 
@@ -2392,7 +2781,11 @@ function formatConversationMessage(message) {
   const normalized = {
     role: message?.role || '',
     content: typeof message?.content === 'string' ? message.content : String(message?.content ?? ''),
-    ...(message?.model ? { model: message.model } : {})
+    ...(message?.model ? { model: message.model } : {}),
+    ...(message?.aiId ? { aiId: String(message.aiId) } : {}),
+    ...(message?.aiName ? { aiName: message.aiName } : {}),
+    ...(message?.aiProviderCode ? { aiProviderCode: message.aiProviderCode } : {}),
+    ...(message?.aiProviderName ? { aiProviderName: message.aiProviderName } : {})
   }
 
   if (normalized.role !== 'assistant') {
@@ -2470,7 +2863,7 @@ function syncVisitTaskPayloadFromMessages(source) {
 
 async function handleConfirm(message) {
   loading.value = true
-  const assistantMessage = { role: 'assistant', content: '', model: '' }
+  const assistantMessage = { role: 'assistant', content: '正在整理回复...', model: '', ...buildAssistantAiMeta() }
   messages.value.push(assistantMessage)
   const taskPayload = message?.rawPayload || visitTaskPayload.value || {}
   visitTaskPayload.value = taskPayload
@@ -2521,7 +2914,7 @@ async function handleConfirm(message) {
   for (const extraId of extraIds) {
     const warnText = messageBuckets.get(extraId)
     if (warnText && warnText.trim()) {
-      messages.value.push({ role: 'assistant', content: warnText, model: '' })
+      messages.value.push({ role: 'assistant', content: warnText, model: '', ...buildAssistantAiMeta() })
     }
   }
 
@@ -2533,7 +2926,6 @@ async function handleConfirm(message) {
 async function handleCancel(message) {
   // TODO: 调用取消接口或删除消息
   console.log('取消拜访安排:', message)
-  // window.alert('取消功能待实现')
 }
 
 /* ==================== 推送消息轮询 (push polling) ==================== */
@@ -3329,7 +3721,15 @@ onBeforeUnmount(() => {
           :class="item.role"
         >
           <div class="message-avatar">
-            {{ item.role === 'assistant' ? 'AI' : '我' }}
+            <template v-if="item.role === 'assistant'">
+              <img
+                v-if="resolveAssistantAvatar(item).icon"
+                :src="resolveAssistantAvatar(item).icon"
+                :alt="resolveAssistantAvatar(item).alt"
+              />
+              <span v-else>{{ resolveAssistantAvatar(item).badge }}</span>
+            </template>
+            <template v-else>我</template>
           </div>
           <div class="message-bubble">
             <span class="message-role">
@@ -3416,13 +3816,13 @@ onBeforeUnmount(() => {
           </div>
         </article>
 
-        <article v-if="loading" class="message-item assistant">
+        <!-- <article v-if="loading" class="message-item assistant">
           <div class="message-avatar">AI</div>
           <div class="message-bubble">
             <span class="message-role">智能助理</span>
             <p>正在整理回复...</p>
           </div>
-        </article>
+        </article> -->
       </div>
 
       <form class="composer glass-card" @submit.prevent="sendMessage()">
@@ -3436,7 +3836,7 @@ onBeforeUnmount(() => {
           <div class="composer-left">
             <div ref="modelMenuRef" class="model-picker-wrap">
               <button type="button" class="model-trigger" @click="toggleModelMenu">
-                <span class="model-trigger-label">选择模型</span>
+                <span class="model-trigger-label">选择规则</span>
                 <strong>{{ selectedModel }}</strong>
                 <span class="model-trigger-arrow" :class="{ open: modelMenuVisible }">⌄</span>
               </button>
@@ -3455,6 +3855,47 @@ onBeforeUnmount(() => {
                     <span>{{ item.description }}</span>
                   </div>
                   <em v-if="selectedModel === item.label">当前</em>
+                </button>
+              </div>
+            </div>
+
+            <div ref="aiMenuRef" class="model-picker-wrap">
+              <button
+                type="button"
+                class="model-trigger"
+                :disabled="!roleBoundModels.length"
+                :class="{ disabled: !roleBoundModels.length }"
+                @click="toggleAiMenu"
+              >
+                <span class="model-trigger-label">选择AI</span>
+                <strong>{{ selectedAiLabel }}</strong>
+                <span class="model-trigger-arrow" :class="{ open: aiMenuVisible }">⌄</span>
+              </button>
+
+              <div v-if="aiMenuVisible" class="model-menu ai-menu">
+                <button
+                  v-for="item in roleBoundModels"
+                  :key="item.id"
+                  type="button"
+                  class="model-option"
+                  :class="{ active: selectedAiId === String(item.id) }"
+                  @click="selectAi(item.id)"
+                >
+                  <div class="model-option-copy model-option-copy-with-icon">
+                    <span class="model-option-provider-icon">
+                      <img
+                        v-if="MODEL_PROVIDER_META[item.providerCode]?.icon"
+                        :src="MODEL_PROVIDER_META[item.providerCode].icon"
+                        :alt="item.providerName"
+                      />
+                      <span v-else>{{ MODEL_PROVIDER_META[item.providerCode]?.badge || 'AI' }}</span>
+                    </span>
+                    <div class="model-option-copy-text">
+                      <strong>{{ item.name }}</strong>
+                      <span>{{ item.providerName }}<template v-if="item.baseModel"> · {{ item.baseModel }}</template></span>
+                    </div>
+                  </div>
+                  <em v-if="selectedAiId === String(item.id)">当前</em>
                 </button>
               </div>
             </div>
@@ -3912,8 +4353,7 @@ onBeforeUnmount(() => {
         >
           <header class="task-modal-head">
             <h3>
-              报告
-              <span class="task-id">#{{ reportDetail?.report_id || reportDetail?.id }}</span>
+              报告 <span class="task-id">#{{ reportDetail?.report_id || reportDetail?.id }}</span>
               <span v-if="reportDetail?.version" class="task-pill task-pill--type">v{{ reportDetail.version }}</span>
             </h3>
             <button type="button" class="tiny-button" @click="closeReportDetail">关闭</button>
@@ -3942,7 +4382,7 @@ onBeforeUnmount(() => {
               <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'json' }" @click="reportDetailTab = 'json'">
                 结构化
               </button>
-              <button type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'rewrite' }" @click="reportDetailTab = 'rewrite'">
+              <button v-if="!reportDetailFromHistory" type="button" class="pv-tab-btn" :class="{ active: reportDetailTab === 'rewrite' }" @click="reportDetailTab = 'rewrite'">
                 补充改写
               </button>
             </div>
@@ -4008,7 +4448,7 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Tab: 补充改写 -->
-            <div v-show="reportDetailTab === 'rewrite'" class="report-detail-body">
+            <div v-if="!reportDetailFromHistory" v-show="reportDetailTab === 'rewrite'" class="report-detail-body">
               <h4 class="post-summary-h">改写报告</h4>
               <p class="task-modal-hint" style="margin-bottom:10px">
                 输入改写要求（如调整重点、补充信息、修改措辞等），系统将基于当前报告内容重新生成新版本。
@@ -4066,30 +4506,65 @@ onBeforeUnmount(() => {
           <header class="task-modal-head">
             <h3>
               报告 <span class="task-id">#{{ reportHistoryReportId }}</span> 版本历史
-              <span class="task-revisions-count">（{{ reportHistoryLogs.length }}）</span>
+              <span class="task-revisions-count">({{ reportHistoryEntries.length }})</span>
             </h3>
             <button type="button" class="tiny-button" @click="closeReportHistory">关闭</button>
           </header>
 
           <div class="task-modal-body">
             <div v-if="reportHistoryLoading" class="task-revisions-empty">加载中...</div>
-            <div v-else-if="!reportHistoryLogs.length" class="task-revisions-empty">暂无版本记录。</div>
-            <ul v-else class="task-revisions-list">
-              <li v-for="(log, idx) in reportHistoryLogs" :key="log.id || log.version || idx" class="task-revision">
-                <div class="task-revision-head">
-                  <strong>
-                    {{ log.version != null ? `v${log.version}` : `#${log.id || idx + 1}` }}
-                  </strong>
-                  <span v-if="log.action" class="task-pill task-pill--muted">{{ log.action }}</span>
-                  <span v-if="log.created_at || log.updated_at" class="task-revision-time">
-                    {{ log.created_at || log.updated_at }}
-                  </span>
+            <div v-else-if="!reportHistoryEntries.length" class="task-revisions-empty">暂无版本记录。</div>
+            <template v-else>
+              <p class="report-history-current">
+                当前版本 {{ reportHistoryEntries[0]?.version ? `v${reportHistoryEntries[0].version}` : '--' }}
+                <template v-if="reportHistoryEntries[0]?.time">· 更新 {{ reportHistoryEntries[0].time }}</template>
+              </p>
+
+              <details open class="report-history-group">
+                <summary>版本列表（{{ reportHistoryEntries.length }}）</summary>
+                <ul class="task-revisions-list report-history-list">
+                  <li
+                    v-for="item in reportHistoryEntries"
+                    :key="item.key"
+                    class="task-revision report-history-item"
+                  >
+                    <button type="button" class="report-history-entry" @click="openReportHistoryEntryDetail(item)">
+                      <div class="report-history-entry-head">
+                        <strong>{{ item.label }}</strong>
+                        <span v-if="item.isCurrent" class="task-pill task-pill--ok">当前</span>
+                        <span class="report-history-entry-time">{{ item.time || '--' }}</span>
+                      </div>
+                      <p v-if="item.summary" class="task-revision-desc">{{ item.summary }}</p>
+                      <p class="report-history-link">点击查看此版本正文 →</p>
+                    </button>
+                  </li>
+                </ul>
+              </details>
+
+              <details v-if="reportHistoryEntries.some((item) => item.changeLogs.length)" class="report-history-group">
+                <summary>变更日志（{{ reportHistoryEntries.reduce((sum, item) => sum + item.changeLogs.length, 0) }}）</summary>
+                <div class="report-history-group-body">
+                  <div v-for="item in reportHistoryEntries" :key="`${item.key}-changes`" class="report-history-note-block">
+                    <h4 v-if="item.changeLogs.length" class="post-summary-h">{{ item.label }}</h4>
+                    <ul v-if="item.changeLogs.length" class="report-history-note-list">
+                      <li v-for="(note, noteIndex) in item.changeLogs" :key="noteIndex">{{ note }}</li>
+                    </ul>
+                  </div>
                 </div>
-                <p v-if="log.description || log.summary || log.note" class="task-revision-desc">
-                  {{ log.description || log.summary || log.note }}
-                </p>
-              </li>
-            </ul>
+              </details>
+
+              <details v-if="reportHistoryEntries.some((item) => item.relatedMessages.length)" class="report-history-group">
+                <summary>关联消息（{{ reportHistoryEntries.reduce((sum, item) => sum + item.relatedMessages.length, 0) }}）</summary>
+                <div class="report-history-group-body">
+                  <div v-for="item in reportHistoryEntries" :key="`${item.key}-messages`" class="report-history-note-block">
+                    <h4 v-if="item.relatedMessages.length" class="post-summary-h">{{ item.label }}</h4>
+                    <ul v-if="item.relatedMessages.length" class="report-history-note-list">
+                      <li v-for="(message, messageIndex) in item.relatedMessages" :key="messageIndex">{{ message }}</li>
+                    </ul>
+                  </div>
+                </div>
+              </details>
+            </template>
           </div>
         </div>
       </div>
@@ -4990,6 +5465,97 @@ onBeforeUnmount(() => {
   line-height: 1.6;
 }
 
+.report-history-meta {
+  margin-top: 6px;
+}
+
+.report-history-title {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.report-history-current {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.report-history-group {
+  margin-top: 10px;
+}
+
+.report-history-group:first-of-type {
+  margin-top: 0;
+}
+
+.report-history-group summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--brand-alt, #2563eb);
+  user-select: none;
+}
+
+.report-history-list,
+.report-history-group-body {
+  margin-top: 10px;
+}
+
+.report-history-item {
+  padding: 0;
+}
+
+.report-history-entry {
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.report-history-entry:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.report-history-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-main);
+}
+
+.report-history-entry-time {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.report-history-link {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.report-history-note-block + .report-history-note-block {
+  margin-top: 10px;
+}
+
+.report-history-note-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-main);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
 /* ================ 访前报告 · 列表 + 详情弹窗 ================ */
 .report-filter-row {
   margin: calc(8px * var(--ui-scale)) 0 calc(2px * var(--ui-scale));
@@ -5460,6 +6026,14 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+
 .message-item.user .message-avatar {
   order: 2;
   background: linear-gradient(135deg, #ed7c47, #f2ab7d);
@@ -5744,6 +6318,11 @@ onBeforeUnmount(() => {
     inset 0 1px 0 var(--surface-inset);
 }
 
+.model-trigger.disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+}
+
 .model-trigger-label {
   color: var(--text-muted);
   font-size: calc(12px * var(--ui-scale));
@@ -5808,12 +6387,47 @@ onBeforeUnmount(() => {
   font-size: calc(14px * var(--ui-scale));
 }
 
-.model-option-copy span {
+.model-option-copy-with-icon {
+  display: flex;
+  align-items: center;
+  gap: calc(12px * var(--ui-scale));
+  min-width: 0;
+}
+
+.model-option-copy-text {
+  min-width: 0;
+}
+
+.model-option-copy > span,
+.model-option-copy-text span {
   display: block;
   margin-top: calc(6px * var(--ui-scale));
   color: var(--text-muted);
   font-size: calc(12px * var(--ui-scale));
   line-height: 1.5;
+}
+
+.model-option-provider-icon {
+  width: calc(30px * var(--ui-scale));
+  height: calc(30px * var(--ui-scale));
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--surface-inset);
+  color: var(--text-main);
+  overflow: hidden;
+}
+
+.model-option-provider-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ai-menu {
+  width: min(22rem, calc(100vw - 3rem));
 }
 
 .model-option em {

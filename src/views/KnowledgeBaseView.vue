@@ -964,8 +964,8 @@ watch(
 }
 
 .cell-multi {
-  display: flex;
-  flex-wrap: wrap;
+  /* display: flex; */
+  /* flex-wrap: wrap; */
   gap: 4px;
 }
 
