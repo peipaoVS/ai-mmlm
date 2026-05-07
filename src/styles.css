@@ -73,7 +73,7 @@ body {
   min-height: 100vh;
   background: #08101d;
   color: var(--text-main);
-  font-size: 1rem;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -339,6 +339,21 @@ button {
   min-height: 0;
   min-width: 0;
   overflow: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.panel-scroll-region::-webkit-scrollbar:vertical {
+  width: 0;
+}
+
+.panel-scroll-region::-webkit-scrollbar:horizontal {
+  height: calc(6px * var(--ui-scale));
+}
+
+.panel-scroll-region::-webkit-scrollbar-thumb:horizontal {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.28);
 }
 
 .panel-empty-state {
@@ -447,6 +462,47 @@ button {
   z-index: 1;
   background: rgba(15, 23, 42, 0.78);
   backdrop-filter: blur(18px);
+}
+
+.roles-page .data-table,
+.users-page .data-table,
+.posts-page .data-table,
+.companies-page .data-table,
+.menus-page .data-table,
+.params-page .data-table {
+  background: transparent;
+}
+
+.roles-page .data-table thead th,
+.users-page .data-table thead th,
+.posts-page .data-table thead th,
+.companies-page .data-table thead th,
+.menus-page .data-table thead th,
+.params-page .data-table thead th {
+  background: linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg));
+  color: var(--text-main);
+  font-weight: 700;
+  box-shadow:
+    inset 0 -1px 0 rgba(148, 163, 184, 0.16),
+    inset 0 1px 0 var(--surface-inset);
+}
+
+.roles-page .data-table tbody td,
+.users-page .data-table tbody td,
+.posts-page .data-table tbody td,
+.companies-page .data-table tbody td,
+.menus-page .data-table tbody td,
+.params-page .data-table tbody td {
+  background: var(--panel-card-bg-faint);
+}
+
+.roles-page .data-table tbody tr:hover td,
+.users-page .data-table tbody tr:hover td,
+.posts-page .data-table tbody tr:hover td,
+.companies-page .data-table tbody tr:hover td,
+.menus-page .data-table tbody tr:hover td,
+.params-page .data-table tbody tr:hover td {
+  background: var(--panel-card-bg-soft);
 }
 
 .tag-list {
@@ -591,6 +647,10 @@ button {
     0 28px 72px rgba(2, 6, 23, 0.46),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(26px) saturate(150%);
+}
+
+.modal-panel.permission-editor-modal {
+  width: min(104rem, calc(100vw - 2rem));
 }
 
 .modal-panel,

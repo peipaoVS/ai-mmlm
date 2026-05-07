@@ -1,4 +1,4 @@
-const SYSTEM_HOST = 'http://192.168.1.168'
+const SYSTEM_HOST = 'http://192.168.1.21'
 const AI_HOST = 'http://192.168.1.168'
 
 const DEV_CONFIG = {

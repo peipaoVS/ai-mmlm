@@ -227,7 +227,7 @@ async function confirmRemove() {
 </script>
 
 <template>
-  <div class="admin-scroll-page">
+  <div class="admin-scroll-page params-page">
     <section class="data-panel glass-card admin-scroll-panel">
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索参数名称 / 编码 / 类型" />
@@ -364,49 +364,111 @@ async function confirmRemove() {
 </template>
 
 <style scoped>
+.params-page .modal-header h3 {
+  font-size: 16px;
+}
+
+.params-page .toolbar {
+  font-size: 16px;
+}
+
+.params-page .data-table th,
+.params-page .field > span {
+  font-size: 16px;
+}
+
+.params-page .data-table th {
+  text-align: left;
+}
+
+.params-page .modal-subtext,
+.params-page .pill-button,
+.params-page .tiny-button,
+.params-page .type-chip,
+.params-page .toolbar input,
+.params-page .field input,
+.params-page .field textarea {
+  font-size: 14px;
+}
+
+.params-page :deep(.app-select-trigger),
+.params-page :deep(.app-select-value),
+.params-page :deep(.app-select-option) {
+  font-size: 14px;
+}
+
+.params-page .data-table td,
+.params-page .data-table td span,
+.params-page .data-table td code,
+.params-page .data-table td div {
+  color: var(--text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.params-page .data-table th:nth-child(5),
+.params-page .data-table th:nth-child(6),
+.params-page .data-table td:nth-child(5),
+.params-page .data-table td:nth-child(6),
+.params-page .data-table td:nth-child(5) span,
+.params-page .data-table td:nth-child(6) span,
+.params-page .data-table td:nth-child(5) code,
+.params-page .data-table td:nth-child(6) code,
+.params-page .data-table td:nth-child(5) div,
+.params-page .data-table td:nth-child(6) div {
+  text-align: center;
+}
+
+.params-page .action-group {
+  justify-content: center;
+}
+
+.params-page .action-group .tiny-button {
+  font-size: inherit;
+}
+
 .param-code {
-  display: inline-flex;
-  align-items: center;
-  padding: calc(6px * var(--ui-scale)) calc(10px * var(--ui-scale));
-  border-radius: 999px;
-  border: 1px solid var(--panel-card-border);
-  background: var(--panel-card-bg-soft);
-  color: var(--text-main);
-  box-shadow: inset 0 1px 0 var(--surface-inset);
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: calc(12px * var(--ui-scale));
+  display: inline;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: inherit;
   word-break: break-all;
 }
 
 .param-type-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: calc(5px * var(--ui-scale)) calc(10px * var(--ui-scale));
-  border-radius: 999px;
-  background: rgba(47, 131, 116, 0.12);
-  color: var(--brand-alt);
-  font-size: calc(12px * var(--ui-scale));
-  font-weight: 600;
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .param-value-preview {
-  min-width: 16rem;
-  max-width: 32rem;
-  padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  border-radius: calc(14px * var(--ui-scale));
-  border: 1px solid var(--panel-card-border);
-  background: var(--panel-card-bg-soft);
-  color: var(--text-main);
-  box-shadow: inset 0 1px 0 var(--surface-inset);
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.7;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: calc(12px * var(--ui-scale));
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  white-space: nowrap;
+  word-break: break-all;
+  line-height: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .param-type-body {

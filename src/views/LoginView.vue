@@ -171,7 +171,7 @@ async function handleLogin() {
       console.warn('AI side login skipped:', aiError)
     }
 
-    router.replace('/chat')
+    router.replace('/home')
   } catch (error) {
     errorMessage.value = error.message
   } finally {

@@ -8,49 +8,63 @@ import zhipuBackground from '../assets/providers/zhipu-background.png'
 import openaiSymbol from '../assets/providers/openai-symbol.svg'
 import { clearSession, hasMenuSnapshot, setTheme, useSession } from '../stores/session'
 
+const SECTION_ORDER = {
+  ai: 0,
+  knowledge: 1,
+  logs: 2,
+  permission: 3
+}
+
 const route = useRoute()
 const router = useRouter()
 const session = useSession()
+const headerMenuOpen = ref(false)
+const expandedRootKeys = ref([])
 
-const headerToolsRef = ref(null)
-const activeMenu = ref('')
-const constrainedRouteNames = new Set(['users', 'roles', 'posts', 'menus', 'companies', 'params'])
+const constrainedRouteNames = new Set([
+  'home',
+  'users',
+  'roles',
+  'posts',
+  'menus',
+  'companies',
+  'params'
+])
 
-const sectionOrder = ['ai', 'knowledge', 'logs', 'permission']
-const sectionTitles = {
-  ai: 'AI配置',
-  knowledge: 'AI知识库',
-  logs: '日志',
-  permission: '权限配置'
-}
+const fullSizePageRouteNames = new Set([
+  'home',
+  'users',
+  'roles',
+  'posts',
+  'menus',
+  'companies',
+  'params'
+])
 
 const legacyMenus = [
-  { name: 'AI工作台', section: 'ai', path: '/chat', sortOrder: 10 },
-  { name: 'AI简易工作台', section: 'ai', path: '/workbench', sortOrder: 20 },
-  { name: '大模型配置', section: 'ai', path: '/agents', sortOrder: 30 },
-  { name: '参数配置', section: 'ai', path: '/params', sortOrder: 40 },
-  { name: '产品库', section: 'knowledge', path: '/knowledge/products', sortOrder: 10 },
-  { name: '企业画像', section: 'knowledge', path: '/knowledge/portraits', sortOrder: 20 },
-  { name: '行业动态', section: 'knowledge', path: '/knowledge/trends', sortOrder: 30 },
-  { name: 'Badcase', section: 'logs', path: '/logs/badcase', sortOrder: 10 },
-  { name: '观测认证', section: 'logs', path: '/logs/observation-auth', sortOrder: 20 },
-  { name: '回归评测', section: 'logs', path: '/logs/regression-review', sortOrder: 30 },
-  { name: '修复队列', section: 'logs', path: '/logs/fix-queue', sortOrder: 40 },
-  { name: '规则库', section: 'logs', path: '/logs/rule-library', sortOrder: 50 },
-  { name: '说明', section: 'logs', path: '/logs/instructions', sortOrder: 60 },
-  { name: '角色管理', section: 'permission', path: '/roles', sortOrder: 10 },
-  { name: '用户管理', section: 'permission', path: '/users', sortOrder: 20 },
-  { name: '岗位管理', section: 'permission', path: '/posts', sortOrder: 30 },
-  { name: '菜单管理', section: 'permission', path: '/menus', sortOrder: 40 },
-  { name: '所属公司', section: 'permission', path: '/companies', sortOrder: 50 }
+  { id: 101, name: 'AI配置', code: 'AI_ROOT', section: 'ai', path: '/nav/ai', parentId: null, sortOrder: 1 },
+  { id: 1, name: 'AI工作台', section: 'ai', path: '/chat', parentId: 101, sortOrder: 10 },
+  { id: 2, name: '大模型配置', section: 'ai', path: '/agents', parentId: 101, sortOrder: 20 },
+  { id: 17, name: '参数配置', section: 'ai', path: '/params', parentId: 101, sortOrder: 30 },
+  { id: 102, name: 'AI知识库', code: 'KNOWLEDGE_ROOT', section: 'knowledge', path: '/nav/knowledge', parentId: null, sortOrder: 2 },
+  { id: 3, name: '产品库', section: 'knowledge', path: '/knowledge/products', parentId: 102, sortOrder: 10 },
+  { id: 4, name: '企业画像', section: 'knowledge', path: '/knowledge/portraits', parentId: 102, sortOrder: 20 },
+  { id: 5, name: '行业动态', section: 'knowledge', path: '/knowledge/trends', parentId: 102, sortOrder: 30 },
+  { id: 103, name: '日志', code: 'LOG_ROOT', section: 'logs', path: '/nav/logs', parentId: null, sortOrder: 3 },
+  { id: 6, name: 'Badcase', section: 'logs', path: '/logs/badcase', parentId: 103, sortOrder: 10 },
+  { id: 7, name: '观测认证', section: 'logs', path: '/logs/observation-auth', parentId: 103, sortOrder: 20 },
+  { id: 8, name: '回归评测', section: 'logs', path: '/logs/regression-review', parentId: 103, sortOrder: 30 },
+  { id: 9, name: '修复队列', section: 'logs', path: '/logs/fix-queue', parentId: 103, sortOrder: 40 },
+  { id: 10, name: '规则库', section: 'logs', path: '/logs/rule-library', parentId: 103, sortOrder: 50 },
+  { id: 11, name: '说明', section: 'logs', path: '/logs/instructions', parentId: 103, sortOrder: 60 },
+  { id: 104, name: '权限配置', code: 'PERMISSION_ROOT', section: 'permission', path: '/nav/permission', parentId: null, sortOrder: 4 },
+  { id: 'builtin-home', name: '首页', section: 'permission', path: '/home', parentId: 104, sortOrder: 5 },
+  { id: 12, name: '角色管理', section: 'permission', path: '/roles', parentId: 104, sortOrder: 10 },
+  { id: 13, name: '用户管理', section: 'permission', path: '/users', parentId: 104, sortOrder: 20 },
+  { id: 14, name: '岗位管理', section: 'permission', path: '/posts', parentId: 104, sortOrder: 30 },
+  { id: 15, name: '菜单管理', section: 'permission', path: '/menus', parentId: 104, sortOrder: 40 },
+  { id: 16, name: '所属公司', section: 'permission', path: '/companies', parentId: 104, sortOrder: 50 }
 ]
-
-const MENU_PATH_ALIASES = {
-  '/chat': ['/workbench'],
-  '/workbench': ['/chat']
-}
-
-const LEGACY_MENU_BY_PATH = new Map(legacyMenus.map((item) => [item.path, item]))
 
 const displayUsername = computed(
   () => session.user?.nickname || session.user?.username || '管理员'
@@ -58,90 +72,78 @@ const displayUsername = computed(
 
 const currentRoles = computed(() => {
   const roles = session.user?.roleNames || []
-  return roles.length ? roles.join('、') : '--'
+  return roles.length ? roles.join(' / ') : '--'
 })
 
 const currentPosts = computed(() => {
   const posts = session.user?.postNames || []
-  return posts.length ? posts.join('、') : '--'
+  return posts.length ? posts.join(' / ') : '--'
 })
 
 const currentCompany = computed(() => session.user?.companyName || '--')
-const currentTheme = computed(() => session.theme === 'light' ? 'light' : 'dark')
-
-function withMenuAliases(items) {
-  const expanded = [...items]
-  const existingPaths = new Set(expanded.map((item) => item.path))
-
-  items.forEach((item) => {
-    const aliasPaths = MENU_PATH_ALIASES[item.path] || []
-    aliasPaths.forEach((aliasPath) => {
-      if (existingPaths.has(aliasPath)) {
-        return
-      }
-      const fallback = LEGACY_MENU_BY_PATH.get(aliasPath)
-      if (!fallback) {
-        return
-      }
-      expanded.push({ ...fallback })
-      existingPaths.add(aliasPath)
-    })
-  })
-
-  return expanded
-}
-
-function isMenuPathMatch(menuPath, currentPath) {
-  if (menuPath === currentPath) {
-    return true
-  }
-
-  if (menuPath !== '/' && currentPath.startsWith(`${menuPath}/`)) {
-    return true
-  }
-
-  const aliasPaths = MENU_PATH_ALIASES[menuPath] || []
-  return aliasPaths.includes(currentPath)
-}
+const currentTheme = computed(() => (session.theme === 'light' ? 'light' : 'dark'))
 
 const effectiveMenus = computed(() => {
-  if (hasMenuSnapshot(session.user)) {
-    const snapshotMenus = (session.user?.menus || []).map((item, index) => ({
-      name: item.name,
-      section: item.section,
-      path: item.path,
-      sortOrder: item.sortOrder ?? index + 1
-    }))
-    return withMenuAliases(snapshotMenus)
+  if (!hasMenuSnapshot(session.user)) {
+    return []
   }
-  return legacyMenus
+
+  return (session.user?.menus || []).map((item, index) => ({
+    id: item.id ?? item.code ?? item.path ?? index + 1,
+    name: item.name,
+    code: item.code,
+    section: item.section,
+    path: item.path,
+    parentId: item.parentId ?? null,
+    sortOrder: item.sortOrder ?? index + 1
+  }))
 })
 
-const groupedMenus = computed(() =>
-  sectionOrder
-    .map((key) => ({
-      key,
-      title: sectionTitles[key],
-      items: effectiveMenus.value
-        .filter((item) => item.section === key)
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-    }))
-    .filter((group) => group.items.length)
-)
+const menuIdMap = computed(() => {
+  const map = new Map()
+  effectiveMenus.value.forEach((item) => {
+    map.set(String(item.id), item)
+  })
+  return map
+})
+
+const navigationRoots = computed(() => buildNavigationTree(effectiveMenus.value))
 
 const currentMenuItem = computed(() => {
-  const exactMatched = effectiveMenus.value.find((item) => isMenuPathMatch(item.path, route.path))
+  const exactMatched = effectiveMenus.value.find(
+    (item) => item.path === route.path && !item.path.startsWith('/nav/')
+  )
   if (exactMatched) {
     return exactMatched
   }
 
-  const partialMatched = effectiveMenus.value.find(
-    (item) => item.path !== '/' && route.path.startsWith(item.path)
-  )
+  const partialMatched = [...effectiveMenus.value]
+    .filter((item) => item.path !== '/' && !item.path.startsWith('/nav/') && route.path.startsWith(item.path))
+    .sort((left, right) => String(right.path || '').length - String(left.path || '').length)[0]
+
   return partialMatched || null
 })
 
-const currentSectionLabel = computed(() => currentMenuItem.value?.name || route.meta.title || 'AI工作台')
+const currentRootKey = computed(() => {
+  const current = currentMenuItem.value
+  if (!current) {
+    return ''
+  }
+
+  let node = current
+  let guard = 0
+
+  while (node?.parentId != null && guard < 30) {
+    const parent = menuIdMap.value.get(String(node.parentId))
+    if (!parent) {
+      break
+    }
+    node = parent
+    guard += 1
+  }
+
+  return getNodeKey(node)
+})
 
 const currentDateText = computed(() =>
   new Intl.DateTimeFormat('zh-CN', {
@@ -152,16 +154,28 @@ const currentDateText = computed(() =>
   }).format(new Date())
 )
 
-const hideShellHeader = computed(() => route.path === '/workbench')
-const isWorkbenchRoute = computed(() => route.path === '/workbench')
-
 const shouldConstrainContent = computed(() => {
   const routeName = typeof route.name === 'string' ? route.name : ''
   return (
+    routeName === 'chat' ||
     routeName.startsWith('logs-') ||
     routeName.startsWith('knowledge-') ||
     constrainedRouteNames.has(routeName)
   )
+})
+
+const shouldFullSizePageCard = computed(() => {
+  const routeName = typeof route.name === 'string' ? route.name : ''
+  return (
+    fullSizePageRouteNames.has(routeName) ||
+    routeName.startsWith('logs-') ||
+    routeName.startsWith('knowledge-')
+  )
+})
+
+const shouldNarrowPageCard = computed(() => {
+  const routeName = typeof route.name === 'string' ? route.name : ''
+  return routeName !== 'chat' && !shouldFullSizePageCard.value
 })
 
 const shellVisualStyle = {
@@ -171,55 +185,147 @@ const shellVisualStyle = {
   '--shell-art-c': `url("${openaiSymbol}")`
 }
 
-function isMenuActive(group) {
-  return activeMenu.value === group.key || group.items.some((item) => isMenuPathMatch(item.path, route.path))
+function getSectionRank(value) {
+  return SECTION_ORDER[String(value || '').trim()] ?? Number.MAX_SAFE_INTEGER
 }
 
-function toggleMenu(name) {
-  activeMenu.value = activeMenu.value === name ? '' : name
+function compareMenuItem(left, right) {
+  const sectionDiff = getSectionRank(left?.section) - getSectionRank(right?.section)
+  if (sectionDiff !== 0) {
+    return sectionDiff
+  }
+
+  const sortDiff = Number(left?.sortOrder ?? 0) - Number(right?.sortOrder ?? 0)
+  if (sortDiff !== 0) {
+    return sortDiff
+  }
+
+  const pathDiff = String(left?.path || '').localeCompare(String(right?.path || ''))
+  if (pathDiff !== 0) {
+    return pathDiff
+  }
+
+  const nameDiff = String(left?.name || '').localeCompare(String(right?.name || ''))
+  if (nameDiff !== 0) {
+    return nameDiff
+  }
+
+  return String(left?.id || '').localeCompare(String(right?.id || ''))
 }
 
-function closeMenu() {
-  activeMenu.value = ''
+function buildNavigationTree(list) {
+  const items = Array.isArray(list) ? list.map((item) => ({ ...item, children: [] })) : []
+  const map = new Map(items.map((item) => [String(item.id), item]))
+  const roots = []
+
+  items.forEach((item) => {
+    const parentKey = item.parentId == null ? '' : String(item.parentId)
+    if (parentKey && map.has(parentKey)) {
+      map.get(parentKey).children.push(item)
+      return
+    }
+
+    roots.push(item)
+  })
+
+  const sortNodes = (nodes, level = 0) =>
+    nodes
+      .slice()
+      .sort(compareMenuItem)
+      .map((item) => ({
+        ...item,
+        level,
+        children: sortNodes(item.children || [], level + 1)
+      }))
+
+  return sortNodes(roots)
+}
+
+function flattenChildren(nodes) {
+  return nodes.flatMap((node) => [node, ...flattenChildren(node.children || [])])
+}
+
+function getNodeKey(node) {
+  if (!node) {
+    return ''
+  }
+  return String(node.id ?? node.path ?? '')
+}
+
+function isRootExpanded(root) {
+  return expandedRootKeys.value.includes(getNodeKey(root))
+}
+
+function toggleRoot(root) {
+  const key = getNodeKey(root)
+  if (!key) {
+    return
+  }
+
+  if (root.path && !root.path.startsWith('/nav/')) {
+    goTo(root.path)
+  }
+
+  if (isRootExpanded(root)) {
+    expandedRootKeys.value = expandedRootKeys.value.filter((item) => item !== key)
+    return
+  }
+
+  expandedRootKeys.value = [...expandedRootKeys.value, key]
+}
+
+function isRootActive(root) {
+  return currentRootKey.value !== '' && currentRootKey.value === getNodeKey(root)
+}
+
+function isItemActive(path) {
+  return route.path === path || (path !== '/' && route.path.startsWith(path))
+}
+
+function childIndentStyle(item) {
+  return {
+    paddingLeft: `${14 + Math.max((item.level || 1) - 1, 0) * 16}px`
+  }
 }
 
 function goTo(path) {
-  closeMenu()
+  if (!path || path.startsWith('/nav/')) {
+    return
+  }
+
+  if (route.path === path) {
+    return
+  }
+
   router.push(path)
-}
-
-function handleGroupClick(group) {
-  if (!group?.items?.length) {
-    return
-  }
-
-  const insideCurrentGroup = group.items.some((item) => isMenuPathMatch(item.path, route.path))
-
-  if (!insideCurrentGroup) {
-    goTo(group.items[0].path)
-    return
-  }
-
-  toggleMenu(group.key)
 }
 
 function selectTheme(theme) {
   setTheme(theme)
 }
 
-function handleDocumentClick(event) {
-  if (headerToolsRef.value && !headerToolsRef.value.contains(event.target)) {
-    closeMenu()
-  }
+function toggleHeaderMenu() {
+  headerMenuOpen.value = !headerMenuOpen.value
 }
 
-function syncWorkbenchScrollLock(enabled) {
-  if (typeof document === 'undefined') {
+function closeHeaderMenu() {
+  headerMenuOpen.value = false
+}
+
+function handleShellClick(event) {
+  const trigger = event.target.closest('[data-header-user-trigger]')
+  const menu = event.target.closest('[data-header-user-menu]')
+
+  if (trigger || menu) {
     return
   }
 
-  document.documentElement.classList.toggle('route-workbench', enabled)
-  document.body.classList.toggle('route-workbench', enabled)
+  closeHeaderMenu()
+}
+
+function syncPageOverflow() {
+  document.documentElement.style.overflow = 'hidden'
+  document.body.style.overflow = 'hidden'
 }
 
 async function handleLogout() {
@@ -228,24 +334,39 @@ async function handleLogout() {
   } catch (error) {
     // Ignore logout failures and clear local session anyway.
   } finally {
-    closeMenu()
+    closeHeaderMenu()
     clearSession()
     router.replace('/login')
   }
 }
 
-onMounted(() => {
-  document.addEventListener('click', handleDocumentClick)
-  syncWorkbenchScrollLock(isWorkbenchRoute.value)
+watch(
+  navigationRoots,
+  (roots) => {
+    const rootKeys = roots.map((item) => getNodeKey(item)).filter(Boolean)
+    const previous = new Set(expandedRootKeys.value)
+
+    if (!previous.size) {
+      expandedRootKeys.value = []
+      return
+    }
+
+    expandedRootKeys.value = rootKeys.filter((key) => previous.has(key))
+  },
+  { immediate: true }
+)
+
+watch(shouldConstrainContent, () => {
+  syncPageOverflow()
 })
 
-watch(isWorkbenchRoute, (enabled) => {
-  syncWorkbenchScrollLock(enabled)
+onMounted(() => {
+  syncPageOverflow()
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', handleDocumentClick)
-  syncWorkbenchScrollLock(false)
+  document.documentElement.style.overflow = ''
+  document.body.style.overflow = ''
 })
 </script>
 
@@ -254,135 +375,136 @@ onBeforeUnmount(() => {
     class="app-shell"
     :class="[
       `theme-${currentTheme}`,
-      {
-        'app-shell-constrained': shouldConstrainContent,
-        'app-shell-workbench': isWorkbenchRoute
-      }
+      { 'app-shell-constrained': shouldConstrainContent }
     ]"
     :style="shellVisualStyle"
+    @click="handleShellClick"
   >
-    <main
-      class="shell-main"
-      :class="{
-        'shell-main-constrained': shouldConstrainContent,
-        'shell-main-workbench': isWorkbenchRoute
-      }"
-    >
-      <header v-if="!hideShellHeader" class="shell-header glass-card">
+    <main class="shell-main" :class="{ 'shell-main-constrained': shouldConstrainContent }">
+      <header class="shell-header glass-card">
         <div class="header-left">
           <div class="header-copy">
-            <span class="header-section-pill">{{ currentSectionLabel }}</span>
+            <span class="header-section-pill">模型一体化平台</span>
             <p class="header-date-inline">{{ currentDateText }}</p>
           </div>
         </div>
 
-        <div ref="headerToolsRef" class="header-right">
-          <div class="header-tool-group">
-            <div
-              v-for="group in groupedMenus"
-              :key="group.key"
-              class="menu-anchor"
-            >
-              <button
-                class="top-action glass-card"
-                :class="{ active: isMenuActive(group) }"
-                type="button"
-                @click="handleGroupClick(group)"
-              >
-                <span>{{ group.title }}</span>
-              </button>
+        <div class="header-actions">
+          <button
+            type="button"
+            class="header-user-card"
+            :class="{ active: headerMenuOpen }"
+            data-header-user-trigger
+            @click.stop="toggleHeaderMenu"
+          >
+            <strong class="header-user-name">{{ displayUsername }}</strong>
+          </button>
 
-              <div v-if="activeMenu === group.key" class="menu-popover glass-card">
-                <div class="menu-section">
-                  <span class="menu-title">{{ group.title }}</span>
-                  <button
-                    v-for="item in group.items"
-                    :key="item.path"
-                    type="button"
-                    class="menu-item"
-                    :class="{ active: route.path === item.path }"
-                    @click="goTo(item.path)"
-                  >
-                    {{ item.name }}
-                  </button>
-                </div>
+          <div
+            v-if="headerMenuOpen"
+            class="header-user-menu glass-card"
+            data-header-user-menu
+            @click.stop
+          >
+            <div class="header-user-menu-section">
+              <span class="header-user-menu-title">用户信息</span>
+              <div class="header-summary">
+                <span class="header-summary-item">角色：{{ currentRoles }}</span>
+                <span class="header-summary-item">岗位：{{ currentPosts }}</span>
+                <span class="header-summary-item">公司：{{ currentCompany }}</span>
               </div>
             </div>
 
-            <div class="menu-anchor user-anchor">
-              <button
-                class="user-button glass-card"
-                :class="{ active: activeMenu === 'user' }"
-                type="button"
-                @click="toggleMenu('user')"
-              >
-                <div class="user-mark">{{ displayUsername }}</div>
-              </button>
+            <div class="header-user-menu-section">
+              <span class="header-user-menu-title">主题切换</span>
+              <div class="theme-switch-row header-theme-switch">
+                <button
+                  type="button"
+                  class="theme-switch-button"
+                  :class="{ active: currentTheme === 'dark' }"
+                  @click="selectTheme('dark')"
+                >
+                  <span class="theme-switch-icon moon" aria-hidden="true"></span>
+                  <span>暗色</span>
+                </button>
 
-              <div v-if="activeMenu === 'user'" class="menu-popover user-popover glass-card">
-                <div class="menu-section">
-                  <div class="menu-meta-card">
-                    <span class="menu-meta-label">当前用户</span>
-                    <strong class="menu-meta-value">{{ displayUsername }}</strong>
-                  </div>
-
-                  <div class="menu-meta-card">
-                    <span class="menu-meta-label">角色</span>
-                    <strong class="menu-meta-value">{{ currentRoles }}</strong>
-                  </div>
-
-                  <div class="menu-meta-card">
-                    <span class="menu-meta-label">岗位</span>
-                    <strong class="menu-meta-value">{{ currentPosts }}</strong>
-                  </div>
-
-                  <div class="menu-meta-card">
-                    <span class="menu-meta-label">所属公司</span>
-                    <strong class="menu-meta-value">{{ currentCompany }}</strong>
-                  </div>
-
-                  <div class="theme-switch-row">
-                    <button
-                      type="button"
-                      class="theme-switch-button"
-                      :class="{ active: currentTheme === 'dark' }"
-                      @click="selectTheme('dark')"
-                    >
-                      <span class="theme-switch-icon moon" aria-hidden="true"></span>
-                      <span>暗系</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      class="theme-switch-button"
-                      :class="{ active: currentTheme === 'light' }"
-                      @click="selectTheme('light')"
-                    >
-                      <span class="theme-switch-icon sun" aria-hidden="true"></span>
-                      <span>亮系</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div class="menu-divider"></div>
-
-                <button type="button" class="menu-item logout-item" @click="handleLogout">
-                  退出登录
+                <button
+                  type="button"
+                  class="theme-switch-button"
+                  :class="{ active: currentTheme === 'light' }"
+                  @click="selectTheme('light')"
+                >
+                  <span class="theme-switch-icon sun" aria-hidden="true"></span>
+                  <span>亮色</span>
                 </button>
               </div>
             </div>
+
+            <button
+              type="button"
+              class="logout-button header-logout-button"
+              @click="handleLogout"
+            >
+              退出登录
+            </button>
           </div>
         </div>
       </header>
 
-      <section
-        class="shell-content"
-        :class="{
-          'shell-content-constrained': shouldConstrainContent,
-          'shell-content-fill': hideShellHeader
-        }"
-      >
-        <router-view />
+      <aside class="shell-sidebar glass-card">
+        <div class="sidebar-brand">
+          <strong class="sidebar-title" style="text-align: center; display: block;">系统导航</strong>
+        </div>
+
+        <nav class="sidebar-tree">
+          <section
+            v-for="root in navigationRoots"
+            :key="getNodeKey(root)"
+            class="tree-group"
+            :class="{ expanded: isRootExpanded(root) }"
+          >
+            <button
+              type="button"
+              class="tree-group-trigger"
+              :class="{ active: isRootActive(root) }"
+              @click="toggleRoot(root)"
+            >
+              <span class="tree-group-title">{{ root.name }}</span>
+              <span v-if="root.children?.length" class="tree-group-side">
+                <span class="tree-group-arrow" aria-hidden="true"></span>
+              </span>
+            </button>
+
+            <div v-show="isRootExpanded(root)" class="tree-group-items">
+              <div v-if="root.children?.length" class="tree-subitems">
+                <button
+                  v-for="item in flattenChildren(root.children || [])"
+                  :key="getNodeKey(item)"
+                  type="button"
+                  class="tree-item tree-item-child"
+                  :class="{ active: isItemActive(item.path) }"
+                  :style="childIndentStyle(item)"
+                  @click="goTo(item.path)"
+                >
+                  <span class="tree-item-label">{{ item.name }}</span>
+                </button>
+              </div>
+            </div>
+          </section>
+        </nav>
+      </aside>
+
+      <section class="shell-panel">
+        <section
+          class="shell-content"
+          :class="{
+            'shell-content-constrained': shouldConstrainContent,
+            'shell-content-page-full': shouldFullSizePageCard,
+            'shell-content-page-narrow': shouldNarrowPageCard
+          }"
+        >
+          <router-view />
+        </section>
       </section>
     </main>
   </div>
@@ -393,7 +515,9 @@ onBeforeUnmount(() => {
   position: relative;
   isolation: isolate;
   min-height: 100vh;
-  padding: clamp(0.875rem, 0.5rem + 1vw, 1.375rem);
+  height: 100vh;
+  padding: clamp(0.3rem, 0.16rem + 0.4vw, 0.46rem) clamp(0.875rem, 0.5rem + 1vw, 1.375rem)
+    clamp(0.875rem, 0.5rem + 1vw, 1.375rem);
   overflow: hidden;
   color: var(--text-main);
   --bg-panel:
@@ -536,501 +660,265 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.app-shell-workbench {
-  height: 100dvh;
-  padding: 0;
-  overflow: hidden;
-  background: #eef2f7;
-}
-
-.app-shell-workbench::before,
-.app-shell-workbench::after {
-  content: none;
-}
-
 .shell-main {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    'header header'
+    'sidebar panel';
   gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
+  min-height: calc(100dvh - 1.75rem);
+  height: calc(100dvh - 1.75rem);
 }
 
 .shell-main-constrained {
-  height: 100%;
   min-height: 0;
 }
 
-.shell-main-workbench {
-  height: 100%;
-  min-height: 0;
-  gap: 0;
-}
-
-.app-shell-workbench .shell-content {
+.shell-sidebar {
+  grid-area: sidebar;
   display: flex;
-  flex: 1 1 auto;
-  height: 100%;
+  flex-direction: column;
+  gap: calc(16px * var(--ui-scale));
   min-height: 0;
-  overflow: hidden;
-}
-
-.shell-header {
-  position: relative;
-  z-index: 40;
-  border-radius: calc(28px * var(--ui-scale));
-  padding: clamp(1rem, 0.55rem + 1.2vw, 1.5rem) clamp(1rem, 0.4rem + 1.5vw, 1.75rem);
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: center;
-  flex-wrap: wrap;
+  height: 98%;
+  align-self: start;
+  padding: clamp(1rem, 0.55rem + 1.2vw, 1.4rem);
+  border-radius: calc(30px * var(--ui-scale));
   background:
-    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.68)),
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(15, 23, 42, 0.72)),
     rgba(15, 23, 42, 0.62);
   border: 1px solid rgba(34, 211, 238, 0.18);
   box-shadow:
-    0 24px 48px rgba(3, 10, 26, 0.38),
-    0 0 24px rgba(34, 211, 238, 0.08),
+    0 24px 48px rgba(3, 10, 26, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(24px) saturate(140%);
-}
-
-.app-shell.theme-light .shell-header {
-  background:
-    radial-gradient(circle at top right, rgba(255, 216, 188, 0.24), transparent 34%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(247, 250, 255, 0.76)),
-    rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  box-shadow:
-    0 24px 48px rgba(29, 35, 52, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: calc(14px * var(--ui-scale));
-  flex-wrap: wrap;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.header-copy {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: calc(14px * var(--ui-scale));
-  flex-wrap: nowrap;
-}
-
-.header-section-pill {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  min-height: calc(34px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.94)),
-    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent);
-  border: 1px solid rgba(34, 211, 238, 0.18);
-  color: #e6faff;
-  font-size: calc(12px * var(--ui-scale));
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  box-shadow:
-    0 12px 28px rgba(3, 10, 26, 0.28),
-    0 0 18px rgba(34, 211, 238, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.header-date-inline {
-  margin: 0;
-  color: rgba(229, 231, 235, 0.76);
-  font-size: calc(13px * var(--ui-scale));
-  line-height: 1.5;
-  white-space: nowrap;
-}
-
-.app-shell.theme-light .header-section-pill {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.92)),
-    linear-gradient(135deg, rgba(237, 124, 71, 0.12), rgba(47, 131, 116, 0.1));
-  border-color: rgba(27, 37, 54, 0.08);
-  color: #1b2536;
-  box-shadow:
-    0 12px 24px rgba(29, 35, 52, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-
-.app-shell.theme-light .header-date-inline {
-  color: var(--text-muted);
-}
-
-.header-right {
-  position: relative;
-  min-width: 0;
-}
-
-.header-tool-group {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: calc(10px * var(--ui-scale));
-  flex-wrap: wrap;
-}
-
-.menu-anchor {
-  position: relative;
-}
-
-.top-action,
-.user-button {
-  min-height: calc(52px * var(--ui-scale));
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border: 1px solid var(--line);
-  border-radius: calc(22px * var(--ui-scale));
-  background:
-    linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.9)),
-    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent);
-  color: var(--text-main);
-  box-shadow:
-    0 16px 32px rgba(3, 10, 26, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(20px) saturate(135%);
-  transition:
-    transform 0.18s ease,
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.top-action {
-  min-width: calc(112px * var(--ui-scale));
-}
-
-.top-action:hover {
-  transform: translateY(-1px);
-  border-color: rgba(34, 211, 238, 0.28);
-  box-shadow:
-    0 18px 36px rgba(3, 10, 26, 0.3),
-    0 0 24px rgba(34, 211, 238, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.top-action.active {
-  border-color: rgba(34, 211, 238, 0.24);
-  background:
-    linear-gradient(135deg, rgba(19, 32, 58, 0.96), rgba(8, 16, 29, 0.92)),
-    linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(122, 221, 193, 0.08));
-  color: #f8fafc;
-}
-
-.app-shell.theme-light .top-action {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 250, 255, 0.82)),
-    rgba(255, 255, 255, 0.76);
-  border-color: rgba(27, 37, 54, 0.08);
-  color: var(--text-main);
-  box-shadow:
-    0 16px 32px rgba(29, 35, 52, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
-}
-
-.app-shell.theme-light .top-action:hover {
-  border-color: rgba(237, 124, 71, 0.22);
-  box-shadow:
-    0 18px 36px rgba(29, 35, 52, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
-}
-
-.app-shell.theme-light .top-action.active {
-  border-color: rgba(237, 124, 71, 0.18);
-  background:
-    linear-gradient(135deg, rgba(255, 243, 234, 0.94), rgba(241, 248, 246, 0.92)),
-    rgba(255, 255, 255, 0.84);
-  color: #182131;
-  box-shadow:
-    0 18px 34px rgba(29, 35, 52, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.88);
-}
-
-.user-button {
-  gap: calc(10px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border-radius: 999px;
-  border-color: rgba(34, 211, 238, 0.18);
-  background:
-    linear-gradient(180deg, rgba(19, 32, 58, 0.96), rgba(8, 16, 29, 0.94)),
-    linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(122, 221, 193, 0.08));
-  color: #fff;
-  box-shadow:
-    0 16px 30px rgba(3, 10, 26, 0.3),
-    0 0 20px rgba(34, 211, 238, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.user-button::before {
-  content: '';
-  display: block;
-  width: calc(8px * var(--ui-scale));
-  height: calc(8px * var(--ui-scale));
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 0 0 calc(4px * var(--ui-scale)) rgba(34, 211, 238, 0.16);
-  flex-shrink: 0;
-}
-
-.user-button:hover {
-  transform: translateY(-1px);
-  border-color: rgba(34, 211, 238, 0.28);
-  box-shadow:
-    0 18px 34px rgba(3, 10, 26, 0.36),
-    0 0 24px rgba(34, 211, 238, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.user-button.active {
-  background:
-    linear-gradient(180deg, rgba(19, 32, 58, 0.98), rgba(8, 16, 29, 0.96)),
-    linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(122, 221, 193, 0.1));
-  box-shadow:
-    0 18px 34px rgba(3, 10, 26, 0.38),
-    0 0 26px rgba(34, 211, 238, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.user-mark {
-  min-width: 0;
-  max-width: calc(140px * var(--ui-scale));
-  color: #fff;
-  font-size: calc(14px * var(--ui-scale));
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.app-shell.theme-light .user-button {
-  border-color: rgba(237, 124, 71, 0.18);
-  background: linear-gradient(135deg, #ed7c47 0%, #f3a166 100%);
-  color: #ffffff;
-  box-shadow:
-    0 16px 30px rgba(237, 124, 71, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-
-.app-shell.theme-light .user-button::before {
-  box-shadow: 0 0 0 calc(4px * var(--ui-scale)) rgba(255, 255, 255, 0.18);
-}
-
-.app-shell.theme-light .user-button:hover {
-  border-color: rgba(237, 124, 71, 0.28);
-  box-shadow:
-    0 18px 34px rgba(237, 124, 71, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.26);
-}
-
-.app-shell.theme-light .user-button.active {
-  background: linear-gradient(135deg, #e26f38 0%, #ee9756 100%);
-  box-shadow:
-    0 18px 34px rgba(237, 124, 71, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.26);
-}
-
-.app-shell.theme-light .user-mark {
-  color: #ffffff;
-}
-
-.menu-popover {
-  position: absolute;
-  top: calc(100% + calc(12px * var(--ui-scale)));
-  right: 0;
-  width: min(15rem, calc(100vw - 3rem));
-  border-radius: calc(24px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale));
-  z-index: 80;
+.app-shell.theme-light .shell-sidebar {
   background:
-    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(15, 23, 42, 0.78)),
-    rgba(15, 23, 42, 0.72);
-  border: 1px solid rgba(34, 211, 238, 0.18);
-  box-shadow:
-    0 22px 44px rgba(3, 10, 26, 0.36),
-    0 0 24px rgba(34, 211, 238, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(26px) saturate(150%);
-}
-
-.app-shell.theme-light .menu-popover {
-  background:
-    radial-gradient(circle at top right, rgba(255, 216, 188, 0.24), transparent 34%),
+    radial-gradient(circle at top left, rgba(255, 216, 188, 0.26), transparent 32%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 255, 0.84)),
-    rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(27, 37, 54, 0.08);
+    rgba(255, 255, 255, 0.78);
+  border-color: rgba(27, 37, 54, 0.08);
   box-shadow:
-    0 22px 44px rgba(29, 35, 52, 0.16),
+    0 24px 48px rgba(29, 35, 52, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
-.user-popover {
-  width: min(18rem, calc(100vw - 3rem));
-}
-
-.menu-section {
+.sidebar-brand {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
+  gap: calc(8px * var(--ui-scale));
 }
 
-.menu-title {
-  padding: calc(4px * var(--ui-scale)) calc(6px * var(--ui-scale));
-  color: rgba(229, 231, 235, 0.64);
-  font-size: calc(11px * var(--ui-scale));
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.sidebar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: calc(7px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: 999px;
+  background: var(--surface-accent-alt);
+  color: var(--brand-alt);
+  font-size: calc(12px * var(--ui-scale));
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
-.menu-meta-card {
+.sidebar-title {
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+.sidebar-date {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.sidebar-tree {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: calc(12px * var(--ui-scale));
+  padding-right: calc(4px * var(--ui-scale));
+  -ms-overflow-style: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
+}
+
+.sidebar-tree::-webkit-scrollbar {
+  width: calc(8px * var(--ui-scale));
+}
+
+.sidebar-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-tree::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.36);
+}
+
+.sidebar-tree::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.54);
+}
+
+.tree-group {
+  overflow: visible;
+}
+
+.tree-group-trigger {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: calc(10px * var(--ui-scale));
-  padding: calc(11px * var(--ui-scale)) calc(13px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
-  background: rgba(2, 6, 23, 0.28);
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.app-shell.theme-light .menu-title {
-  color: var(--text-muted);
-}
-
-.app-shell.theme-light .menu-meta-card {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.9)),
-    rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  box-shadow:
-    0 10px 22px rgba(29, 35, 52, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.84);
-}
-
-.app-shell.theme-light .menu-meta-label {
-  color: var(--text-muted);
-}
-
-.app-shell.theme-light .menu-meta-value {
-  color: #1b2536;
-}
-
-.menu-meta-label {
-  color: rgba(229, 231, 235, 0.68);
-  font-size: calc(12px * var(--ui-scale));
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-}
-
-.menu-section > .menu-meta-card:nth-child(4) .menu-meta-label {
-  font-size: 0;
-}
-
-.menu-section > .menu-meta-card:nth-child(4) .menu-meta-label::before {
-  content: '所属公司';
-  font-size: calc(12px * var(--ui-scale));
-}
-
-.menu-meta-value {
+  padding: calc(10px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  border: none;
+  border-radius: calc(14px * var(--ui-scale));
+  background: transparent;
   color: var(--text-main);
-  font-size: calc(14px * var(--ui-scale));
-  line-height: 1.3;
-  text-align: right;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: left;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
-.menu-divider {
-  height: 1px;
-  background: var(--line);
-  margin: calc(12px * var(--ui-scale)) 0;
+.tree-group-trigger:hover {
+  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.menu-item {
-  display: block;
+.tree-group-trigger.active {
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(122, 221, 193, 0.1));
+  color: #f8fafc;
+}
+
+.app-shell.theme-light .tree-group-trigger:hover {
+  background: rgba(27, 37, 54, 0.04);
+}
+
+.app-shell.theme-light .tree-group-trigger.active {
+  background: linear-gradient(135deg, rgba(255, 243, 234, 0.94), rgba(241, 248, 246, 0.92));
+  color: #182131;
+}
+
+.tree-group-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tree-group-side {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(10px * var(--ui-scale));
+  flex: 0 0 auto;
+}
+
+.tree-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: calc(28px * var(--ui-scale));
+  min-height: calc(24px * var(--ui-scale));
+  padding: 0 calc(8px * var(--ui-scale));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tree-group-arrow {
+  width: calc(10px * var(--ui-scale));
+  height: calc(10px * var(--ui-scale));
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+
+.tree-group.expanded .tree-group-arrow {
+  transform: rotate(225deg);
+}
+
+.tree-group-items {
+  display: grid;
+  gap: calc(6px * var(--ui-scale));
+  padding: 0 0 calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+}
+
+.tree-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
   width: 100%;
-  border: 1px solid transparent;
-  border-radius: calc(18px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  background: rgba(2, 6, 23, 0.3);
+  min-height: calc(36px * var(--ui-scale));
+  padding: calc(6px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  border: none;
+  border-radius: calc(12px * var(--ui-scale));
+  background: transparent;
   color: var(--text-main);
   text-align: left;
   transition:
     transform 0.18s ease,
-    border-color 0.18s ease,
     background 0.18s ease,
-    box-shadow 0.18s ease;
+    color 0.18s ease;
 }
 
-.menu-item:hover {
-  transform: translateY(-1px);
-  border-color: rgba(34, 211, 238, 0.16);
-  box-shadow:
-    0 12px 24px rgba(3, 10, 26, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+.tree-item:hover {
+  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.04);
 }
 
-.menu-item.active {
+.tree-item.active {
   background:
-    linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(122, 221, 193, 0.1)),
-    rgba(2, 6, 23, 0.36);
-  border-color: rgba(34, 211, 238, 0.2);
+    linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(122, 221, 193, 0.1));
   color: #f8fafc;
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.logout-item {
-  background: rgba(127, 29, 29, 0.24);
-  border-color: rgba(248, 113, 113, 0.2);
-  color: #fecaca;
-}
-
-.app-shell.theme-light .menu-item {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.9)),
-    rgba(255, 255, 255, 0.84);
-  border-color: rgba(27, 37, 54, 0.06);
+.app-shell.theme-light .tree-item {
+  background: transparent;
   color: var(--text-main);
-  box-shadow:
-    0 10px 22px rgba(29, 35, 52, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
-.app-shell.theme-light .menu-item:hover {
-  border-color: rgba(237, 124, 71, 0.16);
-  box-shadow:
-    0 12px 24px rgba(29, 35, 52, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+.app-shell.theme-light .tree-item:hover {
+  background: rgba(27, 37, 54, 0.04);
 }
 
-.app-shell.theme-light .menu-item.active {
-  background: linear-gradient(135deg, rgba(237, 124, 71, 0.14), rgba(47, 131, 116, 0.12));
-  border-color: rgba(237, 124, 71, 0.16);
+.app-shell.theme-light .tree-item.active {
+  background: linear-gradient(135deg, rgba(255, 243, 234, 0.94), rgba(241, 248, 246, 0.92));
   color: #182131;
 }
 
-.app-shell.theme-light .logout-item {
-  background: rgba(207, 76, 76, 0.12);
-  border-color: rgba(207, 76, 76, 0.14);
-  color: #c24141;
+.tree-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.tree-subitems {
+  display: grid;
+  gap: calc(6px * var(--ui-scale));
+  padding-left: calc(4px * var(--ui-scale));
+}
+
+.tree-item-child {
+  min-height: calc(38px * var(--ui-scale));
+  background: rgba(2, 6, 23, 0.18);
 }
 
 .theme-switch-row {
@@ -1038,8 +926,8 @@ onBeforeUnmount(() => {
   gap: calc(10px * var(--ui-scale));
 }
 
-.theme-switch-button {
-  flex: 1 1 0;
+.theme-switch-button,
+.logout-button {
   min-height: calc(44px * var(--ui-scale));
   display: inline-flex;
   align-items: center;
@@ -1060,7 +948,12 @@ onBeforeUnmount(() => {
     box-shadow 0.18s ease;
 }
 
-.theme-switch-button:hover {
+.theme-switch-button {
+  flex: 1 1 0;
+}
+
+.theme-switch-button:hover,
+.logout-button:hover {
   transform: translateY(-1px);
   border-color: rgba(34, 211, 238, 0.18);
   box-shadow:
@@ -1076,7 +969,19 @@ onBeforeUnmount(() => {
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.app-shell.theme-light .theme-switch-button {
+.logout-button {
+  background: rgba(127, 29, 29, 0.24);
+  border-color: rgba(248, 113, 113, 0.18);
+  color: #fecaca;
+}
+
+.logout-button:hover {
+  border-color: rgba(248, 113, 113, 0.28);
+  color: #ffe4e6;
+}
+
+.app-shell.theme-light .theme-switch-button,
+.app-shell.theme-light .logout-button {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.9)),
     rgba(255, 255, 255, 0.84);
@@ -1087,7 +992,8 @@ onBeforeUnmount(() => {
     inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
-.app-shell.theme-light .theme-switch-button:hover {
+.app-shell.theme-light .theme-switch-button:hover,
+.app-shell.theme-light .logout-button:hover {
   border-color: rgba(237, 124, 71, 0.18);
   box-shadow:
     0 10px 20px rgba(29, 35, 52, 0.1),
@@ -1097,7 +1003,12 @@ onBeforeUnmount(() => {
 .app-shell.theme-light .theme-switch-button.active {
   border-color: rgba(237, 124, 71, 0.16);
   background: linear-gradient(135deg, rgba(255, 243, 234, 0.94), rgba(241, 248, 246, 0.92));
-  color: #1b2536;
+}
+
+.app-shell.theme-light .logout-button {
+  background: rgba(207, 76, 76, 0.12);
+  border-color: rgba(207, 76, 76, 0.14);
+  color: #c24141;
 }
 
 .theme-switch-icon {
@@ -1116,10 +1027,6 @@ onBeforeUnmount(() => {
     0 5px 12px rgba(2, 6, 23, 0.18);
   transform: var(--theme-icon-transform, none);
   isolation: isolate;
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    background 0.18s ease;
 }
 
 .theme-switch-icon::before,
@@ -1127,13 +1034,6 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   border-radius: 50%;
-}
-
-.theme-switch-button.active .theme-switch-icon {
-  transform: var(--theme-icon-transform, none) translateY(-1px) scale(1.05);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    0 10px 20px rgba(2, 6, 23, 0.22);
 }
 
 .app-shell.theme-light .theme-switch-icon {
@@ -1203,88 +1103,371 @@ onBeforeUnmount(() => {
   );
 }
 
+.shell-panel {
+  grid-area: panel;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.shell-header {
+  grid-area: header;
+  position: relative;
+  z-index: 40;
+  flex: 0 0 auto;
+  width: 100%;
+  font-size: 16px;
+  border-radius: calc(28px * var(--ui-scale));
+  padding: clamp(1rem, 0.55rem + 1.2vw, 1.5rem) clamp(1rem, 0.4rem + 1.5vw, 1.75rem);
+  display: flex;
+  justify-content: space-between;
+  gap: calc(14px * var(--ui-scale));
+  align-items: center;
+  flex-wrap: wrap;
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.84), rgba(15, 23, 42, 0.68)),
+    rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  box-shadow:
+    0 24px 48px rgba(3, 10, 26, 0.38),
+    0 0 24px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+.app-shell.theme-light .shell-header {
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.24), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(247, 250, 255, 0.76)),
+    rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 24px 48px rgba(29, 35, 52, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: calc(14px * var(--ui-scale));
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.header-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: calc(14px * var(--ui-scale));
+  flex-wrap: wrap;
+}
+
+.header-section-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(34px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.94)),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent);
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  color: #e6faff;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow:
+    0 12px 28px rgba(3, 10, 26, 0.28),
+    0 0 18px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.app-shell.theme-light .header-section-pill {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 248, 252, 0.92)),
+    linear-gradient(135deg, rgba(237, 124, 71, 0.12), rgba(47, 131, 116, 0.1));
+  border-color: rgba(27, 37, 54, 0.08);
+  color: #1b2536;
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.header-date-inline {
+  margin: 0;
+  color: rgba(229, 231, 235, 0.76);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.app-shell.theme-light .header-date-inline {
+  color: var(--text-muted);
+}
+
+.header-summary {
+  display: grid;
+  gap: calc(8px * var(--ui-scale));
+}
+
+.header-summary-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: 999px;
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  color: var(--text-main);
+  font-size: 14px;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
+}
+
+.header-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: calc(10px * var(--ui-scale));
+  flex-wrap: wrap;
+}
+
+.header-user-card {
+  appearance: none;
+  display: inline-grid;
+  align-items: center;
+  gap: calc(2px * var(--ui-scale));
+  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background:
+    linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.94)),
+    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent);
+  color: #e6faff;
+  cursor: pointer;
+  box-shadow:
+    0 14px 30px rgba(3, 10, 26, 0.32),
+    0 0 20px rgba(34, 211, 238, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.header-user-label {
+  color: rgba(230, 250, 255, 0.76);
+  font-size: calc(11px * var(--ui-scale));
+  line-height: 1.2;
+  text-align: left;
+}
+
+.header-user-name {
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.header-user-card.active {
+  border-color: rgba(34, 211, 238, 0.3);
+  box-shadow:
+    0 18px 36px rgba(3, 10, 26, 0.38),
+    0 0 26px rgba(34, 211, 238, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.theme-light .header-user-card {
+  border-color: rgba(237, 124, 71, 0.18);
+  background: linear-gradient(135deg, #ed7c47 0%, #f3a166 100%);
+  color: #ffffff;
+  box-shadow:
+    0 14px 28px rgba(237, 124, 71, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.app-shell.theme-light .header-user-label {
+  color: rgba(255, 247, 240, 0.86);
+}
+
+.app-shell.theme-light .header-user-name {
+  color: #ffffff;
+}
+
+.app-shell.theme-light .header-user-card.active {
+  border-color: rgba(237, 124, 71, 0.28);
+  box-shadow:
+    0 18px 34px rgba(237, 124, 71, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.header-user-menu {
+  position: absolute;
+  top: calc(100% + 10px * var(--ui-scale));
+  right: 0;
+  width: min(24rem, calc(100vw - 2rem));
+  padding: calc(14px * var(--ui-scale));
+  border-radius: calc(20px * var(--ui-scale));
+  border: 1px solid var(--panel-card-border);
+  background:
+    radial-gradient(circle at top right, rgba(34, 211, 238, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.84));
+  box-shadow:
+    0 18px 40px rgba(3, 10, 26, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  z-index: 60;
+}
+
+.app-shell.theme-light .header-user-menu {
+  background:
+    radial-gradient(circle at top right, rgba(255, 216, 188, 0.22), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.94));
+  box-shadow:
+    0 18px 36px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+}
+
+.header-user-menu-section {
+  display: grid;
+  gap: calc(10px * var(--ui-scale));
+}
+
+.header-user-menu-section + .header-user-menu-section {
+  margin-top: calc(12px * var(--ui-scale));
+  padding-top: calc(12px * var(--ui-scale));
+  border-top: 1px solid var(--panel-card-border);
+}
+
+.header-user-menu-title {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+
+.header-user-menu .theme-switch-button,
+.header-user-menu .logout-button {
+  font-size: 14px;
+}
+
+.header-theme-switch {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.header-logout-button {
+  width: 100%;
+  flex: 0 0 auto;
+  margin-top: calc(12px * var(--ui-scale));
+}
+
 .shell-content {
   min-width: 0;
+  min-height: 0;
   position: relative;
   z-index: 1;
+  flex: 1 1 auto;
+  overflow: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.shell-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .shell-content-constrained {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
   overflow: hidden;
 }
 
-.shell-content-fill {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
+.shell-content-page-full :deep(.admin-scroll-page) {
+  width: 100%;
+  height: 98%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-@media (max-width: 1080px) {
-  .shell-header {
-    align-items: stretch;
+.shell-content-page-full :deep(.data-panel),
+.shell-content-page-full :deep(.home-panel),
+.shell-content-page-full :deep(.log-panel) {
+  width: 100%;
+  height: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.shell-content-page-narrow :deep(.data-panel),
+.shell-content-page-narrow :deep(.home-panel) {
+  width: 98%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (max-width: 1180px) {
+  .shell-main {
+    grid-template-columns: minmax(14rem, 16rem) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 960px) {
+  .shell-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'header'
+      'sidebar'
+      'panel';
+    min-height: auto;
+    height: auto;
   }
 
-  .header-left {
-    width: 100%;
+  .shell-sidebar {
+    min-height: auto;
   }
 
-  .header-right {
-    width: 100%;
+  .sidebar-tree {
+    max-height: 34vh;
   }
 
-  .header-tool-group {
-    justify-content: flex-start;
+  .shell-panel {
+    overflow: visible;
+  }
+
+  .shell-content {
+    overflow: visible;
   }
 }
 
 @media (max-width: 720px) {
-  .header-tool-group {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-
-  .header-left {
-    align-items: stretch;
-  }
-
-  .header-copy {
-    width: 100%;
-  }
-
-  .menu-anchor,
-  .top-action,
-  .user-button {
-    width: 100%;
-  }
-}
-
-@media (max-width: 640px) {
   .app-shell {
-    padding: 0.875rem;
+    padding: 0.3rem 0.875rem 0.875rem;
   }
 
-  .app-shell-workbench {
-    padding: 0;
+  .header-copy,
+  .header-actions {
+    width: 100%;
   }
 
-  .shell-header {
-    padding: 1rem;
+  .header-actions {
+    justify-content: flex-start;
   }
 
-  .header-copy {
-    gap: 0.75rem;
+  .header-user-menu {
+    left: 0;
+    right: auto;
+    width: 100%;
   }
 
-  .menu-popover,
-  .user-popover {
-    width: min(100%, calc(100vw - 28px));
+  .theme-switch-row {
+    flex-direction: column;
   }
 }
 </style>

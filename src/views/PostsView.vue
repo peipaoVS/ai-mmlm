@@ -32,12 +32,6 @@ const statusOptions = [
   { label: '停用', value: 0 }
 ]
 
-const summary = computed(() => ({
-  total: rows.value.length,
-  active: rows.value.filter((item) => item.status === 1).length,
-  inactive: rows.value.filter((item) => item.status === 0).length
-}))
-
 const deleteMessage = computed(() => {
   const row = pendingDeleteRow.value
   return row ? `确认删除岗位「${row.name}」吗？` : ''
@@ -144,22 +138,7 @@ async function confirmRemove() {
 </script>
 
 <template>
-  <div class="admin-scroll-page">
-    <div class="stats-grid">
-      <article class="stats-card">
-        <span>岗位总数</span>
-        <strong>{{ summary.total }}</strong>
-      </article>
-      <article class="stats-card">
-        <span>启用岗位</span>
-        <strong>{{ summary.active }}</strong>
-      </article>
-      <article class="stats-card">
-        <span>停用岗位</span>
-        <strong>{{ summary.inactive }}</strong>
-      </article>
-    </div>
-
+  <div class="admin-scroll-page posts-page">
     <section class="data-panel glass-card admin-scroll-panel">
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索岗位名称 / 编码" />
@@ -220,7 +199,7 @@ async function confirmRemove() {
 
     <Teleport to="body">
       <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
-        <div class="modal-panel glass-card">
+        <div class="modal-panel glass-card permission-editor-modal">
           <div class="modal-header">
             <div>
               <h3 style="margin: 0">{{ editingId ? '编辑岗位' : '新增岗位' }}</h3>
@@ -270,3 +249,76 @@ async function confirmRemove() {
     />
   </div>
 </template>
+
+<style scoped>
+.posts-page .modal-header h3 {
+  font-size: 16px;
+}
+
+.posts-page .toolbar {
+  font-size: 16px;
+}
+
+.posts-page .data-table th,
+.posts-page .field > span {
+  font-size: 16px;
+}
+
+.posts-page .data-table th {
+  text-align: left;
+}
+
+.posts-page .modal-subtext,
+.posts-page .pill-button,
+.posts-page .tiny-button,
+.posts-page .toolbar input,
+.posts-page .field input,
+.posts-page .field textarea {
+  font-size: 14px;
+}
+
+.posts-page :deep(.app-select-trigger),
+.posts-page :deep(.app-select-value),
+.posts-page :deep(.app-select-option) {
+  font-size: 14px;
+}
+
+.posts-page .data-table td,
+.posts-page .data-table td span {
+  color: var(--text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.posts-page .data-table th:nth-child(3),
+.posts-page .data-table th:nth-child(5),
+.posts-page .data-table th:nth-child(6),
+.posts-page .data-table td:nth-child(3),
+.posts-page .data-table td:nth-child(5),
+.posts-page .data-table td:nth-child(6),
+.posts-page .data-table td:nth-child(3) span,
+.posts-page .data-table td:nth-child(5) span,
+.posts-page .data-table td:nth-child(6) span {
+  text-align: center;
+}
+
+.posts-page .status-tag,
+.posts-page .status-tag.active,
+.posts-page .status-tag.inactive {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.posts-page .action-group {
+  justify-content: center;
+}
+
+.posts-page .action-group .tiny-button {
+  font-size: inherit;
+}
+</style>

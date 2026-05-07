@@ -7,11 +7,13 @@ import AgentConfigView from '../views/AgentConfigView.vue'
 import ParamConfigView from '../views/ParamConfigView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
 import LogModuleView from '../views/LogModuleView.vue'
+import HomeView from '../views/HomeView.vue'
 import UsersView from '../views/UsersView.vue'
 import RolesView from '../views/RolesView.vue'
 import PostsView from '../views/PostsView.vue'
 import MenusView from '../views/MenusView.vue'
 import CompaniesView from '../views/CompaniesView.vue'
+import { isBuiltInMenuPath } from '../config/builtinMenus'
 import { getToken, getUser, hasMenuSnapshot } from '../stores/session'
 
 const routes = [
@@ -32,7 +34,15 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: '/chat'
+        redirect: '/home'
+      },
+      {
+        path: '/home',
+        name: 'home',
+        component: HomeView,
+        meta: {
+          title: '首页'
+        }
       },
       {
         path: '/chat',
@@ -230,10 +240,18 @@ const MENU_PATH_ALIASES = {
 }
 
 function resolveDefaultPath(user) {
-  return user?.menus?.[0]?.path || '/chat'
+  const target = Array.isArray(user?.menus)
+    ? user.menus.find((item) => typeof item?.path === 'string' && !item.path.startsWith('/nav/'))
+    : null
+  return target?.path || '/home'
 }
 
 function hasMenuAccess(user, path) {
+  return (
+    path === '/home' ||
+    isBuiltInMenuPath(path) ||
+    (Array.isArray(user?.menus) && user.menus.some((item) => item.path === path))
+  )
   if (!Array.isArray(user?.menus)) {
     return false
   }
