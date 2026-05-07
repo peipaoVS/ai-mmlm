@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/http'
 import loginBackground from '../assets/login-ai-background.jpg'
@@ -26,8 +26,9 @@ const sectionTitles = {
 
 const legacyMenus = [
   { name: 'AI工作台', section: 'ai', path: '/chat', sortOrder: 10 },
-  { name: '大模型配置', section: 'ai', path: '/agents', sortOrder: 20 },
-  { name: '参数配置', section: 'ai', path: '/params', sortOrder: 30 },
+  { name: 'AI简易工作台', section: 'ai', path: '/workbench', sortOrder: 20 },
+  { name: '大模型配置', section: 'ai', path: '/agents', sortOrder: 30 },
+  { name: '参数配置', section: 'ai', path: '/params', sortOrder: 40 },
   { name: '产品库', section: 'knowledge', path: '/knowledge/products', sortOrder: 10 },
   { name: '企业画像', section: 'knowledge', path: '/knowledge/portraits', sortOrder: 20 },
   { name: '行业动态', section: 'knowledge', path: '/knowledge/trends', sortOrder: 30 },
@@ -43,6 +44,13 @@ const legacyMenus = [
   { name: '菜单管理', section: 'permission', path: '/menus', sortOrder: 40 },
   { name: '所属公司', section: 'permission', path: '/companies', sortOrder: 50 }
 ]
+
+const MENU_PATH_ALIASES = {
+  '/chat': ['/workbench'],
+  '/workbench': ['/chat']
+}
+
+const LEGACY_MENU_BY_PATH = new Map(legacyMenus.map((item) => [item.path, item]))
 
 const displayUsername = computed(
   () => session.user?.nickname || session.user?.username || '管理员'
@@ -61,14 +69,50 @@ const currentPosts = computed(() => {
 const currentCompany = computed(() => session.user?.companyName || '--')
 const currentTheme = computed(() => session.theme === 'light' ? 'light' : 'dark')
 
+function withMenuAliases(items) {
+  const expanded = [...items]
+  const existingPaths = new Set(expanded.map((item) => item.path))
+
+  items.forEach((item) => {
+    const aliasPaths = MENU_PATH_ALIASES[item.path] || []
+    aliasPaths.forEach((aliasPath) => {
+      if (existingPaths.has(aliasPath)) {
+        return
+      }
+      const fallback = LEGACY_MENU_BY_PATH.get(aliasPath)
+      if (!fallback) {
+        return
+      }
+      expanded.push({ ...fallback })
+      existingPaths.add(aliasPath)
+    })
+  })
+
+  return expanded
+}
+
+function isMenuPathMatch(menuPath, currentPath) {
+  if (menuPath === currentPath) {
+    return true
+  }
+
+  if (menuPath !== '/' && currentPath.startsWith(`${menuPath}/`)) {
+    return true
+  }
+
+  const aliasPaths = MENU_PATH_ALIASES[menuPath] || []
+  return aliasPaths.includes(currentPath)
+}
+
 const effectiveMenus = computed(() => {
   if (hasMenuSnapshot(session.user)) {
-    return (session.user?.menus || []).map((item, index) => ({
+    const snapshotMenus = (session.user?.menus || []).map((item, index) => ({
       name: item.name,
       section: item.section,
       path: item.path,
       sortOrder: item.sortOrder ?? index + 1
     }))
+    return withMenuAliases(snapshotMenus)
   }
   return legacyMenus
 })
@@ -86,7 +130,7 @@ const groupedMenus = computed(() =>
 )
 
 const currentMenuItem = computed(() => {
-  const exactMatched = effectiveMenus.value.find((item) => item.path === route.path)
+  const exactMatched = effectiveMenus.value.find((item) => isMenuPathMatch(item.path, route.path))
   if (exactMatched) {
     return exactMatched
   }
@@ -108,6 +152,9 @@ const currentDateText = computed(() =>
   }).format(new Date())
 )
 
+const hideShellHeader = computed(() => route.path === '/workbench')
+const isWorkbenchRoute = computed(() => route.path === '/workbench')
+
 const shouldConstrainContent = computed(() => {
   const routeName = typeof route.name === 'string' ? route.name : ''
   return (
@@ -125,7 +172,7 @@ const shellVisualStyle = {
 }
 
 function isMenuActive(group) {
-  return activeMenu.value === group.key || group.items.some((item) => route.path === item.path)
+  return activeMenu.value === group.key || group.items.some((item) => isMenuPathMatch(item.path, route.path))
 }
 
 function toggleMenu(name) {
@@ -141,6 +188,21 @@ function goTo(path) {
   router.push(path)
 }
 
+function handleGroupClick(group) {
+  if (!group?.items?.length) {
+    return
+  }
+
+  const insideCurrentGroup = group.items.some((item) => isMenuPathMatch(item.path, route.path))
+
+  if (!insideCurrentGroup) {
+    goTo(group.items[0].path)
+    return
+  }
+
+  toggleMenu(group.key)
+}
+
 function selectTheme(theme) {
   setTheme(theme)
 }
@@ -149,6 +211,15 @@ function handleDocumentClick(event) {
   if (headerToolsRef.value && !headerToolsRef.value.contains(event.target)) {
     closeMenu()
   }
+}
+
+function syncWorkbenchScrollLock(enabled) {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  document.documentElement.classList.toggle('route-workbench', enabled)
+  document.body.classList.toggle('route-workbench', enabled)
 }
 
 async function handleLogout() {
@@ -165,10 +236,16 @@ async function handleLogout() {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  syncWorkbenchScrollLock(isWorkbenchRoute.value)
+})
+
+watch(isWorkbenchRoute, (enabled) => {
+  syncWorkbenchScrollLock(enabled)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  syncWorkbenchScrollLock(false)
 })
 </script>
 
@@ -177,12 +254,21 @@ onBeforeUnmount(() => {
     class="app-shell"
     :class="[
       `theme-${currentTheme}`,
-      { 'app-shell-constrained': shouldConstrainContent }
+      {
+        'app-shell-constrained': shouldConstrainContent,
+        'app-shell-workbench': isWorkbenchRoute
+      }
     ]"
     :style="shellVisualStyle"
   >
-    <main class="shell-main" :class="{ 'shell-main-constrained': shouldConstrainContent }">
-      <header class="shell-header glass-card">
+    <main
+      class="shell-main"
+      :class="{
+        'shell-main-constrained': shouldConstrainContent,
+        'shell-main-workbench': isWorkbenchRoute
+      }"
+    >
+      <header v-if="!hideShellHeader" class="shell-header glass-card">
         <div class="header-left">
           <div class="header-copy">
             <span class="header-section-pill">{{ currentSectionLabel }}</span>
@@ -201,7 +287,7 @@ onBeforeUnmount(() => {
                 class="top-action glass-card"
                 :class="{ active: isMenuActive(group) }"
                 type="button"
-                @click="toggleMenu(group.key)"
+                @click="handleGroupClick(group)"
               >
                 <span>{{ group.title }}</span>
               </button>
@@ -291,7 +377,10 @@ onBeforeUnmount(() => {
 
       <section
         class="shell-content"
-        :class="{ 'shell-content-constrained': shouldConstrainContent }"
+        :class="{
+          'shell-content-constrained': shouldConstrainContent,
+          'shell-content-fill': hideShellHeader
+        }"
       >
         <router-view />
       </section>
@@ -447,6 +536,18 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.app-shell-workbench {
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+  background: #eef2f7;
+}
+
+.app-shell-workbench::before,
+.app-shell-workbench::after {
+  content: none;
+}
+
 .shell-main {
   position: relative;
   z-index: 1;
@@ -458,6 +559,20 @@ onBeforeUnmount(() => {
 .shell-main-constrained {
   height: 100%;
   min-height: 0;
+}
+
+.shell-main-workbench {
+  height: 100%;
+  min-height: 0;
+  gap: 0;
+}
+
+.app-shell-workbench .shell-content {
+  display: flex;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .shell-header {
@@ -1102,6 +1217,14 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.shell-content-fill {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 1080px) {
   .shell-header {
     align-items: stretch;
@@ -1145,6 +1268,10 @@ onBeforeUnmount(() => {
 @media (max-width: 640px) {
   .app-shell {
     padding: 0.875rem;
+  }
+
+  .app-shell-workbench {
+    padding: 0;
   }
 
   .shell-header {

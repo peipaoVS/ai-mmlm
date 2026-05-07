@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import LoginView from '../views/LoginView.vue'
 import ChatView from '../views/ChatView.vue'
+import WorkbenchView from '../views/WorkbenchView.vue'
 import AgentConfigView from '../views/AgentConfigView.vue'
 import ParamConfigView from '../views/ParamConfigView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
@@ -39,6 +40,14 @@ const routes = [
         component: ChatView,
         meta: {
           title: 'AI工作台'
+        }
+      },
+      {
+        path: '/workbench',
+        name: 'workbench',
+        component: WorkbenchView,
+        meta: {
+          title: 'AI简易工作台'
         }
       },
       {
@@ -215,12 +224,26 @@ const router = createRouter({
   routes
 })
 
+const MENU_PATH_ALIASES = {
+  '/chat': ['/workbench'],
+  '/workbench': ['/chat']
+}
+
 function resolveDefaultPath(user) {
   return user?.menus?.[0]?.path || '/chat'
 }
 
 function hasMenuAccess(user, path) {
-  return Array.isArray(user?.menus) && user.menus.some((item) => item.path === path)
+  if (!Array.isArray(user?.menus)) {
+    return false
+  }
+
+  if (user.menus.some((item) => item.path === path)) {
+    return true
+  }
+
+  const aliasPaths = MENU_PATH_ALIASES[path] || []
+  return aliasPaths.some((aliasPath) => user.menus.some((item) => item.path === aliasPath))
 }
 
 router.beforeEach((to, from, next) => {

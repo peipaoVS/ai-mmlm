@@ -59,6 +59,16 @@ body,
   margin: 0;
 }
 
+html.route-workbench,
+html.route-workbench body,
+html.route-workbench #app,
+body.route-workbench,
+body.route-workbench #app {
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+}
+
 body {
   min-height: 100vh;
   background: #08101d;
@@ -588,6 +598,45 @@ button {
 .modal-panel strong,
 .modal-panel code {
   color: var(--text-main);
+}
+
+.modal-panel,
+.modal-panel h1,
+.modal-panel h2,
+.modal-panel h3,
+.modal-panel h4,
+.modal-panel h5,
+.modal-panel h6,
+.modal-panel p,
+.modal-panel span,
+.modal-panel li,
+.modal-panel small,
+.modal-panel label,
+.modal-panel strong,
+.modal-panel code,
+.modal-panel button,
+.modal-panel input,
+.modal-panel textarea,
+.modal-panel select,
+.confirm-dialog,
+.confirm-dialog h1,
+.confirm-dialog h2,
+.confirm-dialog h3,
+.confirm-dialog h4,
+.confirm-dialog h5,
+.confirm-dialog h6,
+.confirm-dialog p,
+.confirm-dialog span,
+.confirm-dialog li,
+.confirm-dialog small,
+.confirm-dialog label,
+.confirm-dialog strong,
+.confirm-dialog code,
+.confirm-dialog button,
+.confirm-dialog input,
+.confirm-dialog textarea,
+.confirm-dialog select {
+  font-size: 13px !important;
 }
 
 .modal-panel p,

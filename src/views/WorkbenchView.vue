@@ -144,6 +144,18 @@ const promptCards = [
   // '明天下午2:00,我约了工商银行支行的客户经理,在其VIP室洽谈企业综合授信方案,请在下午1:15前将我方最新的财务报表、融资需求及核心谈判要点整理成简报。
 ]
 
+const landingPromptCards = [
+  '资讯：合肥 BEST 项目让中国成核聚变技术定义者',
+  '最近的金价走势如何？',
+  '请推荐适合 0 氪玩家的长期养成类游戏',
+  '请给出一个简单的基金投资指南',
+  '资讯：苹果向美最高法院申请暂停 App Store 计费',
+  '现在足金的价格是多少？',
+  '列出 10 个必学的 Linux 命令及用法',
+  '设计一段 30 秒的简单女团舞片段',
+  '资讯：高通兆易创新联手开发中国手机离散式 NPU'
+]
+
 const recentSessionList = computed(() =>
   recentSessions.value.map((item) => ({
     ...item,
@@ -203,6 +215,25 @@ const selectedAi = computed(() =>
   roleBoundModels.value.find((item) => String(item.id) === String(selectedAiId.value)) || null
 )
 const selectedAiLabel = computed(() => selectedAi.value?.name || defaultAiLabel)
+const showWorkbenchLanding = computed(() => false)
+const displayConversationTitle = computed(() => {
+  const raw = String(conversationTitle.value || '').trim()
+  if (!raw || raw.includes('鏂') || raw.includes('會') || raw.includes('璇')) {
+    return '新对话'
+  }
+  return raw
+})
+const sidebarDisplayName = computed(() => {
+  const raw = String(session.user?.nickname || session.user?.username || '').trim()
+  if (!raw) {
+    return '豆包'
+  }
+  if (raw.includes('绠') || raw.includes('鐢')) {
+    return '豆包'
+  }
+  return raw
+})
+const sidebarAvatarText = computed(() => sidebarDisplayName.value.slice(0, 1).toUpperCase())
 const selectedAiAvatarMeta = computed(() => {
   const providerCode = selectedAi.value?.providerCode || ''
   const providerMeta = MODEL_PROVIDER_META[providerCode] || {}
@@ -3663,8 +3694,33 @@ onBeforeUnmount(() => {
       </section>
     </aside>
 
-    <section class="chat-main glass-card">
-      <div class="chat-hero">
+    <section class="chat-main glass-card workbench-shell">
+      <div class="chat-main-header">
+        <div class="chat-main-header-icon">◧</div>
+        <div class="chat-main-header-copy">
+          <h2>{{ displayConversationTitle }}</h2>
+          <p>内容由豆包 AI 生成，请仔细甄别</p>
+        </div>
+      </div>
+
+      <div v-if="showWorkbenchLanding" class="chat-landing">
+        <div class="landing-copy">
+          <h3>有什么我能帮你的吗？</h3>
+        </div>
+
+        <div class="prompt-grid landing-prompt-grid">
+          <button
+            v-for="item in landingPromptCards"
+            :key="`landing-${item}`"
+            class="prompt-card landing-prompt-card"
+            @click="sendMessage(item)"
+          >
+            {{ item }}
+          </button>
+        </div>
+      </div>
+
+      <div v-else class="chat-hero">
         <div class="hero-head">
           <div class="hero-title-row">
             <span class="hero-label">{{ selectedModelLabel }}</span>
@@ -3726,7 +3782,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div ref="messagePanelRef" class="message-panel">
+      <div v-if="!showWorkbenchLanding" ref="messagePanelRef" class="message-panel">
         <article
           v-for="(item, index) in messages"
           :key="index"
@@ -4740,7 +4796,7 @@ onBeforeUnmount(() => {
   grid-template-columns: clamp(18rem, 28vw, 24rem) minmax(0, 1fr);
   gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
   align-items: stretch;
-  height: calc(100dvh - 10.5rem);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
@@ -4777,6 +4833,7 @@ onBeforeUnmount(() => {
 
 .new-chat-button {
   width: 100%;
+  color: #ffffff !important;
   min-height: calc(52px * var(--ui-scale));
   justify-content: center;
   font-size: calc(13px * var(--ui-scale));
@@ -5015,13 +5072,18 @@ onBeforeUnmount(() => {
 
 .task-meta-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  grid-template-columns: 1fr;
+  gap: calc(6px * var(--ui-scale));
   margin: calc(10px * var(--ui-scale)) 0 0;
   font-size: calc(12.5px * var(--ui-scale));
   color: var(--text-muted);
   line-height: 1.7;
   font-variant-numeric: tabular-nums;
+}
+
+.task-meta-grid > span {
+  display: block;
+  min-width: 0;
 }
 
 .task-meta-grid em {
@@ -5816,9 +5878,11 @@ onBeforeUnmount(() => {
   color: var(--text-main);
   font-size: calc(12px * var(--ui-scale));
   font-weight: 700;
+  width: 9%;
   box-shadow:
     var(--panel-card-shadow),
     inset 0 1px 0 var(--surface-inset);
+
 }
 
 .hero-model-row {
@@ -6463,7 +6527,7 @@ onBeforeUnmount(() => {
   .chat-layout {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    height: calc(100dvh - 9rem);
+    height: 100%;
     min-height: 0;
     overflow: hidden;
   }
@@ -6520,7 +6584,7 @@ onBeforeUnmount(() => {
   }
 
   .chat-layout {
-    height: calc(100dvh - 7.5rem);
+    height: 100%;
   }
 
   .hero-model-window {
@@ -7994,6 +8058,400 @@ onBeforeUnmount(() => {
   background: rgba(207, 76, 76, 0.08);
   border-color: rgba(207, 76, 76, 0.16);
   color: #c24646;
+}
+
+/* reference-style overrides */
+.task-modal,
+.preferences-modal,
+.task-modal h1,
+.task-modal h2,
+.task-modal h3,
+.task-modal h4,
+.task-modal h5,
+.task-modal h6,
+.task-modal p,
+.task-modal span,
+.task-modal strong,
+.task-modal em,
+.task-modal small,
+.task-modal label,
+.task-modal li,
+.task-modal button,
+.task-modal input,
+.task-modal textarea,
+.task-modal select,
+.task-modal summary,
+.preferences-modal h1,
+.preferences-modal h2,
+.preferences-modal h3,
+.preferences-modal h4,
+.preferences-modal h5,
+.preferences-modal h6,
+.preferences-modal p,
+.preferences-modal span,
+.preferences-modal strong,
+.preferences-modal em,
+.preferences-modal small,
+.preferences-modal label,
+.preferences-modal li,
+.preferences-modal button,
+.preferences-modal input,
+.preferences-modal textarea,
+.preferences-modal select,
+.preferences-modal summary {
+  font-size: 13px !important;
+}
+
+.chat-layout {
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  background: #f3f6fb;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.chat-sidebar,
+.chat-main {
+  border-radius: 0;
+  padding: 24px;
+}
+
+.chat-sidebar {
+  gap: 18px;
+  background: linear-gradient(180deg, #fbfbfd 0%, #f3f5f9 100%);
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: none;
+}
+
+.sidebar-profile {
+  display: none;
+}
+
+.sidebar-avatar {
+  display: none;
+}
+
+.sidebar-profile-copy strong {
+  display: none;
+}
+
+.new-chat-button {
+  min-height: 50px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #eef4ff 0%, #e9f0ff 100%);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.new-chat-button-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2563eb;
+  font-size: 15px;
+}
+
+.new-chat-shortcut {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.section-head {
+  gap: 12px;
+  padding: 14px 0 8px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.side-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #0f172a;
+}
+
+.head-action-button,
+.toggle-button {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.capability-card,
+.task-card,
+.topic-chip {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.topic-chip.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(99, 102, 241, 0.08));
+  border-color: rgba(37, 99, 235, 0.18);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+}
+
+.topic-title-row strong,
+.task-head strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.workbench-shell {
+  height: 100%;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.chat-main-header {
+  display: none;
+}
+
+.chat-main-header-icon {
+  display: none;
+}
+
+.chat-main-header-copy {
+  display: none;
+}
+
+.chat-main-header-copy h2 {
+  display: none;
+}
+
+.chat-main-header-copy p {
+  display: none;
+}
+
+.chat-landing {
+  display: none;
+}
+
+.landing-copy {
+  display: none;
+}
+
+.landing-copy h3 {
+  display: none;
+}
+
+.landing-prompt-grid {
+  display: none;
+}
+
+.chat-hero {
+  padding: 8px 0 0;
+}
+
+.hero-label {
+  background: #f3f4f6;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #334155;
+  box-shadow: none;
+}
+
+.hero-habit-trigger,
+.model-trigger {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #111827;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+}
+
+.prompt-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.prompt-card {
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  padding: 18px 22px;
+  text-align: center;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.prompt-card:hover {
+  border-color: rgba(37, 99, 235, 0.14);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.landing-prompt-card {
+  display: none;
+}
+
+.message-panel {
+  padding: 0 4px 4px;
+  gap: 18px;
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.message-bubble {
+  border-radius: 22px;
+  padding: 16px 18px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  color: #1f2937;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.message-role,
+.composer-actions span,
+.model-trigger-label,
+.model-trigger-arrow {
+  color: #94a3b8;
+}
+
+.composer {
+  margin: auto 0 0;
+  border-radius: 30px;
+  padding: 22px 26px 16px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 24px 52px rgba(15, 23, 42, 0.1),
+    0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.composer textarea {
+  min-height: 68px;
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.composer textarea::placeholder {
+  color: #c8ccd4;
+}
+
+.composer-actions {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.composer-actions > .pill-button {
+  min-width: 128px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffb168, #ff8b4a);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(255, 139, 74, 0.28);
+}
+
+.model-menu {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+}
+
+.model-option {
+  color: #111827;
+}
+
+.model-option.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(99, 102, 241, 0.08));
+  border-color: rgba(37, 99, 235, 0.14);
+}
+
+.chat-layout,
+.chat-layout *,
+.task-modal-mask,
+.task-modal-mask *,
+.push-bell,
+.push-bell * {
+  font-size: 15px !important;
+}
+
+.chat-layout input::placeholder,
+.chat-layout textarea::placeholder,
+.task-modal-mask input::placeholder,
+.task-modal-mask textarea::placeholder {
+  font-size: 15px !important;
+}
+
+@media (max-width: 1280px) {
+  .chat-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    border-radius: 0;
+  }
+
+  .landing-prompt-grid {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-layout {
+    border-radius: 0;
+  }
+
+  .chat-main-header {
+    display: none;
+  }
+
+  .chat-main-header-copy {
+    display: none;
+  }
+
+  .landing-copy h3 {
+    display: none;
+  }
+
+  .landing-prompt-grid {
+    display: none;
+  }
+
+  .message-panel {
+    padding: 0 4px 4px;
+  }
+
+  .composer {
+    margin: auto 0 0;
+    padding: 18px 18px 14px;
+  }
 }
 </style>
 
