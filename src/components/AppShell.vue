@@ -8,6 +8,62 @@ import zhipuBackground from '../assets/providers/zhipu-background.png'
 import openaiSymbol from '../assets/providers/openai-symbol.svg'
 import { clearSession, hasMenuSnapshot, setTheme, useSession } from '../stores/session'
 
+const xiaoyiVisible = ref(true)
+const xiaoyiPosition = ref({ x: 0, y: 0 })
+const xiaoyiDragging = ref(false)
+const xiaoyiDragOffset = ref({ x: 0, y: 0 })
+
+function initXiaoyiPosition() {
+  const saved = localStorage.getItem('xiaoyi-position')
+  if (saved) {
+    try {
+      xiaoyiPosition.value = JSON.parse(saved)
+    } catch {
+      xiaoyiPosition.value = { x: 0, y: 0 }
+    }
+  }
+}
+
+function startDrag(event) {
+  xiaoyiDragging.value = true
+  const rect = event.currentTarget.getBoundingClientRect()
+  xiaoyiDragOffset.value = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  }
+  document.addEventListener('mousemove', onDrag)
+  document.addEventListener('mouseup', stopDrag)
+}
+
+function onDrag(event) {
+  if (!xiaoyiDragging.value) return
+  const x = event.clientX - xiaoyiDragOffset.value.x
+  const y = event.clientY - xiaoyiDragOffset.value.y
+  const maxX = window.innerWidth - 60
+  const maxY = window.innerHeight - 60
+  xiaoyiPosition.value = {
+    x: Math.max(0, Math.min(x, maxX)),
+    y: Math.max(0, Math.min(y, maxY))
+  }
+}
+
+function stopDrag() {
+  xiaoyiDragging.value = false
+  document.removeEventListener('mousemove', onDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  localStorage.setItem('xiaoyi-position', JSON.stringify(xiaoyiPosition.value))
+}
+
+function openXiaoyiMenu() {
+  if (xiaoyiDragging.value) return
+  const url = window.location.origin + '/xiaoyi-menu'
+  window.open(url, '_blank')
+}
+
+onMounted(() => {
+  initXiaoyiPosition()
+})
+
 const SECTION_ORDER = {
   ai: 0,
   knowledge: 1,
@@ -507,6 +563,16 @@ onBeforeUnmount(() => {
         </section>
       </section>
     </main>
+
+    <div
+      v-if="xiaoyiVisible"
+      class="xiaoyi-float-card"
+      :style="{ left: xiaoyiPosition.x + 'px', top: xiaoyiPosition.y + 'px' }"
+      @mousedown="startDrag"
+      @click="openXiaoyiMenu"
+    >
+      <span class="xiaoyi-label">小易</span>
+    </div>
   </div>
 </template>
 
@@ -1469,5 +1535,40 @@ onBeforeUnmount(() => {
   .theme-switch-row {
     flex-direction: column;
   }
+}
+
+.xiaoyi-float-card {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #4a9eff, #7addc1);
+  color: white;
+  border-radius: 20px;
+  cursor: grab;
+  user-select: none;
+  box-shadow: 0 4px 16px rgba(74, 158, 255, 0.35);
+  font-size: 14px;
+  font-weight: 600;
+  transition: box-shadow 0.2s;
+}
+
+.xiaoyi-float-card:hover {
+  box-shadow: 0 6px 24px rgba(74, 158, 255, 0.5);
+}
+
+.xiaoyi-float-card:active {
+  cursor: grabbing;
+}
+
+.xiaoyi-icon {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.xiaoyi-label {
+  font-size: 13px;
 }
 </style>

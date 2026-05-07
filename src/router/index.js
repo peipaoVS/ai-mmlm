@@ -13,6 +13,7 @@ import RolesView from '../views/RolesView.vue'
 import PostsView from '../views/PostsView.vue'
 import MenusView from '../views/MenusView.vue'
 import CompaniesView from '../views/CompaniesView.vue'
+import XiaoyiMenuView from '../views/WorkbenchView.vue'
 import { isBuiltInMenuPath } from '../config/builtinMenus'
 import { getToken, getUser, hasMenuSnapshot } from '../stores/session'
 
@@ -226,6 +227,16 @@ const routes = [
         }
       }
     ]
+  },
+  {
+    path: '/WorkbenchView',
+    name: 'xiaoyi-menu',
+    component: XiaoyiMenuView,
+    meta: {
+      title: '小易菜单',
+      standalone: true,
+      requiresAuth: true
+    }
   }
 ]
 
@@ -286,6 +297,11 @@ router.beforeEach((to, from, next) => {
 
   if (to.path === '/') {
     next(resolveDefaultPath(user))
+    return
+  }
+
+  if (to.meta.standalone) {
+    next()
     return
   }
 
