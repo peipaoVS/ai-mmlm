@@ -234,6 +234,8 @@ const shouldNarrowPageCard = computed(() => {
   return routeName !== 'chat' && !shouldFullSizePageCard.value
 })
 
+const isWorkbenchRoute = computed(() => route.name === 'workbench')
+
 const shellVisualStyle = {
   '--shell-hero': `url("${loginBackground}")`,
   '--shell-art-a': `url("${qwenBackground}")`,
@@ -431,13 +433,22 @@ onBeforeUnmount(() => {
     class="app-shell"
     :class="[
       `theme-${currentTheme}`,
-      { 'app-shell-constrained': shouldConstrainContent }
+      {
+        'app-shell-constrained': shouldConstrainContent,
+        'app-shell-workbench': isWorkbenchRoute
+      }
     ]"
     :style="shellVisualStyle"
     @click="handleShellClick"
   >
-    <main class="shell-main" :class="{ 'shell-main-constrained': shouldConstrainContent }">
-      <header class="shell-header glass-card">
+    <main
+      class="shell-main"
+      :class="{
+        'shell-main-constrained': shouldConstrainContent,
+        'shell-main-workbench': isWorkbenchRoute
+      }"
+    >
+      <header v-if="!isWorkbenchRoute" class="shell-header glass-card">
         <div class="header-left">
           <div class="header-copy">
             <span class="header-section-pill">模型一体化平台</span>
@@ -507,7 +518,7 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <aside class="shell-sidebar glass-card">
+      <aside v-if="!isWorkbenchRoute" class="shell-sidebar glass-card">
         <div class="sidebar-brand">
           <strong class="sidebar-title" style="text-align: center; display: block;">系统导航</strong>
         </div>
@@ -565,7 +576,7 @@ onBeforeUnmount(() => {
     </main>
 
     <div
-      v-if="xiaoyiVisible"
+      v-if="xiaoyiVisible && !isWorkbenchRoute"
       class="xiaoyi-float-card"
       :style="{ left: xiaoyiPosition.x + 'px', top: xiaoyiPosition.y + 'px' }"
       @mousedown="startDrag"
@@ -742,6 +753,16 @@ onBeforeUnmount(() => {
 
 .shell-main-constrained {
   min-height: 0;
+}
+
+.shell-main-workbench {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'panel';
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: 0;
+  gap: 0;
 }
 
 .shell-sidebar {
@@ -1475,6 +1496,25 @@ onBeforeUnmount(() => {
   width: 98%;
   margin-left: auto;
   margin-right: auto;
+}
+
+.app-shell-workbench .shell-panel,
+.app-shell-workbench .shell-content {
+  height: 100%;
+}
+
+.app-shell-workbench {
+  padding: 0;
+  background: #ffffff;
+}
+
+.app-shell-workbench::before,
+.app-shell-workbench::after {
+  display: none;
+}
+
+.app-shell-workbench.theme-light {
+  background: #ffffff;
 }
 
 @media (max-width: 1180px) {

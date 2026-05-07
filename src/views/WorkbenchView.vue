@@ -53,7 +53,6 @@ function resetAgentThreads() {
 const taskJobs = ref([])
 // 最近会话接口
 async function startFreshConver() {
-  console.log('sendMessage', session.user?.nickname, session.user?.postNames[0])
   try {
     const response = await VisitApi.listHistory({
       nickname: session.user?.nickname,
@@ -245,16 +244,7 @@ const selectedAiAvatarMeta = computed(() => {
 })
 const genPollSeconds = computed(() => formatPollingSeconds(genPollMs.value))
 const isLightTheme = computed(() => session.theme === 'light')
-const canViewGenProgress = computed(() => {
-  const roles = session.user?.roleNames || []
-  return roles.some((roleName) => {
-    const text = String(roleName || '').trim()
-    const normalized = text.toUpperCase()
-    return GEN_PROGRESS_ROLE_KEYWORDS.some((keyword) => text.includes(keyword))
-      || normalized.includes('ADMIN')
-      || normalized.includes('DEMO')
-  })
-})
+
 const habitsDialogVisible = ref(false)
 const habitsLoading = ref(false)
 const habitEventsLoading = ref(false)
@@ -293,6 +283,7 @@ onMounted(() => {
   loadReports()
   loadPostSummaries()
   loadTodos()
+  loadHabitEvents()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -3116,10 +3107,7 @@ async function loadPollingConfig() {
 }
 
 async function pollReportJobs() {
-  if (!canViewGenProgress.value) {
-    genJobs.value = []
-    return
-  }
+  
   if (!session.token) return
   try {
     const resp = await ReportsApi.listReportJobs()
@@ -3136,10 +3124,7 @@ function dismissGenJob(reportId) {
 }
 
 function refreshGenCountdown() {
-  if (!canViewGenProgress.value) {
-    genCountdownMs.value = 0
-    return
-  }
+  
 
   if (!nextGenPollAt) {
     genCountdownMs.value = genPollMs.value
@@ -3151,11 +3136,6 @@ function refreshGenCountdown() {
 
 function startGenCountdown() {
   if (genCountdownTimer) clearInterval(genCountdownTimer)
-
-  if (!canViewGenProgress.value) {
-    genCountdownMs.value = 0
-    return
-  }
 
   refreshGenCountdown()
   genCountdownTimer = setInterval(refreshGenCountdown, 250)
@@ -3175,11 +3155,7 @@ function scheduleNextGenPoll() {
 }
 
 function startGenPolling() {
-  if (!canViewGenProgress.value) {
-    stopGenPolling()
-    genJobs.value = []
-    return
-  }
+  
   if (genPollTimer) clearInterval(genPollTimer)
   scheduleNextGenPoll()
   pollReportJobs()
@@ -3262,76 +3238,6 @@ onBeforeUnmount(() => {
       <button class="pill-button new-chat-button" @click="startFreshConversation">
         + 新建对话
       </button>
-
-      <!-- ============ 报告生成进度 ============ -->
-      <section v-if="canViewGenProgress" class="side-section gen-section">
-        <div v-if="genJobs.length" class="gen-list">
-          <article
-            v-for="(job, index) in genJobs"
-            :key="job.report_id"
-            class="gen-card"
-            :class="{
-              'is-running': job.status !== 'done' && job.status !== 'error',
-              'is-done': job.status === 'done',
-              'is-error': job.status === 'error'
-            }"
-          >
-            <span v-if="index === 0" class="gen-corner-label">{{ GEN_PROGRESS_LABEL }}</span>
-            <div
-              class="gen-icon"
-              :class="{
-                'is-running': job.status !== 'done' && job.status !== 'error',
-                'is-done': job.status === 'done',
-                'is-error': job.status === 'error'
-              }"
-            >
-              <div v-if="job.status !== 'done' && job.status !== 'error'" class="gen-spinner"></div>
-              <span v-else class="gen-state-dot"></span>
-            </div>
-            <div class="gen-info">
-              <div class="gen-title-row">
-                <div class="gen-title">#{{ job.report_id }} {{ job.company || job.company_name || '报告任务' }}</div>
-                <span
-                  class="gen-status"
-                  :class="{
-                    'is-running': job.status !== 'done' && job.status !== 'error',
-                    'is-done': job.status === 'done',
-                    'is-error': job.status === 'error'
-                  }"
-                >
-                  {{ resolveGenStatusText(job.status) }}
-                </span>
-              </div>
-              <div class="gen-meta">{{ job.action || '报告生成任务' }}</div>
-              <div class="gen-submeta">已用时 {{ formatGenElapsed(job.elapsed) }}</div>
-            </div>
-            <button
-              v-if="job.status === 'done' || job.status === 'error'"
-              type="button"
-              class="tiny-button gen-dismiss"
-              @click="dismissGenJob(job.report_id)"
-            >关闭</button>
-          </article>
-        </div>
-        <div v-else class="gen-empty-card">
-          <div class="gen-empty-head">
-            <div class="gen-empty-icon" aria-hidden="true">
-              <span class="gen-empty-orbit"></span>
-              <span class="gen-empty-core"></span>
-            </div>
-            <span class="gen-corner-label gen-corner-label--inline">{{ GEN_PROGRESS_LABEL }}</span>
-          </div>
-          <div class="gen-empty-countdown">
-            <!-- <span class="gen-empty-count-label">下次刷新</span>
-            <strong class="gen-empty-count-value">{{ genCountdownText }}</strong> -->
-            <span class="gen-empty-count-value">间隔 {{ genPollSeconds }} -> 剩余间隔 {{ genCountdownText }}</span>
-          </div>
-          <div class="gen-empty-progress" aria-hidden="true">
-            <span :style="{ transform: `scaleX(${genCountdownProgress})` }"></span>
-          </div>
-        </div>
-      </section>
-
       <section class="side-section">
         <div class="section-head">
           <div class="section-head-main">
@@ -3695,7 +3601,7 @@ onBeforeUnmount(() => {
     </aside>
 
     <section class="chat-main glass-card workbench-shell">
-      <div class="chat-main-header">
+      <div v-if="false" class="chat-main-header">
         <div class="chat-main-header-icon">◧</div>
         <div class="chat-main-header-copy">
           <h2>{{ displayConversationTitle }}</h2>
@@ -3720,7 +3626,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-else class="chat-hero">
+      <div class="chat-hero">
         <div class="hero-head">
           <div class="hero-title-row">
             <span class="hero-label">{{ selectedModelLabel }}</span>
@@ -3782,7 +3688,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="!showWorkbenchLanding" ref="messagePanelRef" class="message-panel">
+      <div ref="messagePanelRef" class="message-panel">
         <article
           v-for="(item, index) in messages"
           :key="index"
@@ -3972,9 +3878,11 @@ onBeforeUnmount(() => {
             <span>按 `Enter` 发送，`Shift + Enter` 换行</span>
           </div>
 
-          <button class="pill-button" :disabled="loading">
+          <div class="composer-submit-group">
+            <button class="pill-button" :disabled="loading">
             {{ loading ? '生成中...' : '发送问题' }}
-          </button>
+            </button>
+          </div>
         </div>
       </form>
     </section>
@@ -6370,6 +6278,18 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
+.composer-submit-group {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(12px * var(--ui-scale));
+  margin-left: auto;
+}
+
+.composer-submit-group > .pill-button {
+  min-width: calc(132px * var(--ui-scale));
+  justify-content: center;
+}
+
 .composer-left {
   display: flex;
   align-items: center;
@@ -6613,6 +6533,12 @@ onBeforeUnmount(() => {
   .composer-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .composer-submit-group {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
   }
 
   .composer-left {
@@ -8106,9 +8032,9 @@ onBeforeUnmount(() => {
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 0;
   width: 100%;
-  height: 100%;
-  min-height: 100%;
-  background: #f3f6fb;
+  height: 100dvh;
+  min-height: 100dvh;
+  background: #ffffff;
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -8117,11 +8043,13 @@ onBeforeUnmount(() => {
 .chat-sidebar,
 .chat-main {
   border-radius: 0;
-  padding: 24px;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .chat-sidebar {
   gap: 18px;
+  padding: 24px;
   background: linear-gradient(180deg, #fbfbfd 0%, #f3f5f9 100%);
   border-right: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: none;
@@ -8178,7 +8106,7 @@ onBeforeUnmount(() => {
 
 .section-head {
   gap: 12px;
-  padding: 14px 0 8px;
+  padding: 0 0 8px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
 }
 
@@ -8225,7 +8153,7 @@ onBeforeUnmount(() => {
 
 .workbench-shell {
   height: 100%;
-  padding: 24px;
+  padding: 0;
   background: #ffffff;
   box-shadow: none;
 }
@@ -8267,7 +8195,7 @@ onBeforeUnmount(() => {
 }
 
 .chat-hero {
-  padding: 8px 0 0;
+  padding: 8px ;
 }
 
 .hero-label {
@@ -8316,7 +8244,7 @@ onBeforeUnmount(() => {
 }
 
 .message-panel {
-  padding: 0 4px 4px;
+  padding: 24px 24px 8px;
   gap: 18px;
 }
 
@@ -8344,13 +8272,14 @@ onBeforeUnmount(() => {
 
 .composer {
   margin: auto 0 0;
-  border-radius: 30px;
-  padding: 22px 26px 16px;
+  border-radius: 0;
+  padding: 18px 24px 16px;
   background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  box-shadow:
-    0 24px 52px rgba(15, 23, 42, 0.1),
-    0 10px 24px rgba(15, 23, 42, 0.06);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-right: none;
+  border-bottom: none;
+  border-left: none;
+  box-shadow: none;
 }
 
 .composer textarea {
@@ -8426,6 +8355,18 @@ onBeforeUnmount(() => {
 @media (max-width: 640px) {
   .chat-layout {
     border-radius: 0;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .chat-sidebar,
+  .chat-main,
+  .workbench-shell {
+    padding: 0;
+  }
+
+  .chat-sidebar {
+    padding: 16px;
   }
 
   .chat-main-header {
@@ -8445,12 +8386,12 @@ onBeforeUnmount(() => {
   }
 
   .message-panel {
-    padding: 0 4px 4px;
+    padding: 16px 16px 8px;
   }
 
   .composer {
     margin: auto 0 0;
-    padding: 18px 18px 14px;
+    padding: 16px;
   }
 }
 </style>
