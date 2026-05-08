@@ -13,6 +13,7 @@ import RolesView from '../views/RolesView.vue'
 import PostsView from '../views/PostsView.vue'
 import MenusView from '../views/MenusView.vue'
 import CompaniesView from '../views/CompaniesView.vue'
+import SessionTransferView from '../views/SessionTransferView.vue'
 import XiaoyiMenuView from '../views/WorkbenchView.vue'
 import { isBuiltInMenuPath } from '../config/builtinMenus'
 import { getToken, getUser, hasMenuSnapshot } from '../stores/session'
@@ -224,6 +225,14 @@ const routes = [
         component: CompaniesView,
         meta: {
           title: '所属公司'
+        }
+      },
+      {
+        path: '/session-transfer',
+        name: 'session-transfer',
+        component: SessionTransferView,
+        meta: {
+          title: '会话转移'
         }
       }
     ]

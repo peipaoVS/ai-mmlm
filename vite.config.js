@@ -10,6 +10,7 @@ const SYSTEM_PROXY_PREFIXES = [
   '/api/posts',
   '/api/menus',
   '/api/companies',
+  '/api/session-codes',
   '/api/agent-modules',
   '/api/param-configs'
 ]

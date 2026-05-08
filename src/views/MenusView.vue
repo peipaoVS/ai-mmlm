@@ -438,7 +438,7 @@ async function confirmRemove() {
 </script>
 
 <template>
-  <div class="admin-scroll-page menus-page">
+  <div class="admin-scroll-page menus-page admin-tree-table-page">
     <section class="data-panel glass-card admin-scroll-panel">
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索菜单名称 / 编码 / 路径" />
@@ -603,49 +603,6 @@ async function confirmRemove() {
 </template>
 
 <style scoped>
-.menus-page .modal-header h3 {
-  font-size: 16px;
-}
-
-.menus-page .toolbar {
-  font-size: 16px;
-}
-
-.menus-page .data-table th,
-.menus-page .field > span {
-  font-size: 16px;
-}
-
-.menus-page .data-table th {
-  text-align: left;
-}
-
-.menus-page .modal-subtext,
-.menus-page .field-hint,
-.menus-page .pill-button,
-.menus-page .tiny-button,
-.menus-page .role-option,
-.menus-page .toolbar input,
-.menus-page .field input,
-.menus-page .field textarea {
-  font-size: 14px;
-}
-
-.menus-page :deep(.app-select-trigger),
-.menus-page :deep(.app-select-value),
-.menus-page :deep(.app-select-option) {
-  font-size: 14px;
-}
-
-.menus-page .data-table td,
-.menus-page .data-table td span,
-.menus-page .data-table td div,
-.menus-page .data-table td button {
-  color: var(--text-muted);
-  text-align: left;
-  vertical-align: middle;
-}
-
 .menus-page .data-table th:nth-child(6),
 .menus-page .data-table th:nth-child(7),
 .menus-page .data-table th:nth-child(8),
@@ -663,56 +620,6 @@ async function confirmRemove() {
 .menus-page .data-table td:nth-child(8) div,
 .menus-page .data-table td:nth-child(9) div {
   text-align: center;
-}
-
-.menus-page .action-group {
-  justify-content: center;
-}
-
-.menus-page .action-group .tiny-button {
-  font-size: inherit;
-}
-
-.menus-page .menu-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.menus-page .menu-name-text {
-  min-width: 0;
-}
-
-.menus-page .tree-toggle-button,
-.menus-page .tree-toggle-spacer {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-}
-
-.menus-page .tree-toggle-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.menus-page .tree-toggle-arrow {
-  width: 8px;
-  height: 8px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  transform: rotate(-45deg);
-  transition: transform 0.18s ease;
-}
-
-.menus-page .tree-toggle-button.expanded .tree-toggle-arrow {
-  transform: rotate(45deg);
 }
 
 .role-picker {

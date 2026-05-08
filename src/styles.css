@@ -469,7 +469,8 @@ button {
 .posts-page .data-table,
 .companies-page .data-table,
 .menus-page .data-table,
-.params-page .data-table {
+.params-page .data-table,
+.admin-tree-table-page .data-table {
   background: transparent;
 }
 
@@ -478,7 +479,8 @@ button {
 .posts-page .data-table thead th,
 .companies-page .data-table thead th,
 .menus-page .data-table thead th,
-.params-page .data-table thead th {
+.params-page .data-table thead th,
+.admin-tree-table-page .data-table thead th {
   background: linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg));
   color: var(--text-main);
   font-weight: 700;
@@ -492,7 +494,8 @@ button {
 .posts-page .data-table tbody td,
 .companies-page .data-table tbody td,
 .menus-page .data-table tbody td,
-.params-page .data-table tbody td {
+.params-page .data-table tbody td,
+.admin-tree-table-page .data-table tbody td {
   background: var(--panel-card-bg-faint);
 }
 
@@ -501,8 +504,99 @@ button {
 .posts-page .data-table tbody tr:hover td,
 .companies-page .data-table tbody tr:hover td,
 .menus-page .data-table tbody tr:hover td,
-.params-page .data-table tbody tr:hover td {
+.params-page .data-table tbody tr:hover td,
+.admin-tree-table-page .data-table tbody tr:hover td {
   background: var(--panel-card-bg-soft);
+}
+
+.admin-tree-table-page .modal-header h3 {
+  font-size: 16px;
+}
+
+.admin-tree-table-page .toolbar {
+  font-size: 16px;
+}
+
+.admin-tree-table-page .data-table th,
+.admin-tree-table-page .field > span {
+  font-size: 16px;
+}
+
+.admin-tree-table-page .data-table th {
+  text-align: left;
+}
+
+.admin-tree-table-page .modal-subtext,
+.admin-tree-table-page .field-hint,
+.admin-tree-table-page .pill-button,
+.admin-tree-table-page .tiny-button,
+.admin-tree-table-page .role-option,
+.admin-tree-table-page .toolbar input,
+.admin-tree-table-page .field input,
+.admin-tree-table-page .field textarea,
+.admin-tree-table-page .app-select-trigger,
+.admin-tree-table-page .app-select-value,
+.admin-tree-table-page .app-select-option {
+  font-size: 14px;
+}
+
+.admin-tree-table-page .data-table td,
+.admin-tree-table-page .data-table td span,
+.admin-tree-table-page .data-table td div,
+.admin-tree-table-page .data-table td button {
+  color: var(--text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-tree-table-page .action-group {
+  justify-content: center;
+}
+
+.admin-tree-table-page .action-group .tiny-button {
+  font-size: inherit;
+}
+
+.admin-tree-table-page .menu-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-tree-table-page .menu-name-text {
+  min-width: 0;
+}
+
+.admin-tree-table-page .tree-toggle-button,
+.admin-tree-table-page .tree-toggle-spacer {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.admin-tree-table-page .tree-toggle-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.admin-tree-table-page .tree-toggle-arrow {
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.18s ease;
+}
+
+.admin-tree-table-page .tree-toggle-button.expanded .tree-toggle-arrow {
+  transform: rotate(45deg);
 }
 
 .tag-list {

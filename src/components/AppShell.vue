@@ -84,7 +84,8 @@ const constrainedRouteNames = new Set([
   'posts',
   'menus',
   'companies',
-  'params'
+  'params',
+  'session-transfer'
 ])
 
 const fullSizePageRouteNames = new Set([
@@ -94,7 +95,8 @@ const fullSizePageRouteNames = new Set([
   'posts',
   'menus',
   'companies',
-  'params'
+  'params',
+  'session-transfer'
 ])
 
 const legacyMenus = [
@@ -322,6 +324,9 @@ function toggleRoot(root) {
 
   if (root.path && !root.path.startsWith('/nav/')) {
     goTo(root.path)
+    if (!root.children?.length) {
+      return
+    }
   }
 
   if (isRootExpanded(root)) {
@@ -517,7 +522,6 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </header>
-
       <aside v-if="!isWorkbenchRoute" class="shell-sidebar glass-card">
         <div class="sidebar-brand">
           <strong class="sidebar-title" style="text-align: center; display: block;">系统导航</strong>
@@ -542,8 +546,8 @@ onBeforeUnmount(() => {
               </span>
             </button>
 
-            <div v-show="isRootExpanded(root)" class="tree-group-items">
-              <div v-if="root.children?.length" class="tree-subitems">
+            <div v-if="root.children?.length" v-show="isRootExpanded(root)" class="tree-group-items">
+              <div class="tree-subitems">
                 <button
                   v-for="item in flattenChildren(root.children || [])"
                   :key="getNodeKey(item)"
