@@ -39,14 +39,33 @@ const deleteMessage = computed(() => {
 
 onMounted(() => {
   loadData()
+  loadMenuOptions()
 })
+
+const menuOptions = ref([])
+
+async function loadMenuOptions() {
+  try {
+    const menus = await api.get('/api/menus')
+    const paths = Array.isArray(menus)
+      ? menus.filter((m) => m.path).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+      : []
+    menuOptions.value = [
+      { label: '未设置', value: '' },
+      ...paths.map((m) => ({ label: m.name, value: m.path }))
+    ]
+  } catch (e) {
+    menuOptions.value = [{ label: '未设置', value: '' }]
+  }
+}
 
 function createEmptyForm() {
   return {
     name: '',
     code: '',
     status: 1,
-    remark: ''
+    remark: '',
+    defaultPath: ''
   }
 }
 
@@ -85,7 +104,8 @@ function openEdit(row) {
     name: row.name,
     code: row.code,
     status: row.status,
-    remark: row.remark || ''
+    remark: row.remark || '',
+    defaultPath: row.defaultPath || ''
   })
   dialogVisible.value = true
 }
@@ -168,6 +188,7 @@ async function confirmRemove() {
               <th>角色编码</th>
               <th>状态</th>
               <th>备注</th>
+              <th>默认跳转</th>
               <th>创建时间</th>
               <th>操作</th>
             </tr>
@@ -182,6 +203,7 @@ async function confirmRemove() {
                 </span>
               </td>
               <td>{{ row.remark || '--' }}</td>
+              <td>{{ row.defaultPath ? menuOptions.find(o => o.value === row.defaultPath)?.label || row.defaultPath : '--' }}</td>
               <td>{{ formatDateTime(row.createdAt) }}</td>
               <td>
                 <div class="action-group">
@@ -211,21 +233,27 @@ async function confirmRemove() {
           </div>
 
           <div class="form-grid">
-            <label class="field">
-              <span>角色名称</span>
-              <input v-model="form.name" placeholder="请输入角色名称" />
-            </label>
-            <label class="field">
-              <span>角色编码</span>
-              <input v-model="form.code" placeholder="例如 ADMIN" />
-            </label>
-            <label class="field">
-              <span>状态</span>
-              <AppSelect v-model="form.status" :options="statusOptions" placeholder="请选择状态" />
-            </label>
+            <div class="form-scroll-area">
+              <label class="field">
+                <span>角色名称</span>
+                <input v-model="form.name" placeholder="请输入角色名称" />
+              </label>
+              <label class="field">
+                <span>角色编码</span>
+                <input v-model="form.code" placeholder="例如 ADMIN" />
+              </label>
+              <label class="field">
+                <span>状态</span>
+                <AppSelect v-model="form.status" :options="statusOptions" placeholder="请选择状态" />
+              </label>
+              <label class="field full">
+                <span>备注</span>
+                <textarea v-model="form.remark" placeholder="补充角色说明"></textarea>
+              </label>
+            </div>
             <label class="field full">
-              <span>备注</span>
-              <textarea v-model="form.remark" placeholder="补充角色说明"></textarea>
+              <span>默认跳转</span>
+              <AppSelect v-model="form.defaultPath" :options="menuOptions" placeholder="登录后跳转的页面" />
             </label>
           </div>
 
@@ -293,12 +321,15 @@ async function confirmRemove() {
 .roles-page .data-table th:nth-child(3),
 .roles-page .data-table th:nth-child(5),
 .roles-page .data-table th:nth-child(6),
+.roles-page .data-table th:nth-child(7),
 .roles-page .data-table td:nth-child(3),
 .roles-page .data-table td:nth-child(5),
 .roles-page .data-table td:nth-child(6),
+.roles-page .data-table td:nth-child(7),
 .roles-page .data-table td:nth-child(3) span,
 .roles-page .data-table td:nth-child(5) span,
-.roles-page .data-table td:nth-child(6) span {
+.roles-page .data-table td:nth-child(6) span,
+.roles-page .data-table td:nth-child(7) span {
   text-align: center;
 }
 
@@ -316,6 +347,19 @@ async function confirmRemove() {
 
 .roles-page .action-group {
   justify-content: center;
+}
+
+.roles-page :global(.modal-panel.permission-editor-modal) {
+  overflow: visible;
+}
+
+.roles-page .form-scroll-area {
+  grid-column: 1 / -1;
+  max-height: calc(100dvh - 16rem);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .roles-page .action-group .tiny-button {

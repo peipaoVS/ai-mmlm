@@ -4,6 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI 用户管理系统</title>
+    <script>
+      (function () {
+        var theme = localStorage.getItem('mmlm_public_theme')
+        if (!theme) {
+          var prefs = {}
+          try { prefs = JSON.parse(localStorage.getItem('mmlm_user_theme_prefs')) || {} } catch (e) {}
+          var userKey = ''
+          try {
+            var raw = localStorage.getItem('mmlm_admin_user')
+            var user = raw ? JSON.parse(raw) : null
+            if (user) {
+              userKey = 'user:' + (user.id || user.userId || user.username || user.nickname)
+            }
+          } catch (e) {}
+          if (userKey && prefs[userKey]) {
+            theme = prefs[userKey]
+          } else if (user && user.theme) {
+            theme = user.theme
+          }
+        }
+        document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark')
+        document.documentElement.classList.add(theme === 'light' ? 'theme-light' : 'theme-dark')
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

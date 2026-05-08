@@ -259,7 +259,10 @@ const MENU_PATH_ALIASES = {
   '/workbench': ['/chat']
 }
 
-function resolveDefaultPath(user) {
+export function resolveDefaultPath(user) {
+  if (user?.defaultPath && hasMenuAccess(user, user.defaultPath)) {
+    return user.defaultPath
+  }
   const target = Array.isArray(user?.menus)
     ? user.menus.find((item) => typeof item?.path === 'string' && !item.path.startsWith('/nav/'))
     : null

@@ -171,7 +171,7 @@ async function handleLogin() {
       console.warn('AI side login skipped:', aiError)
     }
 
-    router.replace('/home')
+    router.replace(data.user?.defaultPath || '/home')
   } catch (error) {
     errorMessage.value = error.message
   } finally {

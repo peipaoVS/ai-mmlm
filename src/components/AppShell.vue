@@ -528,7 +528,10 @@ onBeforeUnmount(() => {
             data-header-user-trigger
             @click.stop="toggleHeaderMenu"
           >
+          <span class="user-with-status">
+            <span class="online-dot"></span>
             <strong class="header-user-name">{{ displayUsername }}</strong>
+          </span>
           </button>
 
           <div
@@ -538,7 +541,6 @@ onBeforeUnmount(() => {
             @click.stop
           >
             <div class="header-user-menu-section">
-              <span class="header-user-menu-title">用户信息</span>
               <div class="header-summary">
                 <span class="header-summary-item">角色：{{ currentRoles }}</span>
                 <span class="header-summary-item">岗位：{{ currentPosts }}</span>
@@ -547,7 +549,6 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="header-user-menu-section">
-              <span class="header-user-menu-title">主题切换</span>
               <div class="theme-switch-row header-theme-switch">
                 <button
                   type="button"
@@ -582,9 +583,6 @@ onBeforeUnmount(() => {
         </div>
       </header>
       <aside v-if="!isWorkbenchRoute" class="shell-sidebar glass-card">
-        <div class="sidebar-brand">
-          <strong class="sidebar-title" style="text-align: center; display: block;">系统导航</strong>
-        </div>
 
         <nav class="sidebar-tree">
           <section
@@ -1185,7 +1183,19 @@ onBeforeUnmount(() => {
   position: absolute;
   border-radius: 50%;
 }
-
+.user-with-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.online-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+  animation: online-pulse 2s ease-in-out infinite;
+}
 .app-shell.theme-light .theme-switch-icon {
   --theme-icon-surface: rgba(255, 255, 255, 0.78);
   --theme-icon-cutout: rgba(247, 250, 255, 0.96);
@@ -1396,64 +1406,56 @@ onBeforeUnmount(() => {
   display: inline-grid;
   align-items: center;
   gap: calc(2px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  border-radius: 999px;
-  border: 1px solid rgba(34, 211, 238, 0.18);
-  background:
-    linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.94)),
-    linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent);
-  color: #e6faff;
+  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  border-radius: calc(20px * var(--ui-scale));
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg);
+  color: var(--text-main);
   cursor: pointer;
   box-shadow:
-    0 14px 30px rgba(3, 10, 26, 0.32),
-    0 0 20px rgba(34, 211, 238, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-.header-user-label {
-  color: rgba(230, 250, 255, 0.76);
-  font-size: calc(11px * var(--ui-scale));
-  line-height: 1.2;
-  text-align: left;
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .header-user-name {
-  color: #ffffff;
-  font-size: 16px;
-  line-height: 1.2;
-  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-main);
 }
 
-.header-user-card.active {
-  border-color: rgba(34, 211, 238, 0.3);
+.header-user-card.active,
+.header-user-card:hover {
+  border-color: var(--line-strong);
   box-shadow:
     0 18px 36px rgba(3, 10, 26, 0.38),
-    0 0 26px rgba(34, 211, 238, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .app-shell.theme-light .header-user-card {
-  border-color: rgba(237, 124, 71, 0.18);
-  background: linear-gradient(135deg, #ed7c47 0%, #f3a166 100%);
-  color: #ffffff;
+  border-color: var(--panel-card-border);
+  background: var(--panel-card-bg);
+  color: var(--text-main);
   box-shadow:
-    0 14px 28px rgba(237, 124, 71, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
-}
-
-.app-shell.theme-light .header-user-label {
-  color: rgba(255, 247, 240, 0.86);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .app-shell.theme-light .header-user-name {
-  color: #ffffff;
+  color: var(--text-main);
 }
 
-.app-shell.theme-light .header-user-card.active {
-  border-color: rgba(237, 124, 71, 0.28);
+.app-shell.theme-light .header-user-card.active,
+.app-shell.theme-light .header-user-card:hover {
+  border-color: var(--line-strong);
   box-shadow:
-    0 18px 34px rgba(237, 124, 71, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 18px 34px rgba(29, 35, 52, 0.1),
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .header-user-menu {
