@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/http'
 import loginBackground from '../assets/login-ai-background.jpg'
@@ -12,16 +12,71 @@ const xiaoyiVisible = ref(true)
 const xiaoyiPosition = ref({ x: 0, y: 0 })
 const xiaoyiDragging = ref(false)
 const xiaoyiDragOffset = ref({ x: 0, y: 0 })
+const xiaoyiHasStoredPosition = ref(false)
+const XIAOYI_STORAGE_KEY = 'xiaoyi-position'
+
+function getXiaoyiCardSize() {
+  const card = document.querySelector('.xiaoyi-float-card')
+  const rect = card?.getBoundingClientRect()
+  return {
+    width: Math.max(72, Math.round(rect?.width || 72)),
+    height: Math.max(40, Math.round(rect?.height || 40))
+  }
+}
+
+function clampXiaoyiPosition(position) {
+  const { width, height } = getXiaoyiCardSize()
+  const maxX = Math.max(0, window.innerWidth - width - 12)
+  const maxY = Math.max(0, window.innerHeight - height - 12)
+  return {
+    x: Math.max(0, Math.min(Number(position?.x) || 0, maxX)),
+    y: Math.max(0, Math.min(Number(position?.y) || 0, maxY))
+  }
+}
+
+function getDefaultXiaoyiPosition() {
+  const { width, height } = getXiaoyiCardSize()
+  const trigger = document.querySelector('[data-header-user-trigger]')
+
+  if (trigger) {
+    const rect = trigger.getBoundingClientRect()
+    return clampXiaoyiPosition({
+      x: rect.left - width - 12,
+      y: rect.top + (rect.height - height) / 2
+    })
+  }
+
+  return clampXiaoyiPosition({
+    x: window.innerWidth - width - 156,
+    y: 24
+  })
+}
+
+function syncDefaultXiaoyiPosition() {
+  if (xiaoyiHasStoredPosition.value || isWorkbenchRoute.value) {
+    return
+  }
+
+  nextTick(() => {
+    xiaoyiPosition.value = getDefaultXiaoyiPosition()
+  })
+}
 
 function initXiaoyiPosition() {
-  const saved = localStorage.getItem('xiaoyi-position')
+  const saved = localStorage.getItem(XIAOYI_STORAGE_KEY)
   if (saved) {
     try {
-      xiaoyiPosition.value = JSON.parse(saved)
+      xiaoyiPosition.value = clampXiaoyiPosition(JSON.parse(saved))
+      xiaoyiHasStoredPosition.value = true
     } catch {
+      xiaoyiHasStoredPosition.value = false
       xiaoyiPosition.value = { x: 0, y: 0 }
     }
+    return
   }
+
+  xiaoyiHasStoredPosition.value = false
+  syncDefaultXiaoyiPosition()
 }
 
 function startDrag(event) {
@@ -39,19 +94,15 @@ function onDrag(event) {
   if (!xiaoyiDragging.value) return
   const x = event.clientX - xiaoyiDragOffset.value.x
   const y = event.clientY - xiaoyiDragOffset.value.y
-  const maxX = window.innerWidth - 60
-  const maxY = window.innerHeight - 60
-  xiaoyiPosition.value = {
-    x: Math.max(0, Math.min(x, maxX)),
-    y: Math.max(0, Math.min(y, maxY))
-  }
+  xiaoyiPosition.value = clampXiaoyiPosition({ x, y })
 }
 
 function stopDrag() {
   xiaoyiDragging.value = false
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
-  localStorage.setItem('xiaoyi-position', JSON.stringify(xiaoyiPosition.value))
+  xiaoyiHasStoredPosition.value = true
+  localStorage.setItem(XIAOYI_STORAGE_KEY, JSON.stringify(xiaoyiPosition.value))
 }
 
 function openXiaoyiMenu() {
@@ -62,6 +113,7 @@ function openXiaoyiMenu() {
 
 onMounted(() => {
   initXiaoyiPosition()
+  window.addEventListener('resize', syncDefaultXiaoyiPosition)
 })
 
 const SECTION_ORDER = {
@@ -423,6 +475,12 @@ watch(shouldConstrainContent, () => {
   syncPageOverflow()
 })
 
+watch(isWorkbenchRoute, (value) => {
+  if (!value) {
+    syncDefaultXiaoyiPosition()
+  }
+})
+
 onMounted(() => {
   syncPageOverflow()
 })
@@ -430,6 +488,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.documentElement.style.overflow = ''
   document.body.style.overflow = ''
+  window.removeEventListener('resize', syncDefaultXiaoyiPosition)
 })
 </script>
 
