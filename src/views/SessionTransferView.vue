@@ -18,6 +18,21 @@ const filters = reactive({
   keyword: ''
 })
 
+const filteredTreeData = computed(() => {
+  const keyword = filters.keyword.trim().toLowerCase()
+  if (!keyword) return treeData.value
+  return treeData.value
+    .map((post) => {
+      const matched = (post.displayUsers || []).filter(
+        (user) =>
+          (user.nickname || '').toLowerCase().includes(keyword) ||
+          (user.username || '').toLowerCase().includes(keyword)
+      )
+      return { ...post, displayUsers: matched }
+    })
+    .filter((post) => post.displayUsers.length > 0)
+})
+
 const dialogVisible = ref(false)
 const dialogMode = ref('generate')
 const submitting = ref(false)
@@ -30,6 +45,9 @@ const form = reactive({
   postId: null,
   remark: ''
 })
+
+const detailDialogVisible = ref(false)
+const viewingCode = ref(null)
 
 const deleteDialogVisible = ref(false)
 const deleting = ref(false)
@@ -57,15 +75,28 @@ onMounted(() => {
 async function loadData() {
   loading.value = true
   try {
-    const query = new URLSearchParams()
-    if (filters.keyword.trim()) {
-      query.set('keyword', filters.keyword.trim())
+    const isSearch = filters.keyword.trim().length > 0
+    if (!isSearch || treeData.value.length === 0) {
+      const data = await api.get('/api/session-codes/post-tree')
+      treeData.value = normalizeTreeData(Array.isArray(data) ? data : [])
     }
-    const suffix = query.toString() ? `?${query.toString()}` : ''
-    const data = await api.get(`/api/session-codes/post-tree${suffix}`)
-    treeData.value = normalizeTreeData(Array.isArray(data) ? data : [])
     expandedUserKeys.value = []
-    expandAllPosts()
+    const kw = filters.keyword.trim().toLowerCase()
+    if (kw) {
+      expandedPostKeys.value = filteredTreeData.value.map((p) => String(p.postId))
+      filteredTreeData.value.forEach((post) => {
+        ;(post.displayUsers || []).forEach((user) => {
+          if (
+            (user.nickname || '').toLowerCase().includes(kw) ||
+            (user.username || '').toLowerCase().includes(kw)
+          ) {
+            expandedUserKeys.value.push(buildUserKey(post.postId, user.id))
+          }
+        })
+      })
+    } else {
+      expandedPostKeys.value = []
+    }
   } catch (error) {
     console.error('加载会话转移数据失败:', error)
     treeData.value = []
@@ -92,9 +123,7 @@ function buildDisplayUsers(post) {
         synthetic: false
       }))
     : []
-
   const userIds = new Set(actualUsers.map((user) => String(user.id)))
-
   ;(post?.sessionCodes || []).forEach((code) => {
     const ownerId = String(code.userId || '')
     if (!ownerId || userIds.has(ownerId)) {
@@ -198,6 +227,15 @@ function getPostCodes(post, user) {
   return result || []
 }
 
+function handleGenerateCode(post, user) {
+  const existing = getPostCodes(post, user)
+  if (existing.length > 0) {
+    window.alert('该用户已有会话编码，无需重复生成')
+    return
+  }
+  openGenerateDialog(post, user)
+}
+
 function openGenerateDialog(post, user) {
   dialogMode.value = 'generate'
   editingPost.value = post
@@ -218,6 +256,16 @@ function openTransferDialog(code, post) {
   form.postId = post.postId
   form.remark = ''
   dialogVisible.value = true
+}
+
+function openDetailDialog(code) {
+  viewingCode.value = code
+  detailDialogVisible.value = true
+}
+
+function closeDetailDialog() {
+  viewingCode.value = null
+  detailDialogVisible.value = false
 }
 
 function resetDialogState() {
@@ -332,18 +380,18 @@ function canSubmit() {
         <table class="data-table">
           <thead>
             <tr>
-              <th>岗位/用户</th>
-              <th>负责人</th>
-              <th>手机号</th>
-              <th>会话编码</th>
-              <th>创建时间</th>
-              <th>操作</th>
+              <th style="width: 10%;">岗位/用户</th>
+              <th style="width: 10%;">负责人</th>
+              <th style="width: 10%;">手机号</th>
+              <th style="width: 11%;text-align: center;">会话编码</th>
+              <th style="width: 11%;text-align: center;">修改时间</th>
+              <th style="width: 23%;">操作</th>
             </tr>
           </thead>
           <tbody>
-            <template v-for="post in treeData" :key="`post-${post.postId}`">
+            <template v-for="post in filteredTreeData" :key="`post-${post.postId}`">
               <tr class="post-row">
-                <td>
+                <td style="width: 10%;">
                   <div class="menu-name-cell transfer-name-cell">
                     <button
                       type="button"
@@ -356,29 +404,19 @@ function canSubmit() {
                     <span class="menu-name-text transfer-post-name">{{ post.postName }}</span>
                   </div>
                 </td>
-                <td>
+                <td style="width: 10%;">
                   {{ getLeaderName(post) }}
                 </td>
-                <td></td>
-                <td>{{ post.sessionCodes?.length || 0 }} 个</td>
-                <td></td>
-                <td>
-                  <div class="action-group">
-                    <button
-                      v-if="isCurrentUserLeader(post)"
-                      class="tiny-button"
-                      @click="collapsePostUsers(post.postId)"
-                    >
-                      收起用户
-                    </button>
-                  </div>
-                </td>
+                <td style="width: 10%;"></td>
+                <td style="width: 11%;text-align: center;">{{ post.sessionCodes?.length || 0 }} 个</td>
+                <td style="width: 11%;text-align: center;"></td>
+                <td style="width: 23%;"></td>
               </tr>
 
               <template v-if="isPostExpanded(post.postId)">
                 <template v-for="user in post.displayUsers || []" :key="`user-${post.postId}-${user.id}`">
                   <tr class="user-row">
-                    <td>
+                    <td style="width: 10%;">
                       <div class="menu-name-cell transfer-name-cell" :style="{ paddingLeft: '32px' }">
                         <button
                           type="button"
@@ -392,15 +430,16 @@ function canSubmit() {
                         <span v-if="user.synthetic" class="cell-hint">编码归属用户</span>
                       </div>
                     </td>
-                    <td>{{ isLeader(post, user) ? '是' : '否' }}</td>
-                    <td>{{ user.phone || '' }}</td>
-                    <td>{{ getPostCodes(post, user).length }} 个</td>
-                    <td></td>
-                    <td>
+                    <td style="width: 10%;">{{ isLeader(post, user) ? '是' : '否' }}</td>
+                    <td style="width: 10%;">{{ user.phone || '' }}</td>
+                    <td style="width: 11%;text-align: center;">{{ getPostCodes(post, user).length }} 个</td>
+                    <td style="width: 11%;text-align: center;"></td>
+                    <td style="width: 23%;">
                       <div class="action-group">
                         <button
                           class="tiny-button"
-                          @click="openGenerateDialog(post, user)"
+                          
+                          @click="handleGenerateCode(post, user)"
                         >
                           生成编码
                         </button>
@@ -414,10 +453,9 @@ function canSubmit() {
                       </div>
                     </td>
                   </tr>
-
                   <tr
                     v-if="isUserExpanded(post.postId, user.id)"
-                    class="code-row"
+                    class="user-row"
                   >
                     <td colspan="6" class="code-panel-cell">
                       <div v-if="getPostCodes(post, user).length" class="code-table-wrap">
@@ -428,15 +466,16 @@ function canSubmit() {
                           :key="code.id"
                               class="code-detail-row"
                             >
-                              <td><span>{{ code.userNickname || code.userName || '未绑定用户' }}</span></td>
-                              <td></td>
-                              <td></td>
-                              <td><span>{{ code.code }}</span></td>
-                              <td>{{ formatDateTime(code.createdAt) }}</td>
-                              <td>
+                              <td style="width: 10%;"><span>{{ code.userNickname || code.userName || '未绑定用户' }}</span></td>
+                              <td style="width: 10%;"></td>
+                              <td style="width: 10%;"></td>
+                              <td style="width: 11%;text-align: center;"><span>{{ code.code }}</span></td>
+                              <td style="width: 11%;text-align: center;">{{ formatDateTime(code.updatedAt) }}</td>
+                              <td style="width: 23%;">
                                 <div class="action-group">
-                                  <button class="tiny-button" @click="openTransferDialog(code, post)">转移</button>
-                                  <button class="tiny-button danger" @click="confirmDeleteCode(code)">删除</button>
+                                  <button class="tiny-button danger" @click="openTransferDialog(code, post)">转移</button>
+                                  <button class="tiny-button" @click="openDetailDialog(code)">详情</button>
+                                  <!-- <button class="tiny-button danger" @click="confirmDeleteCode(code)">删除</button> -->
                                 </div>
                               </td>
                             </tr>
@@ -502,6 +541,42 @@ function canSubmit() {
       </div>
     </Teleport>
 
+    <Teleport to="body">
+      <div v-if="detailDialogVisible" class="modal-mask" @click.self="closeDetailDialog">
+        <div class="modal-panel glass-card">
+          <div class="modal-header">
+            <div>
+              <h3 style="margin: 0">会话编码详情</h3>
+            </div>
+            <button class="pill-button ghost" @click="closeDetailDialog">关闭</button>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>会话编码</span>
+              <input :value="viewingCode?.code || ''" disabled />
+            </label>
+            <label class="field">
+              <span>归属用户</span>
+              <input :value="viewingCode?.userNickname || viewingCode?.userName || '未绑定用户'" disabled />
+            </label>
+            <label class="field">
+              <span>创建时间</span>
+              <input :value="formatDateTime(viewingCode?.createdAt)" disabled />
+            </label>
+            <label class="field">
+              <span>修改时间</span>
+              <input :value="formatDateTime(viewingCode?.updatedAt)" disabled />
+            </label>
+            <label class="field full">
+              <span>备注</span>
+              <input :value="viewingCode?.remark || ''" disabled />
+            </label>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <ConfirmDialog
       v-model="deleteDialogVisible"
       title="删除会话编码"
@@ -514,6 +589,12 @@ function canSubmit() {
 </template>
 
 <style scoped>
+.action-group {
+  display: flex;
+  justify-content: center; /* 水平居中 */
+  align-items: center;     /* 垂直居中 */
+  width: 100%;             /* 确保容器宽度铺满，居中更稳定 */
+}
 .session-transfer-page .transfer-name-cell {
   padding-block: 2px;
 }
@@ -549,6 +630,7 @@ function canSubmit() {
 .session-transfer-page .code-detail-row td:last-child,
 .session-transfer-page .data-table th:last-child {
   text-align: center;
+
 }
 
 .session-transfer-page .code-detail-row td:nth-child(4),
