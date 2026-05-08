@@ -51,12 +51,24 @@ function resetAgentThreads() {
   ruleThreadId.value = ''
 }
 const taskJobs = ref([])
+const userCode = ref('')
+// 用户信息
+async function information() {
+  try {
+    const response = await VisitApi.UserInformation(session.user?.id)
+    console.log('用户信息接口返回的数据:', response)
+    userCode.value = response.code || ''
+  } catch (error) {
+    // console.error('获取用户信息失败:', error)
+    window.alert(`${error.message}`)
+  }
+}
 // 最近会话接口
 async function startFreshConver() {
+  console.log('加载最近会话列表，用户：', session)
   try {
     const response = await VisitApi.listHistory({
-      nickname: session.user?.nickname,
-      postName: session.user?.postNames?.[0]
+      id: session.user?.id,
     })
     recentSessions.value = response.messages.filter(item => item.role === 'user')
   } finally {
@@ -284,6 +296,7 @@ onMounted(() => {
   loadPostSummaries()
   loadTodos()
   loadHabitEvents()
+  information()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -621,7 +634,8 @@ async function sendMessage(preset) {
             agent: 'rule_qa_agent',
             nickname: session.user?.nickname,
             postName: session.user?.postNames?.[0],
-            provider: provider.value
+            provider: provider.value,
+            sys_session_code:userCode.value
           },
           messages: [
             { id: "m1", thread_id: thread.value || '', role: "user", content: content }
@@ -666,7 +680,8 @@ async function sendMessage(preset) {
           task_payload: {},
           nickname: session.user?.nickname,
           postName: session.user?.postNames?.[0],
-          provider: provider.value //选择AI
+          provider: provider.value, //选择AI
+          sys_session_code: userCode.value
         },
         messages: [{ id: "m1", thread_id: thread.value || '', role: "user", content: content }],
         tools: [],
@@ -2912,6 +2927,10 @@ async function handleConfirm(message) {
       action: "confirm",
       task_payload: taskPayload,
       report_variant: 'full',
+      sys_session_code: userCode.value,
+      nickname: session.user?.nickname,
+      postName: session.user?.postNames?.[0],
+      provider: provider.value, //选择AI
     },
     messages: [{ id: "m1", role: "user", content: '确认' }],
     tools: [],
@@ -3303,7 +3322,7 @@ onBeforeUnmount(() => {
                 </span>
                 <strong class="task-title">
                   <span class="task-id">#{{ task.id }}</span>
-                  {{ task.title || task.company_name || '未命名任务' }}
+                  <!-- {{ task.title || task.company_name || '未命名任务' }} -->
                 </strong>
               </div>
 
@@ -3582,7 +3601,7 @@ onBeforeUnmount(() => {
               <div class="task-head">
                 <strong class="task-title">
                   <span class="task-id">#{{ row.id }}</span>
-                  {{ row.content || row.title || '' }}
+                  <span class="task-title-text">{{ row.content || row.title || '' }}</span>
                 </strong>
               </div>
               <div class="task-meta-grid">
@@ -4924,6 +4943,14 @@ onBeforeUnmount(() => {
   gap: calc(6px * var(--ui-scale));
   font-weight: 800;
   color: var(--text-main);
+}
+
+.task-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .post-summary-display-title {
