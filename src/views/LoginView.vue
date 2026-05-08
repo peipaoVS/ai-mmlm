@@ -245,7 +245,7 @@ function selectTheme(theme) {
           </div>
         </div>
         <h3 class="login-title">模型一体化平台</h3>
-        <p class="login-subtitle">登录后默认进入 AI 问答工作台</p>
+        <p class="login-subtitle"> </p>
 
         <form class="login-form" @submit.prevent="handleLogin">
           <label class="field">
@@ -982,7 +982,7 @@ function selectTheme(theme) {
 
 .login-brand-label {
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(14px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-align: center;
