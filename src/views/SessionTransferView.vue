@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
 import AppSelect from '../components/AppSelect.vue'
@@ -332,7 +332,7 @@ function canSubmit() {
         <table class="data-table">
           <thead>
             <tr>
-              <th>岗位 / 用户</th>
+              <th>岗位/用户</th>
               <th>负责人</th>
               <th>手机号</th>
               <th>会话编码</th>
@@ -428,15 +428,12 @@ function canSubmit() {
                           :key="code.id"
                               class="code-detail-row"
                             >
-                              <td class="code-detail-spacer"></td>
-                              <td colspan="2">
-                                <span>{{ code.code }}</span>
-                                <span class="cell-hint">
-                                  {{ code.userNickname || code.userName || '未绑定用户' }}
-                                </span>
-                              </td>
+                              <td><span>{{ code.userNickname || code.userName || '未绑定用户' }}</span></td>
+                              <td></td>
+                              <td></td>
+                              <td><span>{{ code.code }}</span></td>
                               <td>{{ formatDateTime(code.createdAt) }}</td>
-                              <td colspan="2">
+                              <td>
                                 <div class="action-group">
                                   <button class="tiny-button" @click="openTransferDialog(code, post)">转移</button>
                                   <button class="tiny-button danger" @click="confirmDeleteCode(code)">删除</button>
@@ -549,8 +546,21 @@ function canSubmit() {
   min-width: 0;
 }
 
-.session-transfer-page .code-detail-row td {
-  vertical-align: middle;
+.session-transfer-page .code-detail-row td:last-child,
+.session-transfer-page .data-table th:last-child {
+  text-align: center;
+}
+
+.session-transfer-page .code-detail-row td:nth-child(4),
+.session-transfer-page .post-row td:nth-child(4),
+.session-transfer-page .user-row td:nth-child(4),
+.session-transfer-page .data-table th:nth-child(4) {
+  text-align: center;
+}
+
+.session-transfer-page .code-detail-row td:nth-child(5),
+.session-transfer-page .data-table th:nth-child(5) {
+  text-align: center;
 }
 
 .session-transfer-page .code-detail-spacer {
