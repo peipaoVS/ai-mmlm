@@ -90,6 +90,9 @@ export function streamTasks(body) {
 export function listHistory(params) {
   return api.get(`/api/visit-assistant/history${qs(params)}`)
 }
+export function UserInformation(params) {
+  return api.get(`/api/session-codes/${params}`)
+}
 
 /**
  * 拉所有 thread id（按时间倒序）。
