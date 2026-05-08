@@ -3875,7 +3875,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <span>按 `Enter` 发送，`Shift + Enter` 换行</span>
+            <!-- <span>按 `Enter` 发送，`Shift + Enter` 换行</span> -->
           </div>
 
           <div class="composer-submit-group">
@@ -5565,6 +5565,7 @@ onBeforeUnmount(() => {
 .todo-filter-row input {
   flex: 1;
   padding: 6px 10px;
+  width: 12vw;
   border-radius: 8px;
   border: 1px solid var(--surface-border);
   background: var(--surface-card-soft);
