@@ -424,6 +424,11 @@ async function openHabitsDialog() {
   resetHabitEditor()
   await loadHabitsPanel()
 }
+// 返回首页
+function returnValue() {
+  const url = window.location.origin + '/home'
+  window.location.href = url
+}
 
 function closeHabitsDialog() {
   habitsDialogVisible.value = false
@@ -3690,6 +3695,13 @@ onBeforeUnmount(() => {
               @click.stop="openHabitsDialog"
             >
               我的偏好
+            </button>
+            <button
+              type="button"
+              class="hero-habit-trigger"
+              @click.stop="returnValue"
+            >
+              返回首页
             </button>
           </div>
 
