@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
 import { PROVIDER_CONFIG } from '../config/api'
@@ -637,7 +637,7 @@ async function confirmRemove() {
 .module-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: calc(18px * var(--ui-scale));
+  gap: 1.125rem;
 }
 
 .module-card {
@@ -650,12 +650,12 @@ async function confirmRemove() {
   --provider-art-position: right -0.75rem bottom -0.75rem;
   position: relative;
   min-width: 0;
-  min-height: calc(236px * var(--ui-scale));
+  min-height: 14.75rem;
   display: flex;
   flex-direction: column;
-  gap: calc(18px * var(--ui-scale));
-  padding: calc(20px * var(--ui-scale));
-  border-radius: calc(28px * var(--ui-scale));
+  gap: 1.125rem;
+  padding: 1.25rem;
+  border-radius: 1.75rem;
   border: 1px solid var(--panel-card-border);
   background:
     linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
@@ -701,17 +701,17 @@ async function confirmRemove() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .module-provider-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(60px * var(--ui-scale));
-  height: calc(60px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
+  width: 3.75rem;
+  height: 3.75rem;
+  padding: 0.625rem;
+  border-radius: 1.25rem;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
     rgba(255, 255, 255, 0.92);
@@ -729,7 +729,7 @@ async function confirmRemove() {
 
 .module-provider-icon span {
   color: var(--provider-accent);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -737,7 +737,7 @@ async function confirmRemove() {
 .module-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
   justify-content: flex-end;
 }
 
@@ -751,14 +751,14 @@ async function confirmRemove() {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   flex: 1 1 auto;
 }
 
 .module-name {
   margin: 0;
   min-width: 0;
-  font-size: calc(22px * var(--ui-scale));
+  font-size: 1.375rem;
   line-height: 1.3;
   font-weight: 700;
   white-space: nowrap;
@@ -768,8 +768,8 @@ async function confirmRemove() {
 
 .module-meta {
   min-width: 0;
-  padding: calc(14px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  padding: 0.875rem 0.875rem;
+  border-radius: 1.125rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg-soft);
   box-shadow:
@@ -779,9 +779,9 @@ async function confirmRemove() {
 
 .module-meta-label {
   display: block;
-  margin-bottom: calc(8px * var(--ui-scale));
+  margin-bottom: 0.5rem;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   letter-spacing: 0.04em;
 }
 
@@ -789,7 +789,7 @@ async function confirmRemove() {
   display: block;
   min-width: 0;
   color: var(--text-main);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   line-height: 1.55;
 }
 
@@ -812,14 +812,14 @@ async function confirmRemove() {
 
 .provider-trigger {
   width: 100%;
-  min-height: calc(48px * var(--ui-scale));
+  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(10px * var(--ui-scale));
-  padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  gap: 0.625rem;
+  padding: 0.6875rem 0.875rem;
   border: 1px solid var(--panel-card-border);
-  border-radius: calc(16px * var(--ui-scale));
+  border-radius: 1rem;
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
   text-align: left;
@@ -844,7 +844,7 @@ async function confirmRemove() {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .provider-trigger-icon {
@@ -852,10 +852,10 @@ async function confirmRemove() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(42px * var(--ui-scale));
-  height: calc(42px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale));
-  border-radius: calc(14px * var(--ui-scale));
+  width: 2.625rem;
+  height: 2.625rem;
+  padding: 0.5rem;
+  border-radius: 0.875rem;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
     rgba(255, 255, 255, 0.92);
@@ -873,7 +873,7 @@ async function confirmRemove() {
 
 .provider-trigger-icon span {
   color: var(--provider-accent);
-  font-size: calc(13px * var(--ui-scale));
+  font-size: 0.8125rem;
   font-weight: 800;
 }
 
@@ -890,7 +890,7 @@ async function confirmRemove() {
 .api-key-wrap {
   display: flex;
   align-items: center;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .api-key-wrap input {
@@ -899,23 +899,23 @@ async function confirmRemove() {
 
 .role-picker {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .role-option-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .role-option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(46px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  min-height: 2.875rem;
+  padding: 0.625rem 1rem;
   border: 1px solid var(--panel-card-border);
-  border-radius: calc(16px * var(--ui-scale));
+  border-radius: 1rem;
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
   font-weight: 600;
@@ -960,7 +960,7 @@ async function confirmRemove() {
 .provider-filter {
   display: flex;
   align-items: center;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
   flex-wrap: wrap;
 }
 
@@ -971,7 +971,7 @@ async function confirmRemove() {
 .provider-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .provider-card {
@@ -983,11 +983,11 @@ async function confirmRemove() {
   position: relative;
   display: flex;
   align-items: center;
-  gap: calc(14px * var(--ui-scale));
-  min-height: calc(96px * var(--ui-scale));
-  padding: calc(16px * var(--ui-scale));
+  gap: 0.875rem;
+  min-height: 6rem;
+  padding: 1rem;
   border: 1px solid var(--panel-card-border);
-  border-radius: calc(20px * var(--ui-scale));
+  border-radius: 1.25rem;
   background:
     linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
     linear-gradient(140deg, var(--provider-surface-start), var(--provider-surface-end));
@@ -1041,10 +1041,10 @@ async function confirmRemove() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(54px * var(--ui-scale));
-  height: calc(54px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  width: 3.375rem;
+  height: 3.375rem;
+  padding: 0.625rem;
+  border-radius: 1.125rem;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
     rgba(255, 255, 255, 0.92);
@@ -1071,11 +1071,11 @@ async function confirmRemove() {
 
 .provider-card strong {
   display: block;
-  font-size: calc(18px * var(--ui-scale));
+  font-size: 1.125rem;
 }
 
 .provider-card p {
-  margin: calc(8px * var(--ui-scale)) 0 0;
+  margin: 0.5rem 0 0;
   color: var(--text-muted);
 }
 
@@ -1118,3 +1118,5 @@ async function confirmRemove() {
   }
 }
 </style>
+
+

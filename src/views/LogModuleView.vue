@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSelect from '../components/AppSelect.vue'
@@ -1986,20 +1986,20 @@ async function loadRuleLibrary() {
 .log-panel {
   display: flex;
   flex-direction: column;
-  gap: calc(18px * var(--ui-scale));
+  gap: 1.125rem;
   color: var(--text-main);
 }
 
 .log-scroll-body {
   display: flex;
   flex-direction: column;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
 }
 
 .page-head {
   display: flex;
   justify-content: space-between;
-  gap: calc(16px * var(--ui-scale));
+  gap: 1rem;
   align-items: flex-start;
 }
 
@@ -2007,12 +2007,12 @@ async function loadRuleLibrary() {
   min-width: min(23rem, 100%);
   display: flex;
   flex-direction: column;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
 }
 
 .endpoint-caption {
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   letter-spacing: 0.06em;
 }
 
@@ -2020,18 +2020,18 @@ async function loadRuleLibrary() {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
 }
 
 .endpoint-code {
   display: inline-flex;
   align-items: center;
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  border-radius: calc(14px * var(--ui-scale));
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.875rem;
   background: var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
   color: var(--text-main);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   box-shadow:
     var(--panel-card-shadow),
     inset 0 1px 0 var(--surface-inset);
@@ -2040,12 +2040,12 @@ async function loadRuleLibrary() {
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .summary-card {
-  padding: calc(16px * var(--ui-scale)) calc(18px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
+  padding: 1rem 1.125rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg);
   box-shadow:
@@ -2056,13 +2056,13 @@ async function loadRuleLibrary() {
 .summary-card span {
   display: block;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .summary-card strong {
   display: block;
-  margin-top: calc(10px * var(--ui-scale));
-  font-size: calc(22px * var(--ui-scale));
+  margin-top: 0.625rem;
+  font-size: 1.375rem;
   line-height: 1.1;
   color: var(--text-main);
 }
@@ -2084,35 +2084,47 @@ async function loadRuleLibrary() {
 }
 
 .summary-tags {
-  margin-top: calc(-4px * var(--ui-scale));
+  margin-top: -0.25rem;
 }
 
 .log-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
   align-items: center;
+  font-size: 16px;
+}
+
+.log-toolbar .pill-button,
+.log-toolbar .toolbar-input {
+  font-size: 14px;
+}
+
+.log-toolbar :deep(.app-select-trigger),
+.log-toolbar :deep(.app-select-value),
+.log-toolbar :deep(.app-select-option) {
+  font-size: 14px;
 }
 
 .toolbar-field {
-  min-width: min(100%, calc(220px * var(--ui-scale)));
+  min-width: min(100%, 13.75rem);
 }
 
 .toolbar-field.compact {
-  width: min(100%, calc(220px * var(--ui-scale)));
+  width: min(100%, 13.75rem);
 }
 
 .toolbar-field.wide {
   flex: 1;
-  min-width: min(100%, calc(320px * var(--ui-scale)));
+  min-width: min(100%, 20rem);
 }
 
 .toolbar-input {
   width: 100%;
-  min-height: calc(48px * var(--ui-scale));
+  min-height: 3rem;
   border: 1px solid var(--panel-card-border);
-  border-radius: calc(16px * var(--ui-scale));
-  padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  border-radius: 1rem;
+  padding: 0.6875rem 0.875rem;
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
   outline: none;
@@ -2124,14 +2136,14 @@ async function loadRuleLibrary() {
 .toolbar-input:focus {
   border-color: var(--line-strong);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) var(--surface-accent),
+    0 0 0 0.1875rem var(--surface-accent),
     inset 0 1px 0 var(--surface-inset);
 }
 
 .instruction-grid,
 .log-list {
   display: grid;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
 }
 
 .instruction-card,
@@ -2139,7 +2151,7 @@ async function loadRuleLibrary() {
 .detail-card,
 .rule-scope,
 .rule-source {
-  border-radius: calc(22px * var(--ui-scale));
+  border-radius: 1.375rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg);
   box-shadow:
@@ -2149,13 +2161,13 @@ async function loadRuleLibrary() {
 
 .instruction-card,
 .log-entry {
-  padding: calc(20px * var(--ui-scale));
+  padding: 1.25rem;
 }
 
 .instruction-card h3,
 .log-entry h3 {
-  margin: calc(12px * var(--ui-scale)) 0 calc(8px * var(--ui-scale));
-  font-size: calc(18px * var(--ui-scale));
+  margin: 0.75rem 0 0.5rem;
+  font-size: 1.125rem;
 }
 
 .instruction-card p,
@@ -2174,7 +2186,7 @@ async function loadRuleLibrary() {
 .rule-source-head {
   display: flex;
   justify-content: space-between;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
   align-items: flex-start;
 }
 
@@ -2188,7 +2200,7 @@ async function loadRuleLibrary() {
 .entry-head p,
 .rule-source-head p,
 .rule-scope-head p {
-  margin: calc(6px * var(--ui-scale)) 0 0;
+  margin: 0.375rem 0 0;
   color: var(--text-muted);
   line-height: 1.6;
 }
@@ -2199,9 +2211,9 @@ async function loadRuleLibrary() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: calc(5px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  padding: 0.3125rem 0.625rem;
   border-radius: 999px;
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -2233,8 +2245,8 @@ async function loadRuleLibrary() {
 .tag-row {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(8px * var(--ui-scale));
-  margin-top: calc(14px * var(--ui-scale));
+  gap: 0.5rem;
+  margin-top: 0.875rem;
 }
 
 .info-tag {
@@ -2245,9 +2257,9 @@ async function loadRuleLibrary() {
 }
 
 .content-block {
-  margin-top: calc(14px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  margin-top: 0.875rem;
+  padding: 0.875rem 1rem;
+  border-radius: 1.125rem;
   background: var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -2259,28 +2271,28 @@ async function loadRuleLibrary() {
 
 .content-block strong {
   display: block;
-  margin-bottom: calc(8px * var(--ui-scale));
+  margin-bottom: 0.5rem;
   color: var(--text-main);
 }
 
 .structured-answer {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
-  margin-top: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
+  margin-top: 0.625rem;
 }
 
 .structured-highlight-grid,
 .structured-extra-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .structured-highlight-card,
 .structured-extra-item,
 .structured-text-card,
 .structured-section-card {
-  border-radius: calc(16px * var(--ui-scale));
+  border-radius: 1rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg-soft);
   box-shadow:
@@ -2290,20 +2302,20 @@ async function loadRuleLibrary() {
 
 .structured-highlight-card,
 .structured-extra-item {
-  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.75rem 0.875rem;
 }
 
 .structured-highlight-card span,
 .structured-extra-item span {
   display: block;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .structured-highlight-card strong,
 .structured-extra-item strong {
   display: block;
-  margin-top: calc(6px * var(--ui-scale));
+  margin-top: 0.375rem;
   color: var(--text-main);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -2313,12 +2325,12 @@ async function loadRuleLibrary() {
 .structured-text-list,
 .structured-section-list {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .structured-text-card,
 .structured-section-card {
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  padding: 0.875rem 1rem;
 }
 
 .structured-card-head,
@@ -2326,7 +2338,7 @@ async function loadRuleLibrary() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
   flex-wrap: wrap;
 }
 
@@ -2337,7 +2349,7 @@ async function loadRuleLibrary() {
 
 .structured-text-card p,
 .structured-section-card p {
-  margin: calc(10px * var(--ui-scale)) 0 0;
+  margin: 0.625rem 0 0;
   color: var(--text-muted);
   line-height: 1.75;
   white-space: pre-wrap;
@@ -2348,33 +2360,33 @@ async function loadRuleLibrary() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: calc(4px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  padding: 0.25rem 0.625rem;
   border-radius: 999px;
   background: var(--surface-success);
   color: var(--brand-alt);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 700;
   white-space: nowrap;
 }
 
 .structured-section-subtitle {
-  margin-top: calc(8px * var(--ui-scale));
+  margin-top: 0.5rem;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .structured-bullet-list {
-  margin: calc(10px * var(--ui-scale)) 0 0;
-  padding-left: calc(18px * var(--ui-scale));
+  margin: 0.625rem 0 0;
+  padding-left: 1.125rem;
   display: grid;
-  gap: calc(6px * var(--ui-scale));
+  gap: 0.375rem;
   color: var(--text-muted);
 }
 
 .structured-preview-note {
   margin: 0;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   line-height: 1.6;
 }
 
@@ -2388,11 +2400,11 @@ async function loadRuleLibrary() {
 }
 
 .structured-pre {
-  margin-top: calc(10px * var(--ui-scale));
+  margin-top: 0.625rem;
 }
 
 .entry-actions {
-  margin-top: calc(16px * var(--ui-scale));
+  margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
 }
@@ -2400,17 +2412,17 @@ async function loadRuleLibrary() {
 .rule-meta-row {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(8px * var(--ui-scale));
-  margin-bottom: calc(12px * var(--ui-scale));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 }
 
 .rule-library {
   display: grid;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .rule-scope {
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  padding: 0.875rem 1rem;
 }
 
 .rule-scope > summary,
@@ -2430,18 +2442,18 @@ async function loadRuleLibrary() {
 
 .rule-source-list {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
-  margin-top: calc(12px * var(--ui-scale));
+  gap: 0.625rem;
+  margin-top: 0.75rem;
 }
 
 .rule-source {
-  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.75rem 0.875rem;
 }
 
 .rule-source-side {
   display: flex;
   align-items: center;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -2449,14 +2461,14 @@ async function loadRuleLibrary() {
 .chapter-list {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(8px * var(--ui-scale));
-  margin-top: calc(12px * var(--ui-scale));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .chapter-chip {
   border: 1px solid var(--panel-card-border);
   border-radius: 999px;
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  padding: 0.5rem 0.75rem;
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -2468,9 +2480,9 @@ async function loadRuleLibrary() {
 }
 
 .entry-details {
-  margin-top: calc(14px * var(--ui-scale));
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  margin-top: 0.875rem;
+  padding: 0.875rem 1rem;
+  border-radius: 1.125rem;
   background: var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -2484,27 +2496,27 @@ async function loadRuleLibrary() {
 
 .detail-stack {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
-  margin-top: calc(12px * var(--ui-scale));
+  gap: 0.625rem;
+  margin-top: 0.75rem;
 }
 
 .detail-stack.compact {
-  margin-top: calc(10px * var(--ui-scale));
+  margin-top: 0.625rem;
 }
 
 .detail-card {
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  padding: 0.875rem 1rem;
 }
 
 .detail-card-head span {
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .detail-pre {
-  margin: calc(10px * var(--ui-scale)) 0 0;
-  padding: calc(14px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border-radius: calc(16px * var(--ui-scale));
+  margin: 0.625rem 0 0;
+  padding: 0.875rem 1rem;
+  border-radius: 1rem;
   background: var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
   white-space: pre-wrap;
@@ -2516,16 +2528,16 @@ async function loadRuleLibrary() {
 }
 
 .detail-pre.large {
-  max-height: calc(62vh * var(--ui-scale));
+  max-height: calc(43.4vh * 0.7);
   overflow: auto;
 }
 
 .nested-detail {
-  margin-top: calc(10px * var(--ui-scale));
+  margin-top: 0.625rem;
 }
 
 .empty-inline {
-  margin-top: calc(10px * var(--ui-scale));
+  margin-top: 0.625rem;
   color: var(--text-muted);
 }
 
@@ -2536,7 +2548,7 @@ async function loadRuleLibrary() {
 
 .log-detail-modal {
   width: min(42rem, calc(100vw - 2rem));
-  max-height: calc(88vh * var(--ui-scale));
+  max-height: calc(61.6vh * 0.7);
   overflow: auto;
 }
 
@@ -2547,12 +2559,12 @@ async function loadRuleLibrary() {
 .detail-meta-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .detail-meta-card {
-  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  padding: 0.75rem 0.875rem;
+  border-radius: 1.125rem;
   background: var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -2561,12 +2573,12 @@ async function loadRuleLibrary() {
 .detail-meta-card span {
   display: block;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .detail-meta-card strong {
   display: block;
-  margin-top: calc(6px * var(--ui-scale));
+  margin-top: 0.375rem;
   color: var(--text-main);
   line-height: 1.6;
 }
@@ -2606,3 +2618,5 @@ async function loadRuleLibrary() {
   }
 }
 </style>
+
+

@@ -898,6 +898,18 @@ async function confirmRemove() {
   }
 }
 
+function tagsPortrait(row) {
+  return [
+    ...(row.held_products || []),
+    ...(row.key_needs || []),
+    row.export_oriented ? '出口' : '',
+    row.is_group ? '集团' : '',
+    row.green_industry ? '绿色' : '',
+    row.msme_first_time ? '小微首贷' : '',
+    row.credit_due_days !== null && row.credit_due_days !== undefined ? `授信${row.credit_due_days}天到期` : '',
+  ].filter(Boolean).join(', ')
+}
+
 function resetImportState() {
   importFile.value = null
   importText.value = ''
@@ -1105,31 +1117,17 @@ watch(
           <tbody>
             <tr v-for="row in filteredRows" :key="row.product_id">
               <td><code>{{ row.product_id }}</code></td>
-              <td>
+              <td class="cell-ellipsis" :title="`${row.product_name}${row.selling_points ? ' · ' + row.selling_points : ''}`">
                 <strong>{{ row.product_name }}</strong>
-                <div class="cell-hint">{{ row.selling_points || '' }}</div>
               </td>
-              <td>
-                {{ row.category || '--' }}
-                <div class="cell-hint">{{ row.subcategory || '' }}</div>
+              <td class="cell-ellipsis" :title="`${row.category || '--'}${row.subcategory ? ' / ' + row.subcategory : ''}`">
+                {{ row.category || '--' }}{{ row.subcategory ? ' / ' + row.subcategory : '' }}
               </td>
-              <td class="cell-multi">
-                <span v-for="item in row.fit_industries || []" :key="`i-${item}`" class="tag">{{ item }}</span>
-                <span v-for="item in row.fit_scales || []" :key="`s-${item}`" class="tag green">{{ item }}</span>
-                <span
-                  v-for="item in row.fit_client_tiers || row.fit_tiers || []"
-                  :key="`c-${item}`"
-                  class="tag gray"
-                >
-                  {{ item }}
-                </span>
-                <span v-for="item in row.trigger_signals || []" :key="`g-${item}`" class="tag orange">
-                  {{ item }}
-                </span>
+              <td class="cell-ellipsis" :title="[row.fit_industries||[], row.fit_scales||[], row.fit_client_tiers||row.fit_tiers||[], row.trigger_signals||[]].flat().join(', ')">
+                {{ [row.fit_industries||[], row.fit_scales||[], row.fit_client_tiers||row.fit_tiers||[], row.trigger_signals||[]].flat().join(', ') }}
               </td>
-              <td>
-                {{ row.rate_range || '--' }}
-                <div class="cell-hint">{{ row.tenor_range || '' }}</div>
+              <td class="cell-ellipsis" :title="`${row.rate_range || '--'}${row.tenor_range ? ' / ' + row.tenor_range : ''}`">
+                {{ row.rate_range || '--' }}{{ row.tenor_range ? ' / ' + row.tenor_range : '' }}
               </td>
               <td class="nowrap-col">
                 <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
@@ -1162,35 +1160,20 @@ watch(
           </thead>
           <tbody>
             <tr v-for="row in filteredRows" :key="row.company_name">
-              <td>
+              <td class="cell-ellipsis" :title="`${row.company_name}${row.main_business ? ' · ' + row.main_business : ''}`">
                 <strong>{{ row.company_name }}</strong>
-                <div class="cell-hint">{{ row.main_business || '' }}</div>
+              </td>
+              <td class="cell-ellipsis" :title="`${row.industry_name || row.industry || '--'}${row.industry_code ? ' (' + row.industry_code + ')' : ''}`">
+                {{ row.industry_name || row.industry || '--' }} <span v-if="row.industry_code">({{ row.industry_code }})</span>
               </td>
               <td>
-                {{ row.industry_name || row.industry || '--' }}
-                <div class="cell-hint">{{ row.industry_code || '' }}</div>
+                {{ row.scale || '--' }}{{ row.client_tier ? ' / ' + row.client_tier : '' }}
               </td>
-              <td>
-                {{ row.scale || '--' }}
-                <div class="cell-hint">{{ row.client_tier || '' }}</div>
-              </td>
-              <td>
+              <td class="cell-ellipsis" :title="row.aum || '--'">
                 {{ row.aum || '--' }}
-                <div class="cell-hint">{{ row.aum_numeric || 0 }} 万</div>
               </td>
-              <td class="cell-multi">
-                <span v-for="item in row.held_products || []" :key="`p-${item}`" class="tag">{{ item }}</span>
-                <span v-for="item in row.key_needs || []" :key="`n-${item}`" class="tag gray">{{ item }}</span>
-                <span v-if="row.export_oriented" class="tag orange">出口</span>
-                <span v-if="row.is_group" class="tag">集团</span>
-                <span v-if="row.green_industry" class="tag green">绿色</span>
-                <span v-if="row.msme_first_time" class="tag green">小微首贷</span>
-                <span
-                  v-if="row.credit_due_days !== null && row.credit_due_days !== undefined"
-                  class="tag gray"
-                >
-                  授信 {{ row.credit_due_days }} 天到期
-                </span>
+              <td class="cell-ellipsis" :title="tagsPortrait(row)">
+                {{ tagsPortrait(row) }}
               </td>
               <td class="nowrap-col">
                 <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
@@ -1223,14 +1206,13 @@ watch(
           </thead>
           <tbody>
             <tr v-for="row in filteredRows" :key="row.id">
-              <td>{{ row.insight_date }}</td>
+              <td class="nowrap-col">{{ row.insight_date }}</td>
               <td><code>{{ row.industry_code || '--' }}</code></td>
-              <td><span class="tag">{{ row.category || '--' }}</span></td>
-              <td>
+              <td>{{ row.category || '--' }}</td>
+              <td class="cell-ellipsis" :title="`${row.title}${row.summary ? ' · ' + row.summary : ''}`">
                 <strong>{{ row.title }}</strong>
-                <div class="cell-hint">{{ row.summary }}</div>
               </td>
-              <td class="cell-hint">{{ row.source || '--' }}</td>
+              <td class="cell-ellipsis" :title="row.source || '--'">{{ row.source || '--' }}</td>
               <td class="nowrap-col">
                 <span class="status-tag" :class="row.is_active === 0 ? 'inactive' : 'active'">
                   {{ row.is_active === 0 ? '停用' : '启用' }}
@@ -1675,47 +1657,84 @@ watch(
 </template>
 
 <style scoped>
-.cell-hint {
-  color: var(--text-muted);
-  font-size: 11px;
-  margin-top: 2px;
+.toolbar {
+  font-size: 16px;
 }
 
-.cell-multi {
-  /* display: flex; */
-  /* flex-wrap: wrap; */
-  gap: 4px;
+.pill-button,
+.tiny-button,
+.toolbar select,
+.toolbar input {
+  font-size: 14px;
+}
+
+:deep(.app-select-trigger),
+:deep(.app-select-value),
+:deep(.app-select-option) {
+  font-size: 14px;
+}
+
+.data-table th {
+  font-size: 16px;
+  text-align: left;
+}
+
+.data-table td {
+  color: var(--text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.data-table td.cell-ellipsis {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table th:nth-child(6),
+.data-table td:nth-child(6),
+.data-table th:nth-child(7),
+.data-table td:nth-child(7) {
+  text-align: center;
+}
+
+.data-table th:first-child,
+.data-table td:first-child {
+  max-width: 16%;
+  width: 16%;
 }
 
 .tag {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  background: rgba(47, 131, 116, 0.12);
-  color: var(--brand-alt, #2f8374);
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
 }
 
-.tag.gray {
-  background: rgba(27, 37, 54, 0.08);
-  color: var(--text-muted);
-}
-
-.tag.green {
-  background: rgba(40, 160, 90, 0.14);
-  color: #15803d;
-}
-
+.tag.gray,
+.tag.green,
 .tag.orange {
-  background: rgba(237, 124, 71, 0.18);
-  color: #c2410c;
+  background: none;
+  color: inherit;
 }
 
 .nowrap-col {
   white-space: nowrap;
 }
 
-.status-tag {
+.status-tag,
+.status-tag.active,
+.status-tag.inactive {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
   white-space: nowrap;
 }
 
@@ -1724,6 +1743,7 @@ watch(
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  justify-content: center;
 }
 
 .checkbox-row .checkbox-group {
@@ -1749,8 +1769,13 @@ watch(
   max-width: 1180px;
 }
 
-.field.full {
-  grid-column: 1 / -1;
+.field > span {
+  font-size: 16px;
+}
+
+.field input,
+.field textarea {
+  font-size: 14px;
 }
 
 .modal-key {

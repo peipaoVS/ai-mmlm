@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
 import AppSelect from '../components/AppSelect.vue'
@@ -473,19 +473,19 @@ async function confirmRemove() {
 
 .param-type-body {
   display: grid;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .type-chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .type-chip {
   border: 1px solid var(--panel-card-border);
   border-radius: 999px;
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  padding: 0.5rem 0.75rem;
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -519,3 +519,5 @@ async function confirmRemove() {
   }
 }
 </style>
+
+
