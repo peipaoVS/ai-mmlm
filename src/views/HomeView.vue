@@ -179,7 +179,7 @@ function nextPage() {
   border-radius: 999px;
   background: var(--surface-accent-alt);
   color: var(--brand-alt);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.06em;
 }
@@ -194,7 +194,7 @@ function nextPage() {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.8;
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
 }
 
 .user-with-status {
@@ -251,7 +251,7 @@ function nextPage() {
 }
 
 .carousel-label {
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.04em;
@@ -271,12 +271,12 @@ function nextPage() {
 }
 
 .carousel-value small {
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-muted);
 }
 
 .carousel-desc {
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -408,7 +408,7 @@ function nextPage() {
 
 .card-body strong {
   display: block;
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-main);
   font-weight: 600;
 }
@@ -418,7 +418,7 @@ function nextPage() {
   max-width: 45%;
   margin: 0;
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   line-height: 1.5;
   text-align: right;
   overflow: hidden;

@@ -107,7 +107,7 @@ function stopDrag() {
 
 function openXiaoyiMenu() {
   if (xiaoyiDragging.value) return
-  const url = window.location.origin + '/xiaoyi-menu'
+  const url = window.location.origin + '/workbench'
   window.open(url, '_blank')
 }
 
@@ -872,7 +872,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: var(--surface-accent-alt);
   color: var(--brand-alt);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.06em;
 }

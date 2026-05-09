@@ -207,7 +207,7 @@ onBeforeUnmount(() => {
   background: rgba(2, 6, 23, 0.36);
   color: var(--text-main);
   text-align: left;
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 600;
   line-height: 1.5;
   transition:

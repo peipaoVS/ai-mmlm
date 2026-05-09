@@ -781,7 +781,7 @@ async function confirmRemove() {
   display: block;
   margin-bottom: calc(8px * var(--ui-scale));
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   letter-spacing: 0.04em;
 }
 
@@ -789,7 +789,7 @@ async function confirmRemove() {
   display: block;
   min-width: 0;
   color: var(--text-main);
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   line-height: 1.55;
 }
 

@@ -4817,7 +4817,7 @@ onBeforeUnmount(() => {
   padding: calc(6px * var(--ui-scale)) calc(12px * var(--ui-scale));
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.02em;
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -4829,7 +4829,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: var(--panel-card-bg-soft);
   color: var(--text-main);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.02em;
   box-shadow: inset 0 1px 0 var(--surface-inset);
@@ -5611,7 +5611,7 @@ onBeforeUnmount(() => {
   font: inherit;
   color: var(--text-main);
   box-sizing: border-box;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
@@ -5622,7 +5622,7 @@ onBeforeUnmount(() => {
   background: var(--surface-card-soft);
   font: inherit;
   color: var(--text-main);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   cursor: pointer;
   box-shadow: inset 0 1px 0 var(--surface-inset);
 }
@@ -5667,7 +5667,7 @@ onBeforeUnmount(() => {
 /* ================ 访后纪要 · 卡片 + 详情弹窗 ================ */
 .post-summary-snippet {
   margin: calc(8px * var(--ui-scale)) 0 0;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   line-height: 1.7;
   color: rgba(226, 232, 240, 0.88);
   font-weight: 500;
@@ -5675,7 +5675,7 @@ onBeforeUnmount(() => {
 
 .post-summary-block {
   margin-top: calc(6px * var(--ui-scale));
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-muted);
   line-height: 1.6;
 }
@@ -5697,7 +5697,7 @@ onBeforeUnmount(() => {
 
 .post-summary-next {
   margin: calc(6px * var(--ui-scale)) 0 0;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: #86efac;
 }
 
@@ -5824,7 +5824,7 @@ onBeforeUnmount(() => {
     var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
   color: var(--text-main);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   width: 9%;
   box-shadow:
@@ -5915,7 +5915,7 @@ onBeforeUnmount(() => {
 
 .hero-model-chip strong {
   display: inline-block;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   line-height: 1;
   min-width: 0;
   white-space: nowrap;
@@ -5936,7 +5936,7 @@ onBeforeUnmount(() => {
     linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-soft)),
     var(--panel-card-bg-soft);
   color: var(--text-main);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   box-shadow:
     var(--panel-card-shadow),
@@ -5990,7 +5990,7 @@ onBeforeUnmount(() => {
   padding: calc(18px * var(--ui-scale));
   text-align: left;
   color: var(--text-main);
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   line-height: 1.7;
   min-height: calc(92px * var(--ui-scale));
@@ -6089,7 +6089,7 @@ onBeforeUnmount(() => {
 
 .message-role {
   display: block;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-muted);
   font-weight: 700;
   margin-bottom: calc(8px * var(--ui-scale));
@@ -6146,7 +6146,7 @@ onBeforeUnmount(() => {
 
 .rule-reasoning-title {
   font-weight: 600;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-main);
 }
 
@@ -6176,7 +6176,7 @@ onBeforeUnmount(() => {
 
 .rule-reasoning-step-title {
   font-weight: 600;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-main);
   margin-bottom: calc(8px * var(--ui-scale));
 }
@@ -6221,7 +6221,7 @@ onBeforeUnmount(() => {
 
 .rule-reasoning-step-final p {
   margin: calc(4px * var(--ui-scale)) 0 0 0;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-main);
   line-height: 1.6;
 }
@@ -6248,7 +6248,7 @@ onBeforeUnmount(() => {
 
 .rule-evidence-title {
   font-weight: 600;
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   color: var(--text-muted);
 }
 
@@ -6362,7 +6362,7 @@ onBeforeUnmount(() => {
 
 .model-trigger-label {
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
 }
 
 .model-trigger strong {
@@ -6421,7 +6421,7 @@ onBeforeUnmount(() => {
 
 .model-option-copy strong {
   display: block;
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
 }
 
 .model-option-copy-with-icon {
@@ -6440,7 +6440,7 @@ onBeforeUnmount(() => {
   display: block;
   margin-top: calc(6px * var(--ui-scale));
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   line-height: 1.5;
 }
 
@@ -6480,7 +6480,7 @@ onBeforeUnmount(() => {
 
 .composer-actions span {
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
 }
 
 @media (max-width: 1280px) {

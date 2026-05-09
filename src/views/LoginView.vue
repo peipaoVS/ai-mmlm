@@ -775,7 +775,7 @@ function selectTheme(theme) {
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.12);
   color: var(--brand-alt);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.06em;
 }
@@ -982,7 +982,7 @@ function selectTheme(theme) {
 
 .login-brand-label {
   color: var(--text-muted);
-  font-size: calc(14px * var(--ui-scale));
+  font-size: calc(16px * var(--ui-scale));
   font-weight: 700;
   letter-spacing: 0.08em;
   text-align: center;
