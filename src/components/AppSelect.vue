@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
@@ -110,14 +110,14 @@ onBeforeUnmount(() => {
 
 .app-select-trigger {
   width: 100%;
-  min-height: calc(48px * var(--ui-scale));
+  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(12px * var(--ui-scale));
-  padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  gap: 0.75rem;
+  padding: 0.6875rem 0.875rem;
   border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: calc(16px * var(--ui-scale));
+  border-radius: 1rem;
   background:
     linear-gradient(180deg, rgba(19, 32, 58, 0.92), rgba(8, 16, 29, 0.88)),
     rgba(15, 23, 42, 0.74);
@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
   outline: none;
   border-color: rgba(34, 211, 238, 0.34);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) rgba(34, 211, 238, 0.14),
+    0 0 0 0.1875rem rgba(34, 211, 238, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -164,8 +164,8 @@ onBeforeUnmount(() => {
 }
 
 .app-select-arrow {
-  width: calc(10px * var(--ui-scale));
-  height: calc(10px * var(--ui-scale));
+  width: 0.625rem;
+  height: 0.625rem;
   flex-shrink: 0;
   border-right: 2px solid #94a3b8;
   border-bottom: 2px solid #94a3b8;
@@ -179,13 +179,13 @@ onBeforeUnmount(() => {
 
 .app-select-menu {
   position: absolute;
-  top: calc(100% + calc(10px * var(--ui-scale)));
+  top: calc(100% + 0.625rem);
   left: 0;
   width: 100%;
   max-height: 260px;
   overflow: auto;
-  padding: calc(8px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  padding: 0.5rem;
+  border-radius: 1.125rem;
   border: 1px solid rgba(34, 211, 238, 0.18);
   background:
     radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 32%),
@@ -201,13 +201,13 @@ onBeforeUnmount(() => {
   width: 100%;
   display: flex;
   align-items: center;
-  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.75rem 0.875rem;
   border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: calc(14px * var(--ui-scale));
+  border-radius: 0.875rem;
   background: rgba(2, 6, 23, 0.36);
   color: var(--text-main);
   text-align: left;
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 600;
   line-height: 1.5;
   transition:
@@ -219,7 +219,7 @@ onBeforeUnmount(() => {
 }
 
 .app-select-option + .app-select-option {
-  margin-top: calc(6px * var(--ui-scale));
+  margin-top: 0.375rem;
 }
 
 .app-select-option:hover {
@@ -259,7 +259,7 @@ onBeforeUnmount(() => {
 :global(html[data-theme='light']) .app-select-trigger:focus-visible {
   border-color: rgba(237, 124, 71, 0.36);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) rgba(237, 124, 71, 0.12),
+    0 0 0 0.1875rem rgba(237, 124, 71, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
 }
 
@@ -301,3 +301,5 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 24px rgba(29, 35, 52, 0.1);
 }
 </style>
+
+

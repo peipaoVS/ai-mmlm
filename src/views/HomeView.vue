@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSession } from '../stores/session'
@@ -164,8 +164,8 @@ function nextPage() {
 }
 
 .home-hero {
-  border-radius: calc(24px * var(--ui-scale));
-  padding: calc(28px * var(--ui-scale)) calc(30px * var(--ui-scale));
+  border-radius: 1.5rem;
+  padding: 1.75rem 1.875rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg);
   box-shadow: var(--panel-card-shadow), inset 0 1px 0 var(--surface-inset);
@@ -175,18 +175,18 @@ function nextPage() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: calc(6px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.375rem 0.875rem;
   border-radius: 999px;
   background: var(--surface-accent-alt);
   color: var(--brand-alt);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 
 .home-hero h2 {
-  margin: calc(18px * var(--ui-scale)) 0 calc(10px * var(--ui-scale));
-  font-size: calc(26px * var(--ui-scale));
+  margin: 1.125rem 0 0.625rem;
+  font-size: 1.625rem;
   color: var(--text-main);
 }
 
@@ -194,7 +194,7 @@ function nextPage() {
   margin: 0;
   color: var(--text-muted);
   line-height: 1.8;
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .user-with-status {
@@ -218,7 +218,7 @@ function nextPage() {
 }
 
 .online-label {
-  font-size: calc(13px * var(--ui-scale));
+  font-size: 0.8125rem;
   color: #22c55e;
   font-weight: 500;
 }
@@ -239,8 +239,8 @@ function nextPage() {
 .carousel-card {
   flex: 0 0 220px;
   margin-right: 16px;
-  padding: calc(18px * var(--ui-scale)) calc(20px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  padding: 1.125rem 1.25rem;
+  border-radius: 1.125rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg-soft);
   box-shadow: var(--panel-card-shadow), inset 0 1px 0 var(--surface-inset);
@@ -251,7 +251,7 @@ function nextPage() {
 }
 
 .carousel-label {
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.04em;
@@ -264,19 +264,19 @@ function nextPage() {
 }
 
 .carousel-value strong {
-  font-size: calc(32px * var(--ui-scale));
+  font-size: 2rem;
   font-weight: 800;
   color: var(--brand);
   line-height: 1;
 }
 
 .carousel-value small {
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   color: var(--text-muted);
 }
 
 .carousel-desc {
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -299,12 +299,12 @@ function nextPage() {
 
 .home-section-header h3 {
   margin: 0;
-  font-size: calc(18px * var(--ui-scale));
+  font-size: 1.125rem;
   color: var(--text-main);
 }
 
 .section-subtitle {
-  font-size: calc(13px * var(--ui-scale));
+  font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
@@ -318,7 +318,7 @@ function nextPage() {
 .home-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   flex: 1;
 }
 
@@ -331,7 +331,7 @@ function nextPage() {
   align-items: center;
   justify-content: center;
   border: 1px solid var(--panel-card-border);
-  border-radius: calc(12px * var(--ui-scale));
+  border-radius: 0.75rem;
   background: var(--panel-card-bg);
   color: var(--text-muted);
   cursor: pointer;
@@ -370,8 +370,8 @@ function nextPage() {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: calc(18px * var(--ui-scale)) calc(20px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
+  padding: 1.125rem 1.25rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg);
   box-shadow: var(--panel-card-shadow), inset 0 1px 0 var(--surface-inset);
@@ -408,7 +408,7 @@ function nextPage() {
 
 .card-body strong {
   display: block;
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   color: var(--text-main);
   font-weight: 600;
 }
@@ -418,7 +418,7 @@ function nextPage() {
   max-width: 45%;
   margin: 0;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   line-height: 1.5;
   text-align: right;
   overflow: hidden;
@@ -426,3 +426,5 @@ function nextPage() {
   white-space: nowrap;
 }
 </style>
+
+

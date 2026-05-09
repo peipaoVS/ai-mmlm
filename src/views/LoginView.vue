@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/http'
@@ -456,16 +456,16 @@ function selectTheme(theme) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(12px * var(--ui-scale));
-  margin-bottom: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
 .login-theme-switch {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: calc(7px * var(--ui-scale));
-  padding: calc(7px * var(--ui-scale));
+  gap: 0.4375rem;
+  padding: 0.4375rem;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.16);
   background:
@@ -489,18 +489,18 @@ function selectTheme(theme) {
 }
 
 .login-theme-button {
-  min-height: calc(34px * var(--ui-scale));
+  min-height: 2.125rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: calc(7px * var(--ui-scale));
-  padding: calc(7px * var(--ui-scale)) calc(11px * var(--ui-scale));
+  gap: 0.4375rem;
+  padding: 0.4375rem 0.6875rem;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.14);
   background: rgba(2, 6, 23, 0.28);
   color: #e5e7eb;
   font-weight: 700;
-  font-size: calc(11px * var(--ui-scale));
+  font-size: 0.6875rem;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   transition:
     transform 0.18s ease,
@@ -548,8 +548,8 @@ function selectTheme(theme) {
   --theme-icon-surface: rgba(255, 255, 255, 0.06);
   --theme-icon-cutout: rgba(8, 16, 29, 0.92);
   position: relative;
-  width: calc(16px * var(--ui-scale));
-  height: calc(16px * var(--ui-scale));
+  width: 1rem;
+  height: 1rem;
   flex: 0 0 auto;
   border-radius: 50%;
   background:
@@ -593,16 +593,16 @@ function selectTheme(theme) {
 }
 
 .login-theme-icon.moon::before {
-  inset: calc(2px * var(--ui-scale));
+  inset: 0.125rem;
   background: linear-gradient(135deg, #f8fbff 12%, #dbeafe 48%, #a5b4fc 100%);
   box-shadow: 0 0 10px rgba(191, 219, 254, 0.42);
 }
 
 .login-theme-icon.moon::after {
-  top: calc(1px * var(--ui-scale));
-  right: calc(1px * var(--ui-scale));
-  bottom: calc(1px * var(--ui-scale));
-  left: calc(7px * var(--ui-scale));
+  top: 0.0625rem;
+  right: 0.0625rem;
+  bottom: 0.0625rem;
+  left: 0.4375rem;
   background: var(--theme-icon-cutout);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.06);
 }
@@ -617,13 +617,13 @@ function selectTheme(theme) {
 }
 
 .login-theme-icon.sun::before {
-  inset: calc(4px * var(--ui-scale));
+  inset: 0.25rem;
   background: radial-gradient(circle at 35% 35%, #fff7bf 0%, #fcd34d 46%, #f59e0b 100%);
   box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
 }
 
 .login-theme-icon.sun::after {
-  inset: calc(-3px * var(--ui-scale));
+  inset: -0.1875rem;
   background: repeating-conic-gradient(
     from 0deg,
     rgba(245, 158, 11, 0) 0deg 24deg,
@@ -657,8 +657,8 @@ function selectTheme(theme) {
 }
 
 .login-intro h2 {
-  margin: calc(18px * var(--ui-scale)) 0 calc(16px * var(--ui-scale));
-  font-size: calc(clamp(40px, 5vw, 72px) * var(--ui-scale));
+  margin: 1.125rem 0 1rem;
+  font-size: clamp(2.5rem, 3.5vw, 4.5rem);
   line-height: 1.02;
   letter-spacing: -0.02em;
 }
@@ -667,7 +667,7 @@ function selectTheme(theme) {
   max-width: 38rem;
   margin: 0;
   color: rgba(234, 239, 248, 0.82);
-  font-size: calc(18px * var(--ui-scale));
+  font-size: 1.125rem;
   line-height: 1.8;
 }
 
@@ -678,12 +678,12 @@ function selectTheme(theme) {
 .login-intro-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(10px * var(--ui-scale));
-  margin-top: calc(24px * var(--ui-scale));
+  gap: 0.625rem;
+  margin-top: 1.5rem;
 }
 
 .login-intro-tags span {
-  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.625rem 0.875rem;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.08);
@@ -702,7 +702,7 @@ function selectTheme(theme) {
   position: relative;
   width: min(432px, 100%);
   justify-self: end;
-  border-radius: calc(36px * var(--ui-scale));
+  border-radius: 2.25rem;
   padding: clamp(1.25rem, 0.75rem + 1.6vw, 2.25rem);
   background:
     radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
@@ -731,21 +731,21 @@ function selectTheme(theme) {
 .login-mark {
   display: flex;
   justify-content: center;
-  margin-top: calc(12px * var(--ui-scale));
-  margin-bottom: calc(18px * var(--ui-scale));
+  margin-top: 0.75rem;
+  margin-bottom: 1.125rem;
 }
 
 .login-title {
-  margin: calc(14px * var(--ui-scale)) 0 calc(10px * var(--ui-scale));
+  margin: 0.875rem 0 0.625rem;
   text-align: center;
-  font-size: calc(clamp(28px, 3vw, 40px) * var(--ui-scale));
+  font-size: clamp(1.75rem, 2.1vw, 2.5rem);
   line-height: 1.1;
   color: var(--login-text-main);
   letter-spacing: 0.04em;
 }
 
 .login-subtitle {
-  margin: 0 0 calc(22px * var(--ui-scale));
+  margin: 0 0 1.375rem;
   text-align: center;
   color: var(--login-text-muted);
 }
@@ -757,9 +757,9 @@ function selectTheme(theme) {
 
 .login-logo {
   position: relative;
-  width: calc(112px * var(--ui-scale));
-  height: calc(112px * var(--ui-scale));
-  border-radius: calc(30px * var(--ui-scale));
+  width: 7rem;
+  height: 7rem;
+  border-radius: 1.875rem;
   background:
     radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.92), transparent 38%),
     linear-gradient(145deg, rgba(14, 22, 40, 0.96), rgba(71, 82, 108, 0.98));
@@ -771,11 +771,11 @@ function selectTheme(theme) {
 
 .eyebrow {
   display: inline-block;
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  padding: 0.5rem 0.75rem;
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.12);
   color: var(--brand-alt);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
@@ -794,32 +794,32 @@ function selectTheme(theme) {
   position: absolute;
   display: block;
   border-radius: 999px;
-  border: calc(2px * var(--ui-scale)) solid rgba(255, 255, 255, 0.78);
+  border: 0.125rem solid rgba(255, 255, 255, 0.78);
   opacity: 0.92;
 }
 
 .ring-a {
-  width: calc(56px * var(--ui-scale));
-  height: calc(56px * var(--ui-scale));
-  left: calc(18px * var(--ui-scale));
-  top: calc(18px * var(--ui-scale));
+  width: 3.5rem;
+  height: 3.5rem;
+  left: 1.125rem;
+  top: 1.125rem;
   transform: rotate(18deg);
 }
 
 .ring-b {
-  width: calc(66px * var(--ui-scale));
-  height: calc(30px * var(--ui-scale));
-  right: calc(10px * var(--ui-scale));
-  top: calc(26px * var(--ui-scale));
+  width: 4.125rem;
+  height: 1.875rem;
+  right: 0.625rem;
+  top: 1.625rem;
   border-color: rgba(237, 124, 71, 0.92);
   transform: rotate(-32deg);
 }
 
 .ring-c {
-  width: calc(72px * var(--ui-scale));
-  height: calc(28px * var(--ui-scale));
-  left: calc(18px * var(--ui-scale));
-  bottom: calc(18px * var(--ui-scale));
+  width: 4.5rem;
+  height: 1.75rem;
+  left: 1.125rem;
+  bottom: 1.125rem;
   border-color: rgba(122, 221, 193, 0.82);
   transform: rotate(28deg);
 }
@@ -828,12 +828,12 @@ function selectTheme(theme) {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: calc(20px * var(--ui-scale));
-  height: calc(20px * var(--ui-scale));
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 999px;
   background: linear-gradient(135deg, #fff4e9, #ed7c47);
   box-shadow:
-    0 0 0 calc(8px * var(--ui-scale)) rgba(255, 255, 255, 0.1),
+    0 0 0 0.5rem rgba(255, 255, 255, 0.1),
     0 10px 18px rgba(237, 124, 71, 0.34);
   transform: translate(-50%, -50%);
 }
@@ -841,7 +841,7 @@ function selectTheme(theme) {
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: calc(16px * var(--ui-scale));
+  gap: 1rem;
 }
 
 .login-form .field {
@@ -894,8 +894,8 @@ function selectTheme(theme) {
 }
 
 .login-hint {
-  border-radius: calc(18px * var(--ui-scale));
-  padding: calc(16px * var(--ui-scale));
+  border-radius: 1.125rem;
+  padding: 1rem;
   background: rgba(2, 6, 23, 0.28);
   border: 1px solid rgba(148, 163, 184, 0.12);
   color: var(--login-text-muted);
@@ -908,8 +908,8 @@ function selectTheme(theme) {
 }
 
 .error-box {
-  border-radius: calc(16px * var(--ui-scale));
-  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  border-radius: 1rem;
+  padding: 0.75rem 0.875rem;
   background: rgba(207, 76, 76, 0.12);
   color: var(--danger);
 }
@@ -917,13 +917,13 @@ function selectTheme(theme) {
 .login-actions {
   display: grid;
   grid-template-columns: 1fr;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .submit-button {
-  margin-top: calc(10px * var(--ui-scale));
-  padding-top: calc(14px * var(--ui-scale));
-  padding-bottom: calc(14px * var(--ui-scale));
+  margin-top: 0.625rem;
+  padding-top: 0.875rem;
+  padding-bottom: 0.875rem;
 }
 
 .login-actions .submit-button:not(.ghost) {
@@ -976,13 +976,13 @@ function selectTheme(theme) {
 
 .login-brand-marquee {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
-  margin-top: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
+  margin-top: 0.625rem;
 }
 
 .login-brand-label {
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-align: center;
@@ -991,14 +991,14 @@ function selectTheme(theme) {
 .login-brand-window {
   position: relative;
   overflow: hidden;
-  padding: calc(2px * var(--ui-scale)) 0;
+  padding: 0.125rem 0;
   mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
 }
 
 .login-brand-track {
   display: flex;
   align-items: center;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
   width: max-content;
   animation: login-brand-marquee-right 22s linear infinite;
 }
@@ -1008,10 +1008,10 @@ function selectTheme(theme) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(64px * var(--ui-scale));
-  height: calc(64px * var(--ui-scale));
-  padding: calc(12px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
+  width: 4rem;
+  height: 4rem;
+  padding: 0.75rem;
+  border-radius: 1.125rem;
   background: rgba(255, 255, 255, 0.72);
   border: 1px solid rgba(27, 37, 54, 0.08);
   box-shadow:
@@ -1041,7 +1041,7 @@ function selectTheme(theme) {
 
 .about-panel {
   width: min(920px, 100%);
-  border-radius: calc(32px * var(--ui-scale));
+  border-radius: 2rem;
   padding: clamp(1rem, 0.55rem + 1.2vw, 1.75rem);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 250, 254, 0.62)),
@@ -1065,14 +1065,14 @@ function selectTheme(theme) {
 .about-header {
   display: flex;
   justify-content: space-between;
-  gap: calc(16px * var(--ui-scale));
+  gap: 1rem;
   align-items: flex-start;
-  margin-bottom: calc(22px * var(--ui-scale));
+  margin-bottom: 1.375rem;
 }
 
 .about-header h3 {
-  margin: calc(14px * var(--ui-scale)) 0 calc(8px * var(--ui-scale));
-  font-size: calc(26px * var(--ui-scale));
+  margin: 0.875rem 0 0.5rem;
+  font-size: 1.625rem;
 }
 
 .about-header p {
@@ -1094,12 +1094,12 @@ function selectTheme(theme) {
 
 .about-copy {
   display: grid;
-  gap: calc(16px * var(--ui-scale));
+  gap: 1rem;
 }
 
 .hero-card {
-  border-radius: calc(24px * var(--ui-scale));
-  padding: calc(24px * var(--ui-scale));
+  border-radius: 1.5rem;
+  padding: 1.5rem;
   background: rgba(255, 246, 235, 0.5);
   border: 1px solid var(--line);
 }
@@ -1110,8 +1110,8 @@ function selectTheme(theme) {
 }
 
 .hero-card h3 {
-  margin: 0 0 calc(12px * var(--ui-scale));
-  font-size: calc(21px * var(--ui-scale));
+  margin: 0 0 0.75rem;
+  font-size: 1.3125rem;
 }
 
 .hero-card p {
@@ -1123,12 +1123,12 @@ function selectTheme(theme) {
 .copy-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
 }
 
 .copy-card {
-  border-radius: calc(22px * var(--ui-scale));
-  padding: calc(20px * var(--ui-scale));
+  border-radius: 1.375rem;
+  padding: 1.25rem;
   background: rgba(255, 255, 255, 0.46);
   border: 1px solid var(--line);
 }
@@ -1140,8 +1140,8 @@ function selectTheme(theme) {
 
 .copy-card strong {
   display: block;
-  margin-bottom: calc(10px * var(--ui-scale));
-  font-size: calc(16px * var(--ui-scale));
+  margin-bottom: 0.625rem;
+  font-size: 1rem;
 }
 
 .copy-card span {
@@ -1198,3 +1198,5 @@ function selectTheme(theme) {
   }
 }
 </style>
+
+

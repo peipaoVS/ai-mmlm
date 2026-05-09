@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { api } from '../api/http'
 import AppSelect from '../components/AppSelect.vue'
@@ -467,10 +467,8 @@ async function confirmRemove() {
               <th>菜单名称</th>
               <th>菜单编码</th>
               <th>上级菜单</th>
-              <th>路由路径</th>
               <th>可见角色</th>
               <th>状态</th>
-              <th>排序</th>
               <th>创建时间</th>
               <th>操作</th>
             </tr>
@@ -494,12 +492,10 @@ async function confirmRemove() {
               </td>
               <td :title="row.code">{{ row.code }}</td>
               <td>{{ getParentName(row) }}</td>
-              <td :title="row.path">{{ row.path }}</td>
               <td :title="row.roleNames?.join(' / ') || '--'">
                 {{ row.roleNames?.length ? row.roleNames.join(' / ') : '--' }}
               </td>
               <td>{{ row.status === 1 ? '启用' : '停用' }}</td>
-              <td>{{ row.sortOrder }}</td>
               <td>{{ formatDateTime(row.createdAt) }}</td>
               <td>
                 <div class="action-group">
@@ -603,44 +599,52 @@ async function confirmRemove() {
 </template>
 
 <style scoped>
+.menus-page .data-table th:nth-child(4),
+.menus-page .data-table td:nth-child(4) {
+  max-width: 13rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menus-page .data-table th:nth-child(5),
+.menus-page .data-table td:nth-child(5) {
+  text-align: center;
+}
+
 .menus-page .data-table th:nth-child(6),
-.menus-page .data-table th:nth-child(7),
-.menus-page .data-table th:nth-child(8),
-.menus-page .data-table th:nth-child(9),
 .menus-page .data-table td:nth-child(6),
-.menus-page .data-table td:nth-child(7),
-.menus-page .data-table td:nth-child(8),
-.menus-page .data-table td:nth-child(9),
 .menus-page .data-table td:nth-child(6) span,
+.menus-page .data-table td:nth-child(6) div {
+  text-align: center;
+}
+
+.menus-page .data-table th:nth-child(7),
+.menus-page .data-table td:nth-child(7),
 .menus-page .data-table td:nth-child(7) span,
-.menus-page .data-table td:nth-child(8) span,
-.menus-page .data-table td:nth-child(9) span,
-.menus-page .data-table td:nth-child(6) div,
-.menus-page .data-table td:nth-child(7) div,
-.menus-page .data-table td:nth-child(8) div,
-.menus-page .data-table td:nth-child(9) div {
+.menus-page .data-table td:nth-child(7) div {
   text-align: center;
 }
 
 .role-picker {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .role-option-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .role-option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(46px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  min-height: 2.875rem;
+  padding: 0.625rem 1rem;
   border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: calc(16px * var(--ui-scale));
+  border-radius: 1rem;
   background: rgba(2, 6, 23, 0.34);
   color: var(--text-main);
   font-weight: 600;
@@ -696,3 +700,5 @@ async function confirmRemove() {
   color: #1b2536;
 }
 </style>
+
+

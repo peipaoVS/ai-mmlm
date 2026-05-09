@@ -1,6 +1,5 @@
-:root {
+﻿:root {
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --ui-scale: 0.7;
   color: #182131;
   background:
     radial-gradient(circle at top left, rgba(255, 224, 188, 0.75), transparent 30%),
@@ -49,7 +48,7 @@
 }
 
 html {
-  font-size: calc(clamp(13px, 0.22vw + 12px, 16px) * var(--ui-scale));
+  font-size: 11.2px;
 }
 
 html,
@@ -126,7 +125,7 @@ button {
 .pill-button {
   border: none;
   border-radius: 999px;
-  padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  padding: 0.625rem 1rem;
   border: 1px solid rgba(34, 211, 238, 0.18);
   background:
     linear-gradient(180deg, rgba(19, 32, 58, 0.96), rgba(8, 16, 29, 0.94)),
@@ -194,16 +193,16 @@ button {
 }
 
 .section-title p {
-  margin: calc(8px * var(--ui-scale)) 0 0;
+  margin: 0.5rem 0 0;
   color: var(--text-muted);
 }
 
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
   align-items: center;
-  margin-bottom: calc(18px * var(--ui-scale));
+  margin-bottom: 1.125rem;
 }
 
 .toolbar-spacer {
@@ -216,11 +215,11 @@ button {
 .field select,
 .field textarea {
   width: 100%;
-  min-height: calc(48px * var(--ui-scale));
-  border-radius: calc(16px * var(--ui-scale));
+  min-height: 3rem;
+  border-radius: 1rem;
   border: 1px solid var(--surface-border);
   background: var(--surface-card-soft);
-  padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.6875rem 0.875rem;
   color: var(--text-main);
   outline: none;
   box-shadow:
@@ -239,7 +238,7 @@ button {
 }
 
 .field textarea {
-  min-height: calc(112px * var(--ui-scale));
+  min-height: 7rem;
   resize: vertical;
 }
 
@@ -253,13 +252,13 @@ button {
 .field select {
   cursor: pointer;
   appearance: none;
-  padding-right: calc(38px * var(--ui-scale));
+  padding-right: 2.375rem;
   background-image:
     linear-gradient(180deg, rgba(19, 32, 58, 0.92), rgba(8, 16, 29, 0.88)),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.25 6 6.25l5-5' stroke='%2394a3b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat, no-repeat;
-  background-position: center center, right calc(14px * var(--ui-scale)) center;
-  background-size: auto, calc(12px * var(--ui-scale));
+  background-position: center center, right 0.875rem center;
+  background-size: auto, 0.75rem;
   color: var(--text-main);
   font-weight: 500;
 }
@@ -273,7 +272,7 @@ button {
 .field select:focus {
   border-color: rgba(34, 211, 238, 0.34);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) rgba(34, 211, 238, 0.14),
+    0 0 0 0.1875rem rgba(34, 211, 238, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -348,7 +347,7 @@ button {
 }
 
 .panel-scroll-region::-webkit-scrollbar:horizontal {
-  height: calc(6px * var(--ui-scale));
+  height: 0.375rem;
 }
 
 .panel-scroll-region::-webkit-scrollbar-thumb:horizontal {
@@ -366,8 +365,8 @@ button {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: calc(14px * var(--ui-scale));
-  margin-bottom: calc(18px * var(--ui-scale));
+  gap: 0.875rem;
+  margin-bottom: 1.125rem;
 }
 
 .stats-card {
@@ -375,10 +374,10 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(16px * var(--ui-scale));
-  min-height: calc(92px * var(--ui-scale));
-  padding: calc(18px * var(--ui-scale)) calc(20px * var(--ui-scale));
-  border-radius: calc(22px * var(--ui-scale));
+  gap: 1rem;
+  min-height: 5.75rem;
+  padding: 1.125rem 1.25rem;
+  border-radius: 1.375rem;
   border: 1px solid var(--surface-border);
   background:
     radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 32%),
@@ -393,9 +392,9 @@ button {
   content: '';
   position: absolute;
   left: 0;
-  top: calc(16px * var(--ui-scale));
-  bottom: calc(16px * var(--ui-scale));
-  width: calc(5px * var(--ui-scale));
+  top: 1rem;
+  bottom: 1rem;
+  width: 0.3125rem;
   border-radius: 999px;
   background: linear-gradient(180deg, var(--brand), var(--brand-alt));
 }
@@ -407,9 +406,9 @@ button {
 }
 
 .stats-card span {
-  padding-left: calc(14px * var(--ui-scale));
+  padding-left: 0.875rem;
   color: var(--text-muted);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.01em;
 }
@@ -418,8 +417,8 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: calc(52px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  min-width: 3.25rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(122, 221, 193, 0.12));
   color: #f8fafc;
@@ -431,7 +430,7 @@ button {
 
 .table-wrap {
   overflow: auto;
-  border-radius: calc(18px * var(--ui-scale));
+  border-radius: 1.125rem;
   border: 1px solid var(--line);
   background: var(--surface-card-faint);
   backdrop-filter: blur(18px);
@@ -446,14 +445,14 @@ button {
 
 .data-table th,
 .data-table td {
-  padding: calc(12px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  padding: 0.75rem 0.875rem;
   text-align: left;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
 }
 
 .data-table th {
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   color: var(--text-muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -602,23 +601,23 @@ button {
 .tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
 }
 
 .tag {
-  padding: calc(4px * var(--ui-scale)) calc(10px * var(--ui-scale));
+  padding: 0.25rem 0.625rem;
   border-radius: 999px;
   background: rgba(47, 131, 116, 0.1);
   color: var(--brand-alt);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
 }
 
 .status-tag {
   /* display: inline-flex; */
   align-items: center;
-  /* padding: calc(5px * var(--ui-scale)) calc(10px * var(--ui-scale)); */
+  /* padding: 0.3125rem 0.625rem; */
   border-radius: 999px;
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   /* font-weight: 600; */
 }
 .tag{
@@ -651,14 +650,14 @@ button {
 
 .action-group {
   display: flex;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
 .tiny-button {
   border: none;
   border-radius: 999px;
-  padding: calc(7px * var(--ui-scale)) calc(11px * var(--ui-scale));
+  padding: 0.4375rem 0.6875rem;
   background: var(--surface-card-soft);
   color: rgba(248, 250, 252, 0.94);
   border: 1px solid var(--surface-border);
@@ -686,13 +685,13 @@ button {
 
 .empty-state {
   text-align: center;
-  padding: calc(38px * var(--ui-scale)) calc(16px * var(--ui-scale));
+  padding: 2.375rem 1rem;
   color: var(--text-muted);
 }
 
 .table-subtext {
   color: var(--text-muted);
-  margin-top: calc(6px * var(--ui-scale));
+  margin-top: 0.375rem;
 }
 
 .modal-mask {
@@ -730,7 +729,7 @@ button {
   width: min(52rem, 100%);
   max-height: calc(100dvh - 2rem);
   overflow: auto;
-  border-radius: calc(26px * var(--ui-scale));
+  border-radius: 1.625rem;
   padding: clamp(1rem, 0.55rem + 1.2vw, 1.75rem);
   color: var(--text-main);
   background:
@@ -823,7 +822,7 @@ button {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: calc(20px * var(--ui-scale));
+  margin-bottom: 1.25rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid rgba(27, 37, 54, 0.08);
   flex-wrap: wrap;
@@ -831,20 +830,20 @@ button {
 
 .modal-header h3 {
   margin: 0;
-  font-size: calc(clamp(24px, 2.3vw, 30px) * var(--ui-scale));
+  font-size: clamp(1.5rem, 1.61vw, 1.875rem);
   line-height: 1.1;
   color: rgba(248, 250, 252, 0.96);
 }
 
 .modal-header p {
-  margin: calc(10px * var(--ui-scale)) 0 0;
+  margin: 0.625rem 0 0;
   max-width: 520px;
   color: var(--text-muted);
   line-height: 1.7;
 }
 
 .modal-subtext {
-  margin: calc(8px * var(--ui-scale)) 0 0;
+  margin: 0.5rem 0 0;
   color: var(--text-muted);
   line-height: 1.7;
 }
@@ -859,9 +858,9 @@ button {
   display: grid;
   grid-template-columns: clamp(4.5rem, 12vw, 6rem) minmax(0, 1fr);
   align-items: center;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   padding: 0.875rem 1rem;
-  border-radius: calc(18px * var(--ui-scale));
+  border-radius: 1.125rem;
   border: 1px solid var(--surface-border);
   background:
     linear-gradient(180deg, rgba(19, 32, 58, 0.72), rgba(8, 16, 29, 0.56));
@@ -875,7 +874,7 @@ button {
 }
 
 .field > span {
-  font-size: calc(13px * var(--ui-scale));
+  font-size: 0.8125rem;
   color: rgba(226, 232, 240, 0.78);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -889,16 +888,16 @@ button {
 .checkbox-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .checkbox-chip {
   display: inline-flex;
   align-items: center;
-  gap: calc(10px * var(--ui-scale));
-  min-height: calc(46px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: calc(16px * var(--ui-scale));
+  gap: 0.625rem;
+  min-height: 2.875rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 1rem;
   border: 1px solid var(--surface-border);
   background: var(--surface-card-soft);
   color: var(--text-main);
@@ -918,8 +917,8 @@ button {
 .modal-actions {
   display: flex;
   justify-content: flex-end;
-  gap: calc(10px * var(--ui-scale));
-  margin-top: calc(20px * var(--ui-scale));
+  gap: 0.625rem;
+  margin-top: 1.25rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(27, 37, 54, 0.08);
   flex-wrap: wrap;
@@ -932,7 +931,7 @@ button {
 .confirm-dialog {
   width: min(30rem, 100%);
   display: grid;
-  gap: calc(18px * var(--ui-scale));
+  gap: 1.125rem;
   position: relative;
   z-index: 1;
 }
@@ -976,8 +975,8 @@ button {
 }
 
 .confirm-dialog-symbol {
-  width: calc(56px * var(--ui-scale));
-  height: calc(56px * var(--ui-scale));
+  width: 3.5rem;
+  height: 3.5rem;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -985,7 +984,7 @@ button {
   background: linear-gradient(135deg, rgba(127, 29, 29, 0.32), rgba(251, 113, 133, 0.18));
   border: 1px solid rgba(248, 113, 113, 0.22);
   color: #ffe4e6;
-  font-size: calc(28px * var(--ui-scale));
+  font-size: 1.75rem;
   font-weight: 700;
   line-height: 1;
   box-shadow:
@@ -995,13 +994,13 @@ button {
 
 .confirm-dialog-copy {
   display: grid;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
 }
 
 .confirm-dialog-copy h3 {
   margin: 0;
   color: var(--text-main);
-  font-size: calc(clamp(22px, 2.1vw, 28px) * var(--ui-scale));
+  font-size: clamp(1.375rem, 1.47vw, 1.75rem);
   line-height: 1.1;
 }
 
@@ -1119,7 +1118,7 @@ html[data-theme='light'] .toolbar-field .app-select.open .app-select-trigger,
 html[data-theme='light'] .modal-panel .app-select.open .app-select-trigger {
   border-color: rgba(237, 124, 71, 0.24);
   box-shadow:
-    0 0 0 calc(3px * var(--ui-scale)) rgba(237, 124, 71, 0.12),
+    0 0 0 0.1875rem rgba(237, 124, 71, 0.12),
     0 12px 26px rgba(29, 35, 52, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
@@ -1339,7 +1338,7 @@ html[data-theme='light'] .role-option.active {
 
   .field {
     grid-template-columns: 5rem minmax(0, 1fr);
-    gap: calc(12px * var(--ui-scale));
+    gap: 0.75rem;
   }
 
   .toolbar input,
@@ -1369,3 +1368,5 @@ html[data-theme='light'] .role-option.active {
     line-height: 1.3;
   }
 }
+
+

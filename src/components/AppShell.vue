@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/http'
@@ -830,12 +830,12 @@ onBeforeUnmount(() => {
   grid-area: sidebar;
   display: flex;
   flex-direction: column;
-  gap: calc(16px * var(--ui-scale));
+  gap: 1rem;
   min-height: 0;
   height: 98%;
   align-self: start;
   padding: clamp(1rem, 0.55rem + 1.2vw, 1.4rem);
-  border-radius: calc(30px * var(--ui-scale));
+  border-radius: 1.875rem;
   background:
     radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 32%),
     linear-gradient(180deg, rgba(15, 23, 42, 0.86), rgba(15, 23, 42, 0.72)),
@@ -860,7 +860,7 @@ onBeforeUnmount(() => {
 
 .sidebar-brand {
   display: grid;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
 }
 
 .sidebar-badge {
@@ -868,11 +868,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   width: fit-content;
-  padding: calc(7px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  padding: 0.4375rem 0.75rem;
   border-radius: 999px;
   background: var(--surface-accent-alt);
   color: var(--brand-alt);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
@@ -895,15 +895,15 @@ onBeforeUnmount(() => {
   overflow: auto;
   display: grid;
   align-content: start;
-  gap: calc(12px * var(--ui-scale));
-  padding-right: calc(4px * var(--ui-scale));
+  gap: 0.75rem;
+  padding-right: 0.25rem;
   -ms-overflow-style: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
 }
 
 .sidebar-tree::-webkit-scrollbar {
-  width: calc(8px * var(--ui-scale));
+  width: 0.5rem;
 }
 
 .sidebar-tree::-webkit-scrollbar-track {
@@ -928,10 +928,10 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(10px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  gap: 0.625rem;
+  padding: 0.625rem 0.5rem;
   border: none;
-  border-radius: calc(14px * var(--ui-scale));
+  border-radius: 0.875rem;
   background: transparent;
   color: var(--text-main);
   text-align: left;
@@ -969,7 +969,7 @@ onBeforeUnmount(() => {
 .tree-group-side {
   display: inline-flex;
   align-items: center;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
   flex: 0 0 auto;
 }
 
@@ -977,9 +977,9 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: calc(28px * var(--ui-scale));
-  min-height: calc(24px * var(--ui-scale));
-  padding: 0 calc(8px * var(--ui-scale));
+  min-width: 1.75rem;
+  min-height: 1.5rem;
+  padding: 0 0.5rem;
   border-radius: 999px;
   background: transparent;
   color: var(--text-muted);
@@ -988,8 +988,8 @@ onBeforeUnmount(() => {
 }
 
 .tree-group-arrow {
-  width: calc(10px * var(--ui-scale));
-  height: calc(10px * var(--ui-scale));
+  width: 0.625rem;
+  height: 0.625rem;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
   transform: rotate(45deg);
@@ -1002,8 +1002,8 @@ onBeforeUnmount(() => {
 
 .tree-group-items {
   display: grid;
-  gap: calc(6px * var(--ui-scale));
-  padding: 0 0 calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  gap: 0.375rem;
+  padding: 0 0 0.5rem 0.75rem;
 }
 
 .tree-item {
@@ -1011,10 +1011,10 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  min-height: calc(36px * var(--ui-scale));
-  padding: calc(6px * var(--ui-scale)) calc(8px * var(--ui-scale));
+  min-height: 2.25rem;
+  padding: 0.375rem 0.5rem;
   border: none;
-  border-radius: calc(12px * var(--ui-scale));
+  border-radius: 0.75rem;
   background: transparent;
   color: var(--text-main);
   text-align: left;
@@ -1060,29 +1060,29 @@ onBeforeUnmount(() => {
 
 .tree-subitems {
   display: grid;
-  gap: calc(6px * var(--ui-scale));
-  padding-left: calc(4px * var(--ui-scale));
+  gap: 0.375rem;
+  padding-left: 0.25rem;
 }
 
 .tree-item-child {
-  min-height: calc(38px * var(--ui-scale));
+  min-height: 2.375rem;
   background: rgba(2, 6, 23, 0.18);
 }
 
 .theme-switch-row {
   display: flex;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .theme-switch-button,
 .logout-button {
-  min-height: calc(44px * var(--ui-scale));
+  min-height: 2.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: calc(10px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(12px * var(--ui-scale));
-  border-radius: calc(16px * var(--ui-scale));
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 1rem;
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(2, 6, 23, 0.28);
   color: var(--text-main);
@@ -1163,8 +1163,8 @@ onBeforeUnmount(() => {
   --theme-icon-surface: rgba(255, 255, 255, 0.06);
   --theme-icon-cutout: rgba(8, 16, 29, 0.92);
   position: relative;
-  width: calc(18px * var(--ui-scale));
-  height: calc(18px * var(--ui-scale));
+  width: 1.125rem;
+  height: 1.125rem;
   flex: 0 0 auto;
   border-radius: 50%;
   background:
@@ -1209,16 +1209,16 @@ onBeforeUnmount(() => {
 }
 
 .theme-switch-icon.moon::before {
-  inset: calc(2px * var(--ui-scale));
+  inset: 0.125rem;
   background: linear-gradient(135deg, #f8fbff 12%, #dbeafe 48%, #a5b4fc 100%);
   box-shadow: 0 0 12px rgba(191, 219, 254, 0.44);
 }
 
 .theme-switch-icon.moon::after {
-  top: calc(1px * var(--ui-scale));
-  right: calc(1px * var(--ui-scale));
-  bottom: calc(1px * var(--ui-scale));
-  left: calc(8px * var(--ui-scale));
+  top: 0.0625rem;
+  right: 0.0625rem;
+  bottom: 0.0625rem;
+  left: 0.5rem;
   background: var(--theme-icon-cutout);
   box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.06);
 }
@@ -1233,13 +1233,13 @@ onBeforeUnmount(() => {
 }
 
 .theme-switch-icon.sun::before {
-  inset: calc(4px * var(--ui-scale));
+  inset: 0.25rem;
   background: radial-gradient(circle at 35% 35%, #fff7bf 0%, #fcd34d 46%, #f59e0b 100%);
   box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
 }
 
 .theme-switch-icon.sun::after {
-  inset: calc(-3px * var(--ui-scale));
+  inset: -0.1875rem;
   background: repeating-conic-gradient(
     from 0deg,
     rgba(245, 158, 11, 0) 0deg 24deg,
@@ -1280,11 +1280,11 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   width: 100%;
   font-size: 16px;
-  border-radius: calc(28px * var(--ui-scale));
+  border-radius: 1.75rem;
   padding: clamp(1rem, 0.55rem + 1.2vw, 1.5rem) clamp(1rem, 0.4rem + 1.5vw, 1.75rem);
   display: flex;
   justify-content: space-between;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   align-items: center;
   flex-wrap: wrap;
   background:
@@ -1314,7 +1314,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   flex-wrap: wrap;
   flex: 1 1 auto;
   min-width: 0;
@@ -1324,7 +1324,7 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   flex-wrap: wrap;
 }
 
@@ -1332,8 +1332,8 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  min-height: calc(34px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(14px * var(--ui-scale));
+  min-height: 2.125rem;
+  padding: 0.5rem 0.875rem;
   border-radius: 999px;
   background:
     linear-gradient(180deg, rgba(19, 32, 58, 0.94), rgba(8, 16, 29, 0.94)),
@@ -1374,14 +1374,14 @@ onBeforeUnmount(() => {
 
 .header-summary {
   display: grid;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
 }
 
 .header-summary-item {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: calc(8px * var(--ui-scale)) calc(12px * var(--ui-scale));
+  padding: 0.5rem 0.75rem;
   border-radius: 999px;
   background: var(--panel-card-bg-soft);
   border: 1px solid var(--panel-card-border);
@@ -1397,7 +1397,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
   flex-wrap: wrap;
 }
 
@@ -1405,9 +1405,9 @@ onBeforeUnmount(() => {
   appearance: none;
   display: inline-grid;
   align-items: center;
-  gap: calc(2px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
+  gap: 0.125rem;
+  padding: 0.5rem 1rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--panel-card-border);
   background: var(--panel-card-bg);
   color: var(--text-main);
@@ -1460,11 +1460,11 @@ onBeforeUnmount(() => {
 
 .header-user-menu {
   position: absolute;
-  top: calc(100% + 10px * var(--ui-scale));
+  top: calc(100% + 7px);
   right: 0;
   width: min(24rem, calc(100vw - 2rem));
-  padding: calc(14px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
+  padding: 0.875rem;
+  border-radius: 1.25rem;
   border: 1px solid var(--panel-card-border);
   background:
     radial-gradient(circle at top right, rgba(34, 211, 238, 0.1), transparent 34%),
@@ -1486,12 +1486,12 @@ onBeforeUnmount(() => {
 
 .header-user-menu-section {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .header-user-menu-section + .header-user-menu-section {
-  margin-top: calc(12px * var(--ui-scale));
-  padding-top: calc(12px * var(--ui-scale));
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
   border-top: 1px solid var(--panel-card-border);
 }
 
@@ -1515,7 +1515,7 @@ onBeforeUnmount(() => {
 .header-logout-button {
   width: 100%;
   flex: 0 0 auto;
-  margin-top: calc(12px * var(--ui-scale));
+  margin-top: 0.75rem;
 }
 
 .shell-content {
@@ -1677,3 +1677,5 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 </style>
+
+
