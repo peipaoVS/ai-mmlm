@@ -2092,6 +2092,18 @@ async function loadRuleLibrary() {
   flex-wrap: wrap;
   gap: calc(12px * var(--ui-scale));
   align-items: center;
+  font-size: 16px;
+}
+
+.log-toolbar .pill-button,
+.log-toolbar .toolbar-input {
+  font-size: 14px;
+}
+
+.log-toolbar :deep(.app-select-trigger),
+.log-toolbar :deep(.app-select-value),
+.log-toolbar :deep(.app-select-option) {
+  font-size: 14px;
 }
 
 .toolbar-field {
