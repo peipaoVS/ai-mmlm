@@ -68,7 +68,7 @@ async function startFreshConver() {
   console.log('加载最近会话列表，用户：', session)
   try {
     const response = await VisitApi.listHistory({
-      id: session.user?.id,
+      thread_id: session.user?.id,
     })
     recentSessions.value = response.messages.filter(item => item.role === 'user')
   } finally {
@@ -79,7 +79,9 @@ const loadLoading = ref(false)
 async function loadTaskJobs() {
   loadLoading.value = true
   try {
-    const response = await VisitApi.listTasks()
+    const response = await VisitApi.listTasks({
+      id: session.user?.id,
+    })
     taskJobs.value = response.tasks || []
     console.log('待办事项接口', response)
   } finally {
@@ -217,9 +219,18 @@ const TODO_STATUS_OPTIONS = [
   { value: 'pending', label: '待办' },
   { value: 'done', label: '已完成' },
 ]
-const visibleTodos = computed(() =>
-  showAllTodos.value ? todoList.value : todoList.value.slice(0, 3)
-)
+const visibleTodos = computed(() => {
+  let result = todoList.value
+  // 前端模糊查询
+  if (todoCompanyFilter.value.trim()) {
+    const keyword = todoCompanyFilter.value.trim().toLowerCase()
+    result = result.filter(item =>
+      (item.company_name || '').toLowerCase().includes(keyword) ||
+      (item.title || '').toLowerCase().includes(keyword)
+    )
+  }
+  return showAllTodos.value ? result : result.slice(0, 3)
+})
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 const selectedAi = computed(() =>
@@ -1120,7 +1131,7 @@ const postVisitSupplement = ref('')
 async function loadReports() {
   reportLoading.value = true
   try {
-    const params = {}
+    const params = { id: session.user?.id }
     const filter = reportCompanyFilter.value.trim()
     if (filter) params.company_name = filter
     // 后端 /api/reports 直接返回数组
@@ -1433,7 +1444,10 @@ const postSummaryVersions = ref([])
 async function loadPostSummaries() {
   postSummaryLoading.value = true
   try {
-    const resp = await ReportsApi.listAllPostVisitSummaries({ limit: 50 })
+    const resp = await ReportsApi.listAllPostVisitSummaries({ 
+      limit: 50,
+      id:session.user?.id
+    })
     postSummaryList.value = Array.isArray(resp) ? resp : (resp?.summaries || [])
     console.log('访后纪要列表:', postSummaryList.value)
   } catch (error) {
@@ -1449,10 +1463,7 @@ async function loadPostSummaries() {
 async function loadTodos() {
   todoLoading.value = true
   try {
-    const params = { status: todoStatusFilter.value }
-    if (todoCompanyFilter.value.trim()) {
-      params.company_name = todoCompanyFilter.value.trim()
-    }
+    const params = { status: todoStatusFilter.value, id:session.user?.id }
     const resp = await ReportsApi.listTodos(params)
     todoList.value = Array.isArray(resp) ? resp : (resp?.items || resp?.todos || [])
   } catch (error) {
