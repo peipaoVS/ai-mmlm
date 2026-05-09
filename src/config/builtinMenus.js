@@ -22,6 +22,23 @@ export const BUILTIN_HOME_MENU = Object.freeze({
   builtin: true
 })
 
+export const BUILTIN_API_DEMO_MENU = Object.freeze({
+  id: 'builtin-api-demo',
+  name: '接口演示',
+  code: 'API_DEMO',
+  section: 'ai',
+  path: '/api-demo',
+  parentId: null,
+  sortOrder: 4,
+  status: 1,
+  remark: '切换模型查看不同 API 域名及演示数据',
+  roleIds: [],
+  roleNames: [],
+  createdAt: null,
+  updatedAt: null,
+  builtin: true
+})
+
 function normalizeText(value) {
   return String(value || '').trim()
 }
@@ -57,13 +74,15 @@ function compareMenus(left, right) {
 }
 
 export function isBuiltInMenuPath(path) {
-  return normalizeText(path) === BUILTIN_HOME_MENU.path
+  return normalizeText(path) === BUILTIN_HOME_MENU.path || normalizeText(path) === BUILTIN_API_DEMO_MENU.path
 }
 
 export function isBuiltInMenu(menu) {
   return (
     menu?.id === BUILTIN_HOME_MENU.id ||
+    menu?.id === BUILTIN_API_DEMO_MENU.id ||
     normalizeText(menu?.code).toUpperCase() === BUILTIN_HOME_MENU.code ||
+    normalizeText(menu?.code).toUpperCase() === BUILTIN_API_DEMO_MENU.code ||
     isBuiltInMenuPath(menu?.path)
   )
 }
@@ -73,6 +92,10 @@ export function mergeBuiltInMenus(items = []) {
 
   if (!list.some((item) => isBuiltInMenu(item))) {
     list.push({ ...BUILTIN_HOME_MENU })
+  }
+
+  if (!list.some((item) => item.id === BUILTIN_API_DEMO_MENU.id || item.path === BUILTIN_API_DEMO_MENU.path)) {
+    list.push({ ...BUILTIN_API_DEMO_MENU })
   }
 
   return list.sort(compareMenus)

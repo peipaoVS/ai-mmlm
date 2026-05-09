@@ -719,7 +719,10 @@ async function confirmRemove() {
 .agent-panel {
   border-radius: var(--radius-xl);
 }
-
+.data-panel {
+  border-radius: var(--radius-xl);
+  padding: clamp(1.125rem, 0rem + 0.9vw, 1.625rem);
+}
 .module-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -809,7 +812,7 @@ async function confirmRemove() {
 
 .module-provider-icon img {
   width: 100%;
-  height: 100%;
+  height: 98%;
   object-fit: contain;
 }
 

@@ -34,6 +34,7 @@ const iconMap = {
   '/menus': '\u{1F4CB}',
   '/companies': '\u{1F3E6}',
   '/session-transfer': '\u{1F504}',
+  '/api-demo': '\u{1F4F1}',
 }
 
 const sectionIconMap = {

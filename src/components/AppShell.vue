@@ -1558,7 +1558,8 @@ onBeforeUnmount(() => {
 
 .shell-content-page-narrow :deep(.data-panel),
 .shell-content-page-narrow :deep(.home-panel) {
-  width: 98%;
+  width: 100%;
+  height: 100%;
   margin-left: auto;
   margin-right: auto;
 }

@@ -14,6 +14,7 @@ import PostsView from '../views/PostsView.vue'
 import MenusView from '../views/MenusView.vue'
 import CompaniesView from '../views/CompaniesView.vue'
 import SessionTransferView from '../views/SessionTransferView.vue'
+import ApiDemoView from '../views/ApiDemoView.vue'
 import XiaoyiMenuView from '../views/WorkbenchView.vue'
 import { isBuiltInMenuPath } from '../config/builtinMenus'
 import { getToken, getUser, hasMenuSnapshot } from '../stores/session'
@@ -233,6 +234,14 @@ const routes = [
         component: SessionTransferView,
         meta: {
           title: '会话转移'
+        }
+      },
+      {
+        path: '/api-demo',
+        name: 'api-demo',
+        component: ApiDemoView,
+        meta: {
+          title: '接口演示'
         }
       }
     ]
