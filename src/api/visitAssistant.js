@@ -90,6 +90,17 @@ export function streamTasks(body) {
 export function listHistory(params) {
   return api.get(`/api/visit-assistant/history${qs(params)}`)
 }
+export function UserInformation(params) {
+  return api.get(`/api/session-codes/${params}`)
+}
+/**
+ * 路由到对应业务表的列表查询。统一返回
+ * @param {} params 
+ * @returns 
+ */
+export function listUserInformation(params) {
+  return api.get(`/api/data${qs(params)}`)
+}
 
 /**
  * 拉所有 thread id（按时间倒序）。

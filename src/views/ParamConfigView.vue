@@ -1,0 +1,523 @@
+﻿<script setup>
+import { computed, onMounted, reactive, ref } from 'vue'
+import { api } from '../api/http'
+import AppSelect from '../components/AppSelect.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
+import { formatDateTime } from '../utils/format'
+
+const POLLING_CONFIG_UPDATED_EVENT = 'mmlm:polling-config-updated'
+const POLLING_CONFIG_STORAGE_KEY = 'mmlm:polling-config-dateVal'
+
+const PRESET_PARAM_TYPES = [
+  { label: '生成参数', value: 'generation' },
+  { label: 'Prompt 参数', value: 'prompt' },
+  { label: '检索参数', value: 'retrieval' },
+  { label: '工具参数', value: 'tool' },
+  { label: '安全参数', value: 'guardrail' }
+]
+
+const rows = ref([])
+const loading = ref(false)
+const dialogVisible = ref(false)
+const editingId = ref(null)
+const submitting = ref(false)
+const deleteDialogVisible = ref(false)
+const deleting = ref(false)
+const pendingDeleteRow = ref(null)
+
+const filters = reactive({
+  keyword: '',
+  paramType: ''
+})
+
+const form = reactive(createEmptyForm())
+
+const filterParamTypeOptions = computed(() => {
+  const options = [{ label: '全部类型', value: '' }]
+  const seen = new Set([''])
+
+  PRESET_PARAM_TYPES.forEach((item) => {
+    if (!seen.has(item.value)) {
+      seen.add(item.value)
+      options.push(item)
+    }
+  })
+
+  rows.value.forEach((item) => {
+    const value = String(item.paramType || '').trim()
+    if (value && !seen.has(value)) {
+      seen.add(value)
+      options.push({
+        label: resolveParamTypeText(value),
+        value
+      })
+    }
+  })
+
+  if (filters.paramType && !seen.has(filters.paramType)) {
+    options.push({
+      label: resolveParamTypeText(filters.paramType),
+      value: filters.paramType
+    })
+  }
+
+  return options
+})
+
+const deleteMessage = computed(() => {
+  const row = pendingDeleteRow.value
+  return row ? `确认删除参数“${row.name}”吗？` : ''
+})
+
+onMounted(() => {
+  loadData()
+})
+
+function createEmptyForm() {
+  return {
+    paramType: 'generation',
+    name: '',
+    code: '',
+    paramValue: ''
+  }
+}
+
+function resetForm() {
+  Object.assign(form, createEmptyForm())
+  editingId.value = null
+}
+
+function closeDialog() {
+  dialogVisible.value = false
+  resetForm()
+}
+
+function resetFilters() {
+  filters.keyword = ''
+  filters.paramType = ''
+  loadData()
+}
+
+function resolveParamTypeText(value) {
+  return PRESET_PARAM_TYPES.find((item) => item.value === value)?.label || value || '--'
+}
+
+async function loadData() {
+  loading.value = true
+  try {
+    const query = new URLSearchParams()
+    if (filters.keyword.trim()) {
+      query.set('keyword', filters.keyword.trim())
+    }
+    if (filters.paramType) {
+      query.set('paramType', filters.paramType)
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    rows.value = await api.get(`/api/param-configs${suffix}`)
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    loading.value = false
+  }
+}
+
+function openCreate() {
+  resetForm()
+  dialogVisible.value = true
+}
+
+function openEdit(row) {
+  editingId.value = row.id
+  Object.assign(form, {
+    paramType: row.paramType || '',
+    name: row.name || '',
+    code: row.code || '',
+    paramValue: row.paramValue || ''
+  })
+  dialogVisible.value = true
+}
+
+function setParamType(value) {
+  form.paramType = value
+}
+
+function validateForm() {
+  if (!form.paramType.trim()) {
+    window.alert('请输入参数类型')
+    return false
+  }
+  if (!form.name.trim()) {
+    window.alert('请输入参数名称')
+    return false
+  }
+  if (!form.code.trim()) {
+    window.alert('请输入参数编码')
+    return false
+  }
+  if (!form.paramValue.trim()) {
+    window.alert('请输入参数值')
+    return false
+  }
+  return true
+}
+
+async function submitForm() {
+  if (!validateForm()) {
+    return
+  }
+
+  const payload = {
+    paramType: form.paramType.trim(),
+    name: form.name.trim(),
+    code: form.code.trim(),
+    paramValue: form.paramValue.trim()
+  }
+
+  submitting.value = true
+  try {
+    if (editingId.value) {
+      await api.put(`/api/param-configs/${editingId.value}`, payload)
+    } else {
+      await api.post('/api/param-configs', payload)
+    }
+    if (payload.code === 'dateVal' && typeof window !== 'undefined') {
+      const detail = { code: payload.code, value: payload.paramValue }
+      window.dispatchEvent(new CustomEvent(POLLING_CONFIG_UPDATED_EVENT, { detail }))
+      localStorage.setItem(POLLING_CONFIG_STORAGE_KEY, JSON.stringify({
+        ...detail,
+        updatedAt: Date.now()
+      }))
+    }
+    closeDialog()
+    await loadData()
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    submitting.value = false
+  }
+}
+
+function openRemoveDialog(row) {
+  pendingDeleteRow.value = row
+  deleteDialogVisible.value = true
+}
+
+function closeRemoveDialog() {
+  deleteDialogVisible.value = false
+  pendingDeleteRow.value = null
+}
+
+async function confirmRemove() {
+  const row = pendingDeleteRow.value
+  if (!row) {
+    return
+  }
+
+  deleting.value = true
+  try {
+    await api.delete(`/api/param-configs/${row.id}`)
+    closeRemoveDialog()
+    await loadData()
+  } catch (error) {
+    window.alert(error.message)
+  } finally {
+    deleting.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="admin-scroll-page params-page">
+    <section class="data-panel glass-card admin-scroll-panel">
+      <div class="toolbar">
+        <input v-model="filters.keyword" placeholder="搜索参数名称 / 编码 / 类型" />
+        <AppSelect
+          v-model="filters.paramType"
+          :options="filterParamTypeOptions"
+          placeholder="全部类型"
+        />
+        <button class="pill-button secondary" @click="loadData">查询</button>
+        <button class="pill-button ghost" @click="resetFilters">重置</button>
+        <span class="toolbar-spacer"></span>
+        <button class="pill-button" @click="openCreate">新增参数</button>
+      </div>
+
+      <div v-if="loading" class="empty-state panel-empty-state">数据加载中...</div>
+
+      <div v-else-if="rows.length" class="table-wrap panel-scroll-region">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>参数名称</th>
+              <th>参数编码</th>
+              <th>参数类型</th>
+              <th>参数值</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in rows" :key="row.id">
+              <td>{{ row.name }}</td>
+              <td>
+                <code class="param-code">{{ row.code }}</code>
+              </td>
+              <td>
+                <span class="param-type-tag">
+                  {{ resolveParamTypeText(row.paramType) }}
+                </span>
+              </td>
+              <td>
+                <div class="param-value-preview" :title="row.paramValue">
+                  {{ row.paramValue }}
+                </div>
+              </td>
+              <td>{{ formatDateTime(row.updatedAt || row.createdAt) }}</td>
+              <td>
+                <div class="action-group">
+                  <button class="tiny-button" @click="openEdit(row)">编辑</button>
+                  <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="empty-state panel-empty-state">暂无参数配置数据。</div>
+    </section>
+
+    <Teleport to="body">
+      <div v-if="dialogVisible" class="modal-mask" @click.self="closeDialog">
+        <div class="modal-panel glass-card">
+          <div class="modal-header">
+            <div>
+              <h3 style="margin: 0">{{ editingId ? '编辑参数' : '新增参数' }}</h3>
+              <p class="modal-subtext">
+                支持配置模型生成参数、Prompt 片段、检索阈值等内容，参数值可填写纯文本或 JSON。
+              </p>
+            </div>
+            <button class="pill-button ghost" @click="closeDialog">关闭</button>
+          </div>
+
+          <div class="form-grid">
+            <div class="field full">
+              <span>参数类型</span>
+              <div class="param-type-body">
+                <input
+                  v-model="form.paramType"
+                  placeholder="例如 generation / prompt / retrieval"
+                />
+                <div class="type-chip-row">
+                  <button
+                    v-for="item in PRESET_PARAM_TYPES"
+                    :key="item.value"
+                    type="button"
+                    class="type-chip"
+                    :class="{ active: form.paramType === item.value }"
+                    @click="setParamType(item.value)"
+                  >
+                    {{ item.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <label class="field">
+              <span>参数名称</span>
+              <input v-model="form.name" placeholder="例如 Temperature" />
+            </label>
+
+            <label class="field">
+              <span>参数编码</span>
+              <input v-model="form.code" placeholder="例如 TEMPERATURE" />
+            </label>
+
+            <label class="field full">
+              <span>参数值</span>
+              <textarea
+                v-model="form.paramValue"
+                placeholder='支持文本或 JSON，例如 {"temperature":0.7,"top_p":0.9}'
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="modal-actions">
+            <button class="pill-button ghost" @click="closeDialog">取消</button>
+            <button class="pill-button" :disabled="submitting" @click="submitForm">
+              {{ submitting ? '提交中...' : '保存' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <ConfirmDialog
+      v-model="deleteDialogVisible"
+      title="删除参数"
+      :message="deleteMessage"
+      :loading="deleting"
+      @cancel="closeRemoveDialog"
+      @confirm="confirmRemove"
+    />
+  </div>
+</template>
+
+<style scoped>
+.params-page .modal-header h3 {
+  font-size: 16px;
+}
+
+.params-page .toolbar {
+  font-size: 16px;
+}
+
+.params-page .data-table th,
+.params-page .field > span {
+  font-size: 16px;
+}
+
+.params-page .data-table th {
+  text-align: left;
+}
+
+.params-page .modal-subtext,
+.params-page .pill-button,
+.params-page .tiny-button,
+.params-page .type-chip,
+.params-page .toolbar input,
+.params-page .field input,
+.params-page .field textarea {
+  font-size: 14px;
+}
+
+.params-page :deep(.app-select-trigger),
+.params-page :deep(.app-select-value),
+.params-page :deep(.app-select-option) {
+  font-size: 14px;
+}
+
+.params-page .data-table td,
+.params-page .data-table td span,
+.params-page .data-table td code,
+.params-page .data-table td div {
+  color: var(--text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.params-page .data-table th:nth-child(5),
+.params-page .data-table th:nth-child(6),
+.params-page .data-table td:nth-child(5),
+.params-page .data-table td:nth-child(6),
+.params-page .data-table td:nth-child(5) span,
+.params-page .data-table td:nth-child(6) span,
+.params-page .data-table td:nth-child(5) code,
+.params-page .data-table td:nth-child(6) code,
+.params-page .data-table td:nth-child(5) div,
+.params-page .data-table td:nth-child(6) div {
+  text-align: center;
+}
+
+.params-page .action-group {
+  justify-content: center;
+}
+
+.params-page .action-group .tiny-button {
+  font-size: inherit;
+}
+
+.param-code {
+  display: inline;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: inherit;
+  word-break: break-all;
+}
+
+.param-type-tag {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.param-value-preview {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  box-shadow: none;
+  white-space: nowrap;
+  word-break: break-all;
+  line-height: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.param-type-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.type-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.type-chip {
+  border: 1px solid var(--panel-card-border);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  background: var(--panel-card-bg-soft);
+  color: var(--text-main);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.type-chip:hover {
+  transform: translateY(-1px);
+  border-color: rgba(47, 131, 116, 0.22);
+  box-shadow: 0 10px 20px rgba(47, 131, 116, 0.08);
+}
+
+.type-chip.active {
+  border-color: rgba(34, 211, 238, 0.22);
+  background: linear-gradient(135deg, var(--surface-accent), var(--surface-accent-alt));
+  color: var(--text-main);
+  box-shadow:
+    0 10px 20px rgba(29, 35, 52, 0.12),
+    inset 0 1px 0 var(--surface-inset);
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .param-value-preview {
+    min-width: 12rem;
+    max-width: 100%;
+  }
+}
+</style>
+
+

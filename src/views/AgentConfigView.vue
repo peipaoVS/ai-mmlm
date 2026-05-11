@@ -1,7 +1,9 @@
-<script setup>
+﻿<script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
+import { PROVIDER_CONFIG } from '../config/api'
 import AppSelect from '../components/AppSelect.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
 import ollamaLogo from '../assets/providers/ollama-logo.png'
 import openaiSymbol from '../assets/providers/openai-symbol.svg'
@@ -24,6 +26,12 @@ const PROVIDER_TYPE_OPTIONS = [
   { label: '向量模型', value: 'embedding' }
 ]
 
+const ADDRESS_TYPES = {
+  official: { label: '官方地址', icon: '🏢' },
+  proxy: { label: '代理地址', icon: '🔁' },
+  custom: { label: '自定义', icon: '✏️' }
+}
+
 const PROVIDERS = [
   {
     code: 'deepseek',
@@ -38,13 +46,17 @@ const PROVIDERS = [
     icon: deepseekLogo,
     background: deepseekLogo,
     backgroundSize: '70%',
-    backgroundPosition: 'right -1rem bottom -1.2rem'
+    backgroundPosition: 'right -1rem bottom -1.2rem',
+    domains: {
+      official: 'https://api.deepseek.com',
+      custom: ''
+    }
   },
   {
     code: 'ollama',
     name: 'Ollama',
     badge: 'OL',
-    defaultDomain: 'http://127.0.0.1:11434',
+    defaultDomain: PROVIDER_CONFIG.OLLAMA_DOMAIN,
     types: ['language', 'embedding'],
     accent: '#20242f',
     surfaceStart: 'rgba(32, 36, 47, 0.16)',
@@ -53,7 +65,11 @@ const PROVIDERS = [
     icon: ollamaLogo,
     background: ollamaLogo,
     backgroundSize: '58%',
-    backgroundPosition: 'right -0.4rem bottom -1rem'
+    backgroundPosition: 'right -0.4rem bottom -1rem',
+    domains: {
+      official: PROVIDER_CONFIG.OLLAMA_DOMAIN,
+      custom: ''
+    }
   },
   {
     code: 'openai',
@@ -68,7 +84,11 @@ const PROVIDERS = [
     icon: openaiSymbol,
     background: openaiSymbol,
     backgroundSize: '44%',
-    backgroundPosition: 'right 1.25rem bottom 1rem'
+    backgroundPosition: 'right 1.25rem bottom 1rem',
+    domains: {
+      official: 'https://api.openai.com/v1',
+      custom: ''
+    }
   },
   {
     code: 'tongyi',
@@ -83,7 +103,11 @@ const PROVIDERS = [
     icon: qwenLogo,
     background: qwenBackground,
     backgroundSize: '150%',
-    backgroundPosition: 'center center'
+    backgroundPosition: 'center center',
+    domains: {
+      official: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      custom: ''
+    }
   },
   {
     code: 'qianfan',
@@ -98,7 +122,11 @@ const PROVIDERS = [
     icon: qianfanLogo,
     background: qianfanLogo,
     backgroundSize: '74%',
-    backgroundPosition: 'right 0.25rem bottom 1.1rem'
+    backgroundPosition: 'right 0.25rem bottom 1.1rem',
+    domains: {
+      official: 'https://qianfan.baidubce.com/v2',
+      custom: ''
+    }
   },
   {
     code: 'zhipu',
@@ -113,7 +141,11 @@ const PROVIDERS = [
     icon: zhipuLogo,
     background: zhipuBackground,
     backgroundSize: 'cover',
-    backgroundPosition: 'center center'
+    backgroundPosition: 'center center',
+    domains: {
+      official: 'https://open.bigmodel.cn/api/paas/v4',
+      custom: ''
+    }
   }
 ]
 
@@ -124,6 +156,9 @@ const dialogVisible = ref(false)
 const providerDialogVisible = ref(false)
 const editingId = ref(null)
 const submitting = ref(false)
+const deleteDialogVisible = ref(false)
+const deleting = ref(false)
+const pendingDeleteRow = ref(null)
 const showApiKey = ref(false)
 const providerFilter = ref('')
 
@@ -152,6 +187,17 @@ const filteredProviders = computed(() => {
   return PROVIDERS.filter((provider) => provider.types.includes(providerFilter.value))
 })
 
+const availableAddressTypes = computed(() => {
+  const prov = selectedProvider.value
+  if (!prov?.domains) return [{ key: 'custom', ...ADDRESS_TYPES.custom }]
+  return Object.keys(prov.domains).map((key) => ({ key, ...(ADDRESS_TYPES[key] || { label: key, icon: '🔗' }) }))
+})
+
+const deleteMessage = computed(() => {
+  const row = pendingDeleteRow.value
+  return row ? `确认删除大模型“${row.name}”吗？` : ''
+})
+
 onMounted(() => {
   loadAll()
 })
@@ -165,7 +211,25 @@ function createEmptyForm() {
     apiDomain: '',
     apiKey: '',
     remark: '',
-    roleIds: []
+    roleIds: [],
+    addressType: 'custom'
+  }
+}
+
+function resolveAddressType(provider, domain) {
+  if (!provider || !provider.domains) return 'custom'
+  for (const [type, url] of Object.entries(provider.domains)) {
+    if (url && domain === url) return type
+  }
+  return 'custom'
+}
+
+function applyAddressType(provider, type) {
+  if (!provider || !provider.domains) return
+  const url = provider.domains[type]
+  if (url !== undefined) {
+    form.apiDomain = url
+    form.addressType = type
   }
 }
 
@@ -258,6 +322,7 @@ function openCreate() {
 function openEdit(row) {
   resetForm()
   editingId.value = row.id
+  const provider = resolveProvider(row.providerCode)
   Object.assign(form, {
     name: row.name || '',
     providerCode: row.providerCode || '',
@@ -266,7 +331,8 @@ function openEdit(row) {
     apiDomain: row.apiDomain || '',
     apiKey: row.apiKey || '',
     remark: row.remark || '',
-    roleIds: [...(row.roleIds || [])]
+    roleIds: [...(row.roleIds || [])],
+    addressType: resolveAddressType(provider, row.apiDomain || '')
   })
   dialogVisible.value = true
 }
@@ -275,12 +341,21 @@ function openProviderPicker() {
   providerDialogVisible.value = true
 }
 
+function syncAddressType() {
+  const prov = selectedProvider.value
+  if (!prov?.domains) return
+  const newType = resolveAddressType(prov, form.apiDomain)
+  if (newType !== form.addressType) {
+    form.addressType = newType
+  }
+}
+
 function selectProvider(provider) {
   form.providerCode = provider.code
   if (!provider.types.includes(form.moduleType)) {
     form.moduleType = provider.types[0]
   }
-  form.apiDomain = provider.defaultDomain
+  applyAddressType(provider, 'official')
   providerDialogVisible.value = false
 }
 
@@ -349,15 +424,31 @@ async function submitForm() {
   }
 }
 
-async function removeRow(row) {
-  if (!window.confirm(`确认删除大模型“${row.name}”吗？`)) {
+function openRemoveDialog(row) {
+  pendingDeleteRow.value = row
+  deleteDialogVisible.value = true
+}
+
+function closeRemoveDialog() {
+  deleteDialogVisible.value = false
+  pendingDeleteRow.value = null
+}
+
+async function confirmRemove() {
+  const row = pendingDeleteRow.value
+  if (!row) {
     return
   }
+
+  deleting.value = true
   try {
     await api.delete(`/api/agent-modules/${row.id}`)
+    closeRemoveDialog()
     await loadAll()
   } catch (error) {
     window.alert(error.message)
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -406,7 +497,7 @@ async function removeRow(row) {
 
             <div class="module-card-actions">
               <button class="tiny-button" @click="openEdit(row)">编辑</button>
-              <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+              <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
             </div>
           </div>
 
@@ -491,9 +582,30 @@ async function removeRow(row) {
               <input v-model="form.baseModel" placeholder="例如 deepseek-chat / text-embedding-3-small" />
             </label>
 
+            <div class="field full">
+              <span>地址类型</span>
+              <div class="address-type-group">
+                <button
+                  v-for="item in availableAddressTypes"
+                  :key="item.key"
+                  type="button"
+                  class="address-type-chip"
+                  :class="{ active: form.addressType === item.key }"
+                  @click="applyAddressType(selectedProvider, item.key)"
+                >
+                  <span class="address-type-icon">{{ item.icon }}</span>
+                  <span>{{ item.label }}</span>
+                </button>
+              </div>
+            </div>
+
             <label class="field full">
               <span>API 域名</span>
-              <input v-model="form.apiDomain" placeholder="请输入 API 域名" />
+              <input
+                v-model="form.apiDomain"
+                placeholder="请输入 API 域名"
+                @input="syncAddressType"
+              />
             </label>
 
             <div class="field full">
@@ -591,6 +703,15 @@ async function removeRow(row) {
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      v-model="deleteDialogVisible"
+      title="删除大模型"
+      :message="deleteMessage"
+      :loading="deleting"
+      @cancel="closeRemoveDialog"
+      @confirm="confirmRemove"
+    />
   </div>
 </template>
 
@@ -598,11 +719,14 @@ async function removeRow(row) {
 .agent-panel {
   border-radius: var(--radius-xl);
 }
-
+.data-panel {
+  border-radius: var(--radius-xl);
+  padding: clamp(1.125rem, 0rem + 0.9vw, 1.625rem);
+}
 .module-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: calc(18px * var(--ui-scale));
+  gap: 1.125rem;
 }
 
 .module-card {
@@ -615,19 +739,19 @@ async function removeRow(row) {
   --provider-art-position: right -0.75rem bottom -0.75rem;
   position: relative;
   min-width: 0;
-  min-height: calc(236px * var(--ui-scale));
+  min-height: 14.75rem;
   display: flex;
   flex-direction: column;
-  gap: calc(18px * var(--ui-scale));
-  padding: calc(20px * var(--ui-scale));
-  border-radius: calc(28px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
+  gap: 1.125rem;
+  padding: 1.25rem;
+  border-radius: 1.75rem;
+  border: 1px solid var(--panel-card-border);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 254, 0.9)),
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
     linear-gradient(145deg, var(--provider-surface-start), var(--provider-surface-end));
   box-shadow:
-    0 18px 38px rgba(29, 35, 52, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
   overflow: hidden;
   isolation: isolate;
 }
@@ -651,8 +775,8 @@ async function removeRow(row) {
   inset: 1px;
   border-radius: inherit;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.48), transparent 40%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.28), transparent 55%);
+    radial-gradient(circle at top left, var(--surface-accent), transparent 40%),
+    linear-gradient(135deg, var(--surface-inset), transparent 55%);
   pointer-events: none;
   z-index: 0;
 }
@@ -666,18 +790,20 @@ async function removeRow(row) {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .module-provider-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(60px * var(--ui-scale));
-  height: calc(60px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale));
-  border-radius: calc(20px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.96);
+  width: 3.75rem;
+  height: 3.75rem;
+  padding: 0.625rem;
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
     0 16px 30px var(--provider-icon-glow),
@@ -686,13 +812,13 @@ async function removeRow(row) {
 
 .module-provider-icon img {
   width: 100%;
-  height: 100%;
+  height: 98%;
   object-fit: contain;
 }
 
 .module-provider-icon span {
   color: var(--provider-accent);
-  font-size: calc(16px * var(--ui-scale));
+  font-size: 1rem;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -700,28 +826,28 @@ async function removeRow(row) {
 .module-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(8px * var(--ui-scale));
+  gap: 0.5rem;
   justify-content: flex-end;
 }
 
 .module-card-actions .tiny-button {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid rgba(27, 37, 54, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  background: var(--panel-card-bg-soft);
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
 }
 
 .module-card-body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: calc(14px * var(--ui-scale));
+  gap: 0.875rem;
   flex: 1 1 auto;
 }
 
 .module-name {
   margin: 0;
   min-width: 0;
-  font-size: calc(22px * var(--ui-scale));
+  font-size: 1.375rem;
   line-height: 1.3;
   font-weight: 700;
   white-space: nowrap;
@@ -731,20 +857,20 @@ async function removeRow(row) {
 
 .module-meta {
   min-width: 0;
-  padding: calc(14px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.06);
-  background: rgba(255, 255, 255, 0.74);
+  padding: 0.875rem 0.875rem;
+  border-radius: 1.125rem;
+  border: 1px solid var(--panel-card-border);
+  background: var(--panel-card-bg-soft);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.86),
-    0 10px 22px rgba(29, 35, 52, 0.04);
+    inset 0 1px 0 var(--surface-inset),
+    var(--panel-card-shadow);
 }
 
 .module-meta-label {
   display: block;
-  margin-bottom: calc(8px * var(--ui-scale));
+  margin-bottom: 0.5rem;
   color: var(--text-muted);
-  font-size: calc(12px * var(--ui-scale));
+  font-size: 1rem;
   letter-spacing: 0.04em;
 }
 
@@ -752,7 +878,7 @@ async function removeRow(row) {
   display: block;
   min-width: 0;
   color: var(--text-main);
-  font-size: calc(14px * var(--ui-scale));
+  font-size: 1rem;
   line-height: 1.55;
 }
 
@@ -769,31 +895,83 @@ async function removeRow(row) {
   overflow: hidden;
 }
 
+.address-type-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.address-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--panel-card-border);
+  border-radius: 2rem;
+  background: var(--panel-card-bg-soft);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.address-type-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--text-main);
+  background: var(--surface-accent-alt);
+}
+
+.address-type-chip.active {
+  border-color: var(--brand-alt);
+  color: var(--brand-alt);
+  background: var(--surface-accent-alt);
+}
+
+.address-type-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
 .agent-modal-panel {
   width: min(62rem, 100%);
 }
 
 .provider-trigger {
   width: 100%;
-  min-height: calc(48px * var(--ui-scale));
+  min-height: 3rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: calc(10px * var(--ui-scale));
-  padding: calc(11px * var(--ui-scale)) calc(14px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.1);
-  border-radius: calc(16px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.92);
+  gap: 0.625rem;
+  padding: 0.6875rem 0.875rem;
+  border: 1px solid var(--panel-card-border);
+  border-radius: 1rem;
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 1px 0 var(--surface-inset),
+    var(--panel-card-shadow);
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.provider-trigger:hover {
+  transform: translateY(-1px);
+  border-color: rgba(237, 124, 71, 0.18);
+  box-shadow:
+    0 12px 24px rgba(29, 35, 52, 0.1),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .provider-trigger-main {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .provider-trigger-icon {
@@ -801,13 +979,17 @@ async function removeRow(row) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(42px * var(--ui-scale));
-  height: calc(42px * var(--ui-scale));
-  padding: calc(8px * var(--ui-scale));
-  border-radius: calc(14px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  box-shadow: 0 12px 24px var(--provider-icon-glow);
+  width: 2.625rem;
+  height: 2.625rem;
+  padding: 0.5rem;
+  border-radius: 0.875rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 12px 24px var(--provider-icon-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .provider-trigger-icon img {
@@ -818,7 +1000,7 @@ async function removeRow(row) {
 
 .provider-trigger-icon span {
   color: var(--provider-accent);
-  font-size: calc(13px * var(--ui-scale));
+  font-size: 0.8125rem;
   font-weight: 800;
 }
 
@@ -835,7 +1017,7 @@ async function removeRow(row) {
 .api-key-wrap {
   display: flex;
   align-items: center;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .api-key-wrap input {
@@ -844,27 +1026,28 @@ async function removeRow(row) {
 
 .role-picker {
   display: grid;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
 }
 
 .role-option-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .role-option {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(46px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale)) calc(16px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  border-radius: calc(16px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.9);
+  min-height: 2.875rem;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--panel-card-border);
+  border-radius: 1rem;
+  background: var(--panel-card-bg-soft);
   color: var(--text-main);
   font-weight: 600;
   line-height: 1.4;
+  box-shadow: inset 0 1px 0 var(--surface-inset);
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -880,12 +1063,12 @@ async function removeRow(row) {
 }
 
 .role-option.active {
-  border-color: rgba(47, 131, 116, 0.26);
-  background: linear-gradient(135deg, rgba(47, 131, 116, 0.16), rgba(237, 124, 71, 0.14));
-  color: #1f5e53;
+  border-color: rgba(34, 211, 238, 0.22);
+  background: linear-gradient(135deg, var(--surface-accent), var(--surface-accent-alt));
+  color: var(--text-main);
   box-shadow:
-    0 12px 24px rgba(47, 131, 116, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    0 12px 24px rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 var(--surface-inset);
 }
 
 .field-hint {
@@ -904,7 +1087,7 @@ async function removeRow(row) {
 .provider-filter {
   display: flex;
   align-items: center;
-  gap: calc(10px * var(--ui-scale));
+  gap: 0.625rem;
   flex-wrap: wrap;
 }
 
@@ -915,7 +1098,7 @@ async function removeRow(row) {
 .provider-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: calc(12px * var(--ui-scale));
+  gap: 0.75rem;
 }
 
 .provider-card {
@@ -927,16 +1110,19 @@ async function removeRow(row) {
   position: relative;
   display: flex;
   align-items: center;
-  gap: calc(14px * var(--ui-scale));
-  min-height: calc(96px * var(--ui-scale));
-  padding: calc(16px * var(--ui-scale));
-  border: 1px solid rgba(27, 37, 54, 0.08);
-  border-radius: calc(20px * var(--ui-scale));
+  gap: 0.875rem;
+  min-height: 6rem;
+  padding: 1rem;
+  border: 1px solid var(--panel-card-border);
+  border-radius: 1.25rem;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 249, 253, 0.88)),
+    linear-gradient(180deg, var(--panel-card-bg-strong), var(--panel-card-bg)),
     linear-gradient(140deg, var(--provider-surface-start), var(--provider-surface-end));
   color: var(--text-main);
   text-align: left;
+  box-shadow:
+    var(--panel-card-shadow),
+    inset 0 1px 0 var(--surface-inset);
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -966,15 +1152,15 @@ async function removeRow(row) {
 
 .provider-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(27, 37, 54, 0.14);
-  box-shadow: 0 16px 30px rgba(29, 35, 52, 0.08);
+  border-color: rgba(34, 211, 238, 0.18);
+  box-shadow: 0 16px 30px rgba(29, 35, 52, 0.18);
 }
 
 .provider-card.active {
   border-color: var(--provider-accent);
   box-shadow:
-    0 16px 30px rgba(29, 35, 52, 0.08),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+    0 16px 30px rgba(29, 35, 52, 0.18),
+    inset 0 0 0 1px var(--surface-inset);
 }
 
 .provider-card-icon {
@@ -982,15 +1168,17 @@ async function removeRow(row) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(54px * var(--ui-scale));
-  height: calc(54px * var(--ui-scale));
-  padding: calc(10px * var(--ui-scale));
-  border-radius: calc(18px * var(--ui-scale));
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.84);
+  width: 3.375rem;
+  height: 3.375rem;
+  padding: 0.625rem;
+  border-radius: 1.125rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9)),
+    rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow:
     0 14px 24px var(--provider-icon-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .provider-card-icon img {
@@ -1010,11 +1198,11 @@ async function removeRow(row) {
 
 .provider-card strong {
   display: block;
-  font-size: calc(18px * var(--ui-scale));
+  font-size: 1.125rem;
 }
 
 .provider-card p {
-  margin: calc(8px * var(--ui-scale)) 0 0;
+  margin: 0.5rem 0 0;
   color: var(--text-muted);
 }
 
@@ -1057,3 +1245,5 @@ async function removeRow(row) {
   }
 }
 </style>
+
+

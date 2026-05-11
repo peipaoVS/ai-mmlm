@@ -2,14 +2,21 @@ import { createRouter, createWebHistory } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import LoginView from '../views/LoginView.vue'
 import ChatView from '../views/ChatView.vue'
+import WorkbenchView from '../views/WorkbenchView.vue'
 import AgentConfigView from '../views/AgentConfigView.vue'
+import ParamConfigView from '../views/ParamConfigView.vue'
 import KnowledgeBaseView from '../views/KnowledgeBaseView.vue'
 import LogModuleView from '../views/LogModuleView.vue'
+import HomeView from '../views/HomeView.vue'
 import UsersView from '../views/UsersView.vue'
 import RolesView from '../views/RolesView.vue'
 import PostsView from '../views/PostsView.vue'
 import MenusView from '../views/MenusView.vue'
 import CompaniesView from '../views/CompaniesView.vue'
+import SessionTransferView from '../views/SessionTransferView.vue'
+import ApiDemoView from '../views/ApiDemoView.vue'
+import XiaoyiMenuView from '../views/WorkbenchView.vue'
+import { isBuiltInMenuPath } from '../config/builtinMenus'
 import { getToken, getUser, hasMenuSnapshot } from '../stores/session'
 
 const routes = [
@@ -30,7 +37,15 @@ const routes = [
     children: [
       {
         path: '',
-        redirect: '/chat'
+        redirect: '/home'
+      },
+      {
+        path: '/home',
+        name: 'home',
+        component: HomeView,
+        meta: {
+          title: '首页'
+        }
       },
       {
         path: '/chat',
@@ -41,11 +56,27 @@ const routes = [
         }
       },
       {
+        path: '/workbench',
+        name: 'workbench',
+        component: WorkbenchView,
+        meta: {
+          title: 'AI简易工作台'
+        }
+      },
+      {
         path: '/agents',
         name: 'agents',
         component: AgentConfigView,
         meta: {
           title: '大模型配置'
+        }
+      },
+      {
+        path: '/params',
+        name: 'params',
+        component: ParamConfigView,
+        meta: {
+          title: '参数配置'
         }
       },
       {
@@ -196,8 +227,34 @@ const routes = [
         meta: {
           title: '所属公司'
         }
+      },
+      {
+        path: '/session-transfer',
+        name: 'session-transfer',
+        component: SessionTransferView,
+        meta: {
+          title: '会话转移'
+        }
+      },
+      {
+        path: '/api-demo',
+        name: 'api-demo',
+        component: ApiDemoView,
+        meta: {
+          title: '接口演示'
+        }
       }
     ]
+  },
+  {
+    path: '/WorkbenchView',
+    name: 'xiaoyi-menu',
+    component: XiaoyiMenuView,
+    meta: {
+      title: '小易菜单',
+      standalone: true,
+      requiresAuth: true
+    }
   }
 ]
 
@@ -206,12 +263,37 @@ const router = createRouter({
   routes
 })
 
-function resolveDefaultPath(user) {
-  return user?.menus?.[0]?.path || '/chat'
+const MENU_PATH_ALIASES = {
+  '/chat': ['/workbench'],
+  '/workbench': ['/chat']
+}
+
+export function resolveDefaultPath(user) {
+  if (user?.defaultPath && hasMenuAccess(user, user.defaultPath)) {
+    return user.defaultPath
+  }
+  const target = Array.isArray(user?.menus)
+    ? user.menus.find((item) => typeof item?.path === 'string' && !item.path.startsWith('/nav/'))
+    : null
+  return target?.path || '/home'
 }
 
 function hasMenuAccess(user, path) {
-  return Array.isArray(user?.menus) && user.menus.some((item) => item.path === path)
+  return (
+    path === '/home' ||
+    isBuiltInMenuPath(path) ||
+    (Array.isArray(user?.menus) && user.menus.some((item) => item.path === path))
+  )
+  if (!Array.isArray(user?.menus)) {
+    return false
+  }
+
+  if (user.menus.some((item) => item.path === path)) {
+    return true
+  }
+
+  const aliasPaths = MENU_PATH_ALIASES[path] || []
+  return aliasPaths.some((aliasPath) => user.menus.some((item) => item.path === aliasPath))
 }
 
 router.beforeEach((to, from, next) => {
@@ -236,6 +318,11 @@ router.beforeEach((to, from, next) => {
 
   if (to.path === '/') {
     next(resolveDefaultPath(user))
+    return
+  }
+
+  if (to.meta.standalone) {
+    next()
     return
   }
 

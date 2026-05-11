@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
@@ -51,15 +51,28 @@ function resetAgentThreads() {
   ruleThreadId.value = ''
 }
 const taskJobs = ref([])
+const userCode = ref('')
+// 用户信息
+async function information() {
+  try {
+    const response = await VisitApi.UserInformation(session.user?.id)
+    console.log('用户信息接口返回的数据:', response)
+    userCode.value = response.code || ''
+  } catch (error) {
+    // console.error('获取用户信息失败:', error)
+    window.alert(`${error.message}`)
+  }
+}
 // 最近会话接口
 async function startFreshConver() {
-  console.log('sendMessage', session.user?.nickname, session.user?.postNames[0])
   try {
-    const response = await VisitApi.listHistory({
-      nickname: session.user?.nickname,
-      postName: session.user?.postNames?.[0]
+    const response = await VisitApi.listUserInformation({
+      scope: 'task',
+      X_Aibank_User_Id: session.user?.id,
     })
-    recentSessions.value = response.messages.filter(item => item.role === 'user')
+    console.log('最近会话接口', response)
+    recentSessions.value = response.items
+
   } finally {
   }
 }
@@ -68,7 +81,10 @@ const loadLoading = ref(false)
 async function loadTaskJobs() {
   loadLoading.value = true
   try {
-    const response = await VisitApi.listTasks()
+    const response = await VisitApi.listUserInformation({
+      scope: 'todo',
+      X_Aibank_User_Id: session.user?.id,
+    })
     taskJobs.value = response.tasks || []
     console.log('待办事项接口', response)
   } finally {
@@ -144,6 +160,18 @@ const promptCards = [
   // '明天下午2:00,我约了工商银行支行的客户经理,在其VIP室洽谈企业综合授信方案,请在下午1:15前将我方最新的财务报表、融资需求及核心谈判要点整理成简报。
 ]
 
+const landingPromptCards = [
+  '资讯：合肥 BEST 项目让中国成核聚变技术定义者',
+  '最近的金价走势如何？',
+  '请推荐适合 0 氪玩家的长期养成类游戏',
+  '请给出一个简单的基金投资指南',
+  '资讯：苹果向美最高法院申请暂停 App Store 计费',
+  '现在足金的价格是多少？',
+  '列出 10 个必学的 Linux 命令及用法',
+  '设计一段 30 秒的简单女团舞片段',
+  '资讯：高通兆易创新联手开发中国手机离散式 NPU'
+]
+
 const recentSessionList = computed(() =>
   recentSessions.value.map((item) => ({
     ...item,
@@ -194,15 +222,43 @@ const TODO_STATUS_OPTIONS = [
   { value: 'pending', label: '待办' },
   { value: 'done', label: '已完成' },
 ]
-const visibleTodos = computed(() =>
-  showAllTodos.value ? todoList.value : todoList.value.slice(0, 3)
-)
+const visibleTodos = computed(() => {
+  let result = todoList.value
+  // 前端模糊查询
+  if (todoCompanyFilter.value.trim()) {
+    const keyword = todoCompanyFilter.value.trim().toLowerCase()
+    result = result.filter(item =>
+      (item.company_name || '').toLowerCase().includes(keyword) ||
+      (item.title || '').toLowerCase().includes(keyword)
+    )
+  }
+  return showAllTodos.value ? result : result.slice(0, 3)
+})
 
 const selectedModelLabel = computed(() => selectedModel.value || defaultModelLabel)
 const selectedAi = computed(() =>
   roleBoundModels.value.find((item) => String(item.id) === String(selectedAiId.value)) || null
 )
 const selectedAiLabel = computed(() => selectedAi.value?.name || defaultAiLabel)
+const showWorkbenchLanding = computed(() => false)
+const displayConversationTitle = computed(() => {
+  const raw = String(conversationTitle.value || '').trim()
+  if (!raw || raw.includes('鏂') || raw.includes('會') || raw.includes('璇')) {
+    return '新对话'
+  }
+  return raw
+})
+const sidebarDisplayName = computed(() => {
+  const raw = String(session.user?.nickname || session.user?.username || '').trim()
+  if (!raw) {
+    return '豆包'
+  }
+  if (raw.includes('绠') || raw.includes('鐢')) {
+    return '豆包'
+  }
+  return raw
+})
+const sidebarAvatarText = computed(() => sidebarDisplayName.value.slice(0, 1).toUpperCase())
 const selectedAiAvatarMeta = computed(() => {
   const providerCode = selectedAi.value?.providerCode || ''
   const providerMeta = MODEL_PROVIDER_META[providerCode] || {}
@@ -214,16 +270,7 @@ const selectedAiAvatarMeta = computed(() => {
 })
 const genPollSeconds = computed(() => formatPollingSeconds(genPollMs.value))
 const isLightTheme = computed(() => session.theme === 'light')
-const canViewGenProgress = computed(() => {
-  const roles = session.user?.roleNames || []
-  return roles.some((roleName) => {
-    const text = String(roleName || '').trim()
-    const normalized = text.toUpperCase()
-    return GEN_PROGRESS_ROLE_KEYWORDS.some((keyword) => text.includes(keyword))
-      || normalized.includes('ADMIN')
-      || normalized.includes('DEMO')
-  })
-})
+
 const habitsDialogVisible = ref(false)
 const habitsLoading = ref(false)
 const habitEventsLoading = ref(false)
@@ -262,6 +309,8 @@ onMounted(() => {
   loadReports()
   loadPostSummaries()
   loadTodos()
+  loadHabitEvents()
+  information()
   document.addEventListener('click', handleDocumentClick)
 })
 
@@ -388,6 +437,11 @@ async function openHabitsDialog() {
   habitsDialogVisible.value = true
   resetHabitEditor()
   await loadHabitsPanel()
+}
+// 返回首页
+function returnValue() {
+  const url = window.location.origin + '/home'
+  window.location.href = url
 }
 
 function closeHabitsDialog() {
@@ -599,7 +653,8 @@ async function sendMessage(preset) {
             agent: 'rule_qa_agent',
             nickname: session.user?.nickname,
             postName: session.user?.postNames?.[0],
-            provider: provider.value
+            provider: provider.value,
+            sys_session_code:userCode.value
           },
           messages: [
             { id: "m1", thread_id: thread.value || '', role: "user", content: content }
@@ -644,7 +699,8 @@ async function sendMessage(preset) {
           task_payload: {},
           nickname: session.user?.nickname,
           postName: session.user?.postNames?.[0],
-          provider: provider.value //选择AI
+          provider: provider.value, //选择AI
+          sys_session_code: userCode.value
         },
         messages: [{ id: "m1", thread_id: thread.value || '', role: "user", content: content }],
         tools: [],
@@ -742,7 +798,7 @@ async function switchSession(item) {
     }
     try {
       // 拉取完整历史消息
-      const resp = await VisitApi.listHistory({ thread_id: threadId, limit: 200 })
+      const resp = await VisitApi.listUserInformation({ thread_id: threadId, limit: 200 })
       const all = Array.isArray(resp?.messages) ? resp.messages : []
       // 后端按 created_at ASC 返回；前端只关心 role + content 字段。
       // assistant 端的 JSON 卡片留给气泡渲染层自己 try-parse。
@@ -1078,11 +1134,14 @@ const postVisitSupplement = ref('')
 async function loadReports() {
   reportLoading.value = true
   try {
-    const params = {}
+    const params = {
+      scope: 'report',
+      X_Aibank_User_Id: session.user?.id,
+    }
     const filter = reportCompanyFilter.value.trim()
     if (filter) params.company_name = filter
     // 后端 /api/reports 直接返回数组
-    const resp = await ReportsApi.listReports(params)
+    const resp = await VisitApi.listUserInformation(params)
     reportList.value = Array.isArray(resp) ? resp : (resp?.reports || [])
   } catch (error) {
     reportList.value = []
@@ -1391,7 +1450,10 @@ const postSummaryVersions = ref([])
 async function loadPostSummaries() {
   postSummaryLoading.value = true
   try {
-    const resp = await ReportsApi.listAllPostVisitSummaries({ limit: 50 })
+    const resp = await VisitApi.listUserInformation({ 
+      scope: 'summary',
+      X_Aibank_User_Id: session.user?.id,
+    })
     postSummaryList.value = Array.isArray(resp) ? resp : (resp?.summaries || [])
     console.log('访后纪要列表:', postSummaryList.value)
   } catch (error) {
@@ -1407,11 +1469,11 @@ async function loadPostSummaries() {
 async function loadTodos() {
   todoLoading.value = true
   try {
-    const params = { status: todoStatusFilter.value }
-    if (todoCompanyFilter.value.trim()) {
-      params.company_name = todoCompanyFilter.value.trim()
+    const params = { 
+      scope: 'todo',
+      X_Aibank_User_Id: session.user?.id,
     }
-    const resp = await ReportsApi.listTodos(params)
+    const resp = await VisitApi.listUserInformation(params)
     todoList.value = Array.isArray(resp) ? resp : (resp?.items || resp?.todos || [])
   } catch (error) {
     todoList.value = []
@@ -2890,6 +2952,10 @@ async function handleConfirm(message) {
       action: "confirm",
       task_payload: taskPayload,
       report_variant: 'full',
+      sys_session_code: userCode.value,
+      nickname: session.user?.nickname,
+      postName: session.user?.postNames?.[0],
+      provider: provider.value, //选择AI
     },
     messages: [{ id: "m1", role: "user", content: '确认' }],
     tools: [],
@@ -3085,10 +3151,7 @@ async function loadPollingConfig() {
 }
 
 async function pollReportJobs() {
-  if (!canViewGenProgress.value) {
-    genJobs.value = []
-    return
-  }
+  
   if (!session.token) return
   try {
     const resp = await ReportsApi.listReportJobs()
@@ -3105,10 +3168,7 @@ function dismissGenJob(reportId) {
 }
 
 function refreshGenCountdown() {
-  if (!canViewGenProgress.value) {
-    genCountdownMs.value = 0
-    return
-  }
+  
 
   if (!nextGenPollAt) {
     genCountdownMs.value = genPollMs.value
@@ -3120,11 +3180,6 @@ function refreshGenCountdown() {
 
 function startGenCountdown() {
   if (genCountdownTimer) clearInterval(genCountdownTimer)
-
-  if (!canViewGenProgress.value) {
-    genCountdownMs.value = 0
-    return
-  }
 
   refreshGenCountdown()
   genCountdownTimer = setInterval(refreshGenCountdown, 250)
@@ -3144,11 +3199,7 @@ function scheduleNextGenPoll() {
 }
 
 function startGenPolling() {
-  if (!canViewGenProgress.value) {
-    stopGenPolling()
-    genJobs.value = []
-    return
-  }
+  
   if (genPollTimer) clearInterval(genPollTimer)
   scheduleNextGenPoll()
   pollReportJobs()
@@ -3231,76 +3282,6 @@ onBeforeUnmount(() => {
       <button class="pill-button new-chat-button" @click="startFreshConversation">
         + 新建对话
       </button>
-
-      <!-- ============ 报告生成进度 ============ -->
-      <section v-if="canViewGenProgress" class="side-section gen-section">
-        <div v-if="genJobs.length" class="gen-list">
-          <article
-            v-for="(job, index) in genJobs"
-            :key="job.report_id"
-            class="gen-card"
-            :class="{
-              'is-running': job.status !== 'done' && job.status !== 'error',
-              'is-done': job.status === 'done',
-              'is-error': job.status === 'error'
-            }"
-          >
-            <span v-if="index === 0" class="gen-corner-label">{{ GEN_PROGRESS_LABEL }}</span>
-            <div
-              class="gen-icon"
-              :class="{
-                'is-running': job.status !== 'done' && job.status !== 'error',
-                'is-done': job.status === 'done',
-                'is-error': job.status === 'error'
-              }"
-            >
-              <div v-if="job.status !== 'done' && job.status !== 'error'" class="gen-spinner"></div>
-              <span v-else class="gen-state-dot"></span>
-            </div>
-            <div class="gen-info">
-              <div class="gen-title-row">
-                <div class="gen-title">#{{ job.report_id }} {{ job.company || job.company_name || '报告任务' }}</div>
-                <span
-                  class="gen-status"
-                  :class="{
-                    'is-running': job.status !== 'done' && job.status !== 'error',
-                    'is-done': job.status === 'done',
-                    'is-error': job.status === 'error'
-                  }"
-                >
-                  {{ resolveGenStatusText(job.status) }}
-                </span>
-              </div>
-              <div class="gen-meta">{{ job.action || '报告生成任务' }}</div>
-              <div class="gen-submeta">已用时 {{ formatGenElapsed(job.elapsed) }}</div>
-            </div>
-            <button
-              v-if="job.status === 'done' || job.status === 'error'"
-              type="button"
-              class="tiny-button gen-dismiss"
-              @click="dismissGenJob(job.report_id)"
-            >关闭</button>
-          </article>
-        </div>
-        <div v-else class="gen-empty-card">
-          <div class="gen-empty-head">
-            <div class="gen-empty-icon" aria-hidden="true">
-              <span class="gen-empty-orbit"></span>
-              <span class="gen-empty-core"></span>
-            </div>
-            <span class="gen-corner-label gen-corner-label--inline">{{ GEN_PROGRESS_LABEL }}</span>
-          </div>
-          <div class="gen-empty-countdown">
-            <!-- <span class="gen-empty-count-label">下次刷新</span>
-            <strong class="gen-empty-count-value">{{ genCountdownText }}</strong> -->
-            <span class="gen-empty-count-value">间隔 {{ genPollSeconds }} -> 剩余间隔 {{ genCountdownText }}</span>
-          </div>
-          <div class="gen-empty-progress" aria-hidden="true">
-            <span :style="{ transform: `scaleX(${genCountdownProgress})` }"></span>
-          </div>
-        </div>
-      </section>
-
       <section class="side-section">
         <div class="section-head">
           <div class="section-head-main">
@@ -3325,7 +3306,7 @@ onBeforeUnmount(() => {
             @click="switchSession(item)"
           >
             <div class="topic-title-row">
-              <strong :title="item.content">{{ item.content }}</strong>
+              <strong :title="item.title">{{ item.title }}</strong>
               <span v-if="item.active" class="active-badge">当前</span>
             </div>
           </button>
@@ -3366,7 +3347,7 @@ onBeforeUnmount(() => {
                 </span>
                 <strong class="task-title">
                   <span class="task-id">#{{ task.id }}</span>
-                  {{ task.title || task.company_name || '未命名任务' }}
+                  <!-- {{ task.title || task.company_name || '未命名任务' }} -->
                 </strong>
               </div>
 
@@ -3645,7 +3626,7 @@ onBeforeUnmount(() => {
               <div class="task-head">
                 <strong class="task-title">
                   <span class="task-id">#{{ row.id }}</span>
-                  {{ row.content || row.title || '' }}
+                  <span class="task-title-text">{{ row.content || row.title || '' }}</span>
                 </strong>
               </div>
               <div class="task-meta-grid">
@@ -3663,7 +3644,32 @@ onBeforeUnmount(() => {
       </section>
     </aside>
 
-    <section class="chat-main glass-card">
+    <section class="chat-main glass-card workbench-shell">
+      <div v-if="false" class="chat-main-header">
+        <div class="chat-main-header-icon">◧</div>
+        <div class="chat-main-header-copy">
+          <h2>{{ displayConversationTitle }}</h2>
+          <p>内容由豆包 AI 生成，请仔细甄别</p>
+        </div>
+      </div>
+
+      <div v-if="showWorkbenchLanding" class="chat-landing">
+        <div class="landing-copy">
+          <h3>有什么我能帮你的吗？</h3>
+        </div>
+
+        <div class="prompt-grid landing-prompt-grid">
+          <button
+            v-for="item in landingPromptCards"
+            :key="`landing-${item}`"
+            class="prompt-card landing-prompt-card"
+            @click="sendMessage(item)"
+          >
+            {{ item }}
+          </button>
+        </div>
+      </div>
+
       <div class="chat-hero">
         <div class="hero-head">
           <div class="hero-title-row">
@@ -3709,6 +3715,13 @@ onBeforeUnmount(() => {
               @click.stop="openHabitsDialog"
             >
               我的偏好
+            </button>
+            <button
+              type="button"
+              class="hero-habit-trigger"
+              @click.stop="returnValue"
+            >
+              返回首页
             </button>
           </div>
 
@@ -3913,12 +3926,14 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <span>按 `Enter` 发送，`Shift + Enter` 换行</span>
+            <!-- <span>按 `Enter` 发送，`Shift + Enter` 换行</span> -->
           </div>
 
-          <button class="pill-button" :disabled="loading">
+          <div class="composer-submit-group">
+            <button class="pill-button" :disabled="loading">
             {{ loading ? '生成中...' : '发送问题' }}
-          </button>
+            </button>
+          </div>
         </div>
       </form>
     </section>
@@ -4740,7 +4755,7 @@ onBeforeUnmount(() => {
   grid-template-columns: clamp(18rem, 28vw, 24rem) minmax(0, 1fr);
   gap: clamp(0.875rem, 0.5rem + 1vw, 1.25rem);
   align-items: stretch;
-  height: calc(100dvh - 10.5rem);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }
@@ -4777,6 +4792,7 @@ onBeforeUnmount(() => {
 
 .new-chat-button {
   width: 100%;
+  color: #ffffff !important;
   min-height: 3.25rem;
   justify-content: center;
   font-size: 0.8125rem;
@@ -4961,6 +4977,14 @@ onBeforeUnmount(() => {
   color: var(--text-main);
 }
 
+.task-title-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .post-summary-display-title {
   display: none;
 }
@@ -5015,13 +5039,18 @@ onBeforeUnmount(() => {
 
 .task-meta-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-  gap: 0.375rem 0.75rem;
+  grid-template-columns: 1fr;
+  gap: 0.375rem;
   margin: 0.625rem 0 0;
   font-size: 0.78125rem;
   color: var(--text-muted);
   line-height: 1.7;
   font-variant-numeric: tabular-nums;
+}
+
+.task-meta-grid > span {
+  display: block;
+  min-width: 0;
 }
 
 .task-meta-grid em {
@@ -5595,6 +5624,7 @@ onBeforeUnmount(() => {
 .todo-filter-row input {
   flex: 1;
   padding: 6px 10px;
+  width: 12vw;
   border-radius: 8px;
   border: 1px solid var(--surface-border);
   background: var(--surface-card-soft);
@@ -5816,9 +5846,11 @@ onBeforeUnmount(() => {
   color: var(--text-main);
   font-size: 1rem;
   font-weight: 700;
+  width: 9%;
   box-shadow:
     var(--panel-card-shadow),
     inset 0 1px 0 var(--surface-inset);
+
 }
 
 .hero-model-row {
@@ -6306,6 +6338,18 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
+.composer-submit-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.composer-submit-group > .pill-button {
+  min-width: 8.25rem;
+  justify-content: center;
+}
+
 .composer-left {
   display: flex;
   align-items: center;
@@ -6463,7 +6507,7 @@ onBeforeUnmount(() => {
   .chat-layout {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    height: calc(100dvh - 9rem);
+    height: 100%;
     min-height: 0;
     overflow: hidden;
   }
@@ -6520,7 +6564,7 @@ onBeforeUnmount(() => {
   }
 
   .chat-layout {
-    height: calc(100dvh - 7.5rem);
+    height: 100%;
   }
 
   .hero-model-window {
@@ -6549,6 +6593,12 @@ onBeforeUnmount(() => {
   .composer-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .composer-submit-group {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
   }
 
   .composer-left {
@@ -7994,6 +8044,415 @@ onBeforeUnmount(() => {
   background: rgba(207, 76, 76, 0.08);
   border-color: rgba(207, 76, 76, 0.16);
   color: #c24646;
+}
+
+/* reference-style overrides */
+.task-modal,
+.preferences-modal,
+.task-modal h1,
+.task-modal h2,
+.task-modal h3,
+.task-modal h4,
+.task-modal h5,
+.task-modal h6,
+.task-modal p,
+.task-modal span,
+.task-modal strong,
+.task-modal em,
+.task-modal small,
+.task-modal label,
+.task-modal li,
+.task-modal button,
+.task-modal input,
+.task-modal textarea,
+.task-modal select,
+.task-modal summary,
+.preferences-modal h1,
+.preferences-modal h2,
+.preferences-modal h3,
+.preferences-modal h4,
+.preferences-modal h5,
+.preferences-modal h6,
+.preferences-modal p,
+.preferences-modal span,
+.preferences-modal strong,
+.preferences-modal em,
+.preferences-modal small,
+.preferences-modal label,
+.preferences-modal li,
+.preferences-modal button,
+.preferences-modal input,
+.preferences-modal textarea,
+.preferences-modal select,
+.preferences-modal summary {
+  font-size: 13px !important;
+}
+
+.chat-layout {
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  background: #ffffff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.chat-sidebar,
+.chat-main {
+  border-radius: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.chat-sidebar {
+  gap: 18px;
+  padding: 24px;
+  background: linear-gradient(180deg, #fbfbfd 0%, #f3f5f9 100%);
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: none;
+}
+
+.sidebar-profile {
+  display: none;
+}
+
+.sidebar-avatar {
+  display: none;
+}
+
+.sidebar-profile-copy strong {
+  display: none;
+}
+
+.new-chat-button {
+  min-height: 50px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 14px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #eef4ff 0%, #e9f0ff 100%);
+  color: #2563eb;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.new-chat-button-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  color: #2563eb;
+  font-size: 15px;
+}
+
+.new-chat-shortcut {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(37, 99, 235, 0.14);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.section-head {
+  gap: 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.side-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: #0f172a;
+}
+
+.head-action-button,
+.toggle-button {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
+}
+
+.capability-card,
+.task-card,
+.topic-chip {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.topic-chip.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(99, 102, 241, 0.08));
+  border-color: rgba(37, 99, 235, 0.18);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+}
+
+.topic-title-row strong,
+.task-head strong {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.workbench-shell {
+  height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.chat-main-header {
+  display: none;
+}
+
+.chat-main-header-icon {
+  display: none;
+}
+
+.chat-main-header-copy {
+  display: none;
+}
+
+.chat-main-header-copy h2 {
+  display: none;
+}
+
+.chat-main-header-copy p {
+  display: none;
+}
+
+.chat-landing {
+  display: none;
+}
+
+.landing-copy {
+  display: none;
+}
+
+.landing-copy h3 {
+  display: none;
+}
+
+.landing-prompt-grid {
+  display: none;
+}
+
+.chat-hero {
+  padding: 8px ;
+}
+
+.hero-label {
+  background: #f3f4f6;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #334155;
+  box-shadow: none;
+}
+
+.hero-habit-trigger,
+.model-trigger {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #111827;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+}
+
+.prompt-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.prompt-card {
+  align-items: center;
+  justify-content: center;
+  min-height: 58px;
+  padding: 18px 22px;
+  text-align: center;
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.04);
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+.prompt-card:hover {
+  border-color: rgba(37, 99, 235, 0.14);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+}
+
+.landing-prompt-card {
+  display: none;
+}
+
+.message-panel {
+  padding: 24px 24px 8px;
+  gap: 18px;
+}
+
+.message-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.message-bubble {
+  border-radius: 22px;
+  padding: 16px 18px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  color: #1f2937;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.message-role,
+.composer-actions span,
+.model-trigger-label,
+.model-trigger-arrow {
+  color: #94a3b8;
+}
+
+.composer {
+  margin: auto 0 0;
+  border-radius: 0;
+  padding: 18px 24px 16px;
+  background: #ffffff;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-right: none;
+  border-bottom: none;
+  border-left: none;
+  box-shadow: none;
+}
+
+.composer textarea {
+  min-height: 68px;
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.composer textarea::placeholder {
+  color: #c8ccd4;
+}
+
+.composer-actions {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.composer-actions > .pill-button {
+  min-width: 128px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffb168, #ff8b4a);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(255, 139, 74, 0.28);
+}
+
+.model-menu {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+}
+
+.model-option {
+  color: #111827;
+}
+
+.model-option.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(99, 102, 241, 0.08));
+  border-color: rgba(37, 99, 235, 0.14);
+}
+
+.chat-layout,
+.chat-layout *,
+.task-modal-mask,
+.task-modal-mask *,
+.push-bell,
+.push-bell * {
+  font-size: 15px !important;
+}
+
+.chat-layout input::placeholder,
+.chat-layout textarea::placeholder,
+.task-modal-mask input::placeholder,
+.task-modal-mask textarea::placeholder {
+  font-size: 15px !important;
+}
+
+@media (max-width: 1280px) {
+  .chat-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    border-radius: 0;
+  }
+
+  .landing-prompt-grid {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-layout {
+    border-radius: 0;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .chat-sidebar,
+  .chat-main,
+  .workbench-shell {
+    padding: 0;
+  }
+
+  .chat-sidebar {
+    padding: 16px;
+  }
+
+  .chat-main-header {
+    display: none;
+  }
+
+  .chat-main-header-copy {
+    display: none;
+  }
+
+  .landing-copy h3 {
+    display: none;
+  }
+
+  .landing-prompt-grid {
+    display: none;
+  }
+
+  .message-panel {
+    padding: 16px 16px 8px;
+  }
+
+  .composer {
+    margin: auto 0 0;
+    padding: 16px;
+  }
 }
 </style>
 

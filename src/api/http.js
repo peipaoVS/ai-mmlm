@@ -15,7 +15,9 @@ const SYSTEM_API_PREFIXES = [
   '/api/posts',
   '/api/menus',
   '/api/companies',
-  '/api/agent-modules'
+  '/api/session-codes',
+  '/api/agent-modules',
+  '/api/param-configs'
 ]
 
 function isSystemApi(url) {

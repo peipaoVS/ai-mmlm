@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api } from '../api/http'
 import AppSelect from '../components/AppSelect.vue'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { formatDateTime } from '../utils/format'
 
 const rows = ref([])
@@ -12,6 +13,9 @@ const loading = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref(null)
 const submitting = ref(false)
+const deleteDialogVisible = ref(false)
+const deleting = ref(false)
+const pendingDeleteRow = ref(null)
 
 const filters = reactive({
   keyword: '',
@@ -66,11 +70,13 @@ const selectedPostId = computed({
   }
 })
 
-const summary = computed(() => ({
-  total: rows.value.length,
-  active: rows.value.filter((item) => item.status === 1).length,
-  inactive: rows.value.filter((item) => item.status === 0).length
-}))
+const deleteMessage = computed(() => {
+  const row = pendingDeleteRow.value
+  if (!row) {
+    return ''
+  }
+  return `确认删除用户「${row.nickname || row.username}」吗？`
+})
 
 onMounted(() => {
   loadAll()
@@ -176,37 +182,37 @@ async function submitForm() {
   }
 }
 
-async function removeRow(row) {
-  if (!window.confirm(`确认删除用户「${row.nickname}」吗？`)) {
+function openRemoveDialog(row) {
+  pendingDeleteRow.value = row
+  deleteDialogVisible.value = true
+}
+
+function closeRemoveDialog() {
+  deleteDialogVisible.value = false
+  pendingDeleteRow.value = null
+}
+
+async function confirmRemove() {
+  const row = pendingDeleteRow.value
+  if (!row) {
     return
   }
 
+  deleting.value = true
   try {
     await api.delete(`/api/users/${row.id}`)
+    closeRemoveDialog()
     await loadAll()
   } catch (error) {
     window.alert(error.message)
+  } finally {
+    deleting.value = false
   }
 }
 </script>
 
 <template>
-  <div class="admin-scroll-page">
-    <div class="stats-grid">
-      <article class="stats-card">
-        <span>用户总数</span>
-        <strong>{{ summary.total }}</strong>
-      </article>
-      <article class="stats-card">
-        <span>启用用户</span>
-        <strong>{{ summary.active }}</strong>
-      </article>
-      <article class="stats-card">
-        <span>停用用户</span>
-        <strong>{{ summary.inactive }}</strong>
-      </article>
-    </div>
-
+  <div class="admin-scroll-page users-page">
     <section class="data-panel glass-card admin-scroll-panel">
       <div class="toolbar">
         <input v-model="filters.keyword" placeholder="搜索用户名 / 姓名 / 手机 / 邮箱" />
@@ -277,7 +283,7 @@ async function removeRow(row) {
               <td>
                 <div class="action-group">
                   <button class="tiny-button" @click="openEdit(row)">编辑</button>
-                  <button class="tiny-button danger" @click="removeRow(row)">删除</button>
+                  <button class="tiny-button danger" @click="openRemoveDialog(row)">删除</button>
                 </div>
               </td>
             </tr>
@@ -290,7 +296,7 @@ async function removeRow(row) {
 
     <Teleport to="body">
       <div v-if="dialogVisible" class="modal-mask" @click.self="dialogVisible = false">
-        <div class="modal-panel glass-card">
+        <div class="modal-panel glass-card permission-editor-modal">
           <div class="modal-header">
             <div>
               <h3 style="margin: 0">{{ editingId ? '编辑用户' : '新增用户' }}</h3>
@@ -373,5 +379,114 @@ async function removeRow(row) {
         </div>
       </div>
     </Teleport>
+
+    <ConfirmDialog
+      v-model="deleteDialogVisible"
+      title="删除用户"
+      :message="deleteMessage"
+      :loading="deleting"
+      @cancel="closeRemoveDialog"
+      @confirm="confirmRemove"
+    />
   </div>
 </template>
+
+<style scoped>
+.users-page .modal-header h3 {
+  font-size: 16px;
+}
+
+.users-page .toolbar {
+  font-size: 16px;
+}
+
+.users-page .data-table th,
+.users-page .field > span {
+  font-size: 16px;
+}
+
+.users-page .data-table th {
+  text-align: left;
+}
+
+.users-page .modal-subtext,
+.users-page .pill-button,
+.users-page .tiny-button,
+.users-page .toolbar input,
+.users-page .field input,
+.users-page .field textarea {
+  font-size: 14px;
+}
+
+.users-page :deep(.app-select-trigger),
+.users-page :deep(.app-select-value),
+.users-page :deep(.app-select-option) {
+  font-size: 14px;
+}
+
+.users-page .data-table td,
+.users-page .data-table td span,
+.users-page .data-table td div {
+  color: var(--text-muted);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.users-page .table-subtext {
+  margin-top: 0;
+  color: inherit;
+}
+
+.users-page .tag-list {
+  display: block;
+}
+
+.users-page .tag {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+.users-page .tag + .tag::before {
+  content: ' / ';
+}
+
+.users-page .data-table th:nth-child(7),
+.users-page .data-table th:nth-child(8),
+.users-page .data-table th:nth-child(9),
+.users-page .data-table td:nth-child(7),
+.users-page .data-table td:nth-child(8),
+.users-page .data-table td:nth-child(9),
+.users-page .data-table td:nth-child(7) span,
+.users-page .data-table td:nth-child(8) span,
+.users-page .data-table td:nth-child(9) span,
+.users-page .data-table td:nth-child(7) div,
+.users-page .data-table td:nth-child(8) div,
+.users-page .data-table td:nth-child(9) div {
+  text-align: center;
+}
+
+.users-page .status-tag,
+.users-page .status-tag.active,
+.users-page .status-tag.inactive {
+  display: inline;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.users-page .action-group {
+  justify-content: center;
+}
+
+.users-page .action-group .tiny-button {
+  font-size: inherit;
+}
+</style>

@@ -2,8 +2,16 @@
 import { onMounted } from 'vue'
 import { api } from './api/http'
 import { clearSession, getToken, setSession } from './stores/session'
+import { useToast } from './stores/toast'
+import AppToast from './components/AppToast.vue'
+
+const { show } = useToast()
 
 onMounted(async () => {
+  window.alert = (message) => {
+    show(String(message))
+  }
+
   const token = getToken()
   if (!token) {
     return
@@ -20,4 +28,5 @@ onMounted(async () => {
 
 <template>
   <router-view />
+  <AppToast />
 </template>
