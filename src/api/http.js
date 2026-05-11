@@ -160,6 +160,34 @@ function resolveAuthToken(url) {
   return isSystemApi(url) ? getToken() : getAiToken()
 }
 
+/**
+ * 把当前登录用户的 nickname / postNames 透传给 AI 后端，用于把"最近会话"绑定到用户。
+ *
+ * - 仅对 AI 后端（非 system api）启用
+ * - 中文需要 URL 编码，否则浏览器会拒绝写入到 fetch headers
+ * - 多个岗位以 "," 拼接
+ */
+function buildIdentityHeaders(url) {
+  if (isSystemApi(url)) {
+    return {}
+  }
+  const user = getUser() || {}
+  const nickname = String(user.nickname || '').trim()
+  const postNamesArr = Array.isArray(user.postNames) ? user.postNames : []
+  const postNames = postNamesArr
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .join(',')
+  const headers = {}
+  if (nickname) {
+    headers['x-aibank-nickname'] = encodeURIComponent(nickname)
+  }
+  if (postNames) {
+    headers['x-aibank-post-names'] = encodeURIComponent(postNames)
+  }
+  return headers
+}
+
 function resolveErrorMessage(result, fallback) {
   return result?.message || result?.detail || fallback
 }
@@ -183,6 +211,7 @@ export async function request(url, options = {}) {
   const token = resolveAuthToken(url)
   const headers = {
     'Content-Type': 'application/json',
+    ...buildIdentityHeaders(url),
     ...(options.headers || {})
   }
 
@@ -225,6 +254,7 @@ export async function* streamRequest(url, body) {
   const token = resolveAuthToken(url)
   const headers = {
     'Content-Type': 'application/json',
+    ...buildIdentityHeaders(url),
     ...(token ? { Authorization: `Bearer ${token}` } : {})
   }
 
