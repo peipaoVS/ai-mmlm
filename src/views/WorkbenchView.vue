@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi, BadcasesApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi, BadcasesApi , DataApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
@@ -64,30 +64,23 @@ async function information() {
     window.alert(`${error.message}`)
   }
 }
-// 最近会话接口
+// 最近会话接口：走统一查询 /api/data?scope=message，根据登录用户的
+// nickname / postNames（http.js 自动以 header 注入）绑定「最近会话」。
+// recentSessions 期望是 user 消息列表（关键字段 thread_id / content），
+// 所以这里过滤 role === 'user'。下游 line ~759 通过 item.thread_id 恢复会话。
 async function startFreshConver() {
   try {
-    const response = await VisitApi.listUserInformation({
-      scope: 'task',
-      X_Aibank_User_Id: session.user?.id,
-    })
-    console.log('最近会话接口', response)
-    recentSessions.value = response.items
-
+    const messages = await DataApi.listMessages()
+    recentSessions.value = messages.filter((item) => item.role === 'user')
   } finally {
   }
 }
-// 待办事项接口
+// 待办事项接口（scope=todo，按登录用户 visible_codes 隔离）
 const loadLoading = ref(false)
 async function loadTaskJobs() {
   loadLoading.value = true
   try {
-    const response = await VisitApi.listUserInformation({
-      scope: 'todo',
-      X_Aibank_User_Id: session.user?.id,
-    })
-    taskJobs.value = response.tasks || []
-    console.log('待办事项接口', response)
+    taskJobs.value = await DataApi.listTodos()
   } finally {
     loadLoading.value = false
   }
@@ -812,9 +805,8 @@ async function switchSession(item) {
       visitThreadId.value = threadId
     }
     try {
-      // 拉取完整历史消息
-      const resp = await VisitApi.listUserInformation({ thread_id: threadId, limit: 200 })
-      const all = Array.isArray(resp?.messages) ? resp.messages : []
+      // 拉取完整历史消息：通过统一接口 /api/data?scope=message&thread_id=...
+      const all = await DataApi.listMessages({ thread_id: threadId, limit: 200 })
       // 后端按 created_at ASC 返回；前端只关心 role + content 字段。
       // assistant 端的 JSON 卡片留给气泡渲染层自己 try-parse。
       messages.value = all.map((m) => ({
@@ -1327,19 +1319,14 @@ const postVisitCompany = ref('')
 const postVisitFile = ref(null)
 const postVisitSupplement = ref('')
 
-// 访前报告列表
+// 访前报告列表（scope=report）
 async function loadReports() {
   reportLoading.value = true
   try {
-    const params = {
-      scope: 'report',
-      X_Aibank_User_Id: session.user?.id,
-    }
+    const params = {}
     const filter = reportCompanyFilter.value.trim()
     if (filter) params.company_name = filter
-    // 后端 /api/reports 直接返回数组
-    const resp = await VisitApi.listUserInformation(params)
-    reportList.value = Array.isArray(resp) ? resp : (resp?.reports || [])
+    reportList.value = await DataApi.listReports(params)
   } catch (error) {
     reportList.value = []
     window.alert('报告列表加载失败：' + error.message)
@@ -1643,16 +1630,11 @@ const postSummaryVersionsLoading = ref(false)
 const postSummaryVersionsReportId = ref(null)
 const postSummaryVersions = ref([])
 
-// 访后纪要列表
+// 访后纪要列表（scope=summary）
 async function loadPostSummaries() {
   postSummaryLoading.value = true
   try {
-    const resp = await VisitApi.listUserInformation({ 
-      scope: 'summary',
-      X_Aibank_User_Id: session.user?.id,
-    })
-    postSummaryList.value = Array.isArray(resp) ? resp : (resp?.summaries || [])
-    console.log('访后纪要列表:', postSummaryList.value)
+    postSummaryList.value = await DataApi.listSummaries()
   } catch (error) {
     postSummaryList.value = []
     // 静默失败：列表加载失败不打扰用户，只在控制台留痕
@@ -1662,16 +1644,11 @@ async function loadPostSummaries() {
   }
 }
 
-// ---- 待办列表加载 ----
+// ---- 待办列表加载（scope=todo）----
 async function loadTodos() {
   todoLoading.value = true
   try {
-    const params = { 
-      scope: 'todo',
-      X_Aibank_User_Id: session.user?.id,
-    }
-    const resp = await VisitApi.listUserInformation(params)
-    todoList.value = Array.isArray(resp) ? resp : (resp?.items || resp?.todos || [])
+    todoList.value = await DataApi.listTodos()
   } catch (error) {
     todoList.value = []
     console.warn('待办列表加载失败：', error)

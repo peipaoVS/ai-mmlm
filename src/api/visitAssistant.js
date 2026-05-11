@@ -90,16 +90,13 @@ export function streamTasks(body) {
 export function listHistory(params) {
   return api.get(`/api/visit-assistant/history${qs(params)}`)
 }
-export function UserInformation(params) {
-  return api.get(`/api/session-codes/${params}`)
-}
 /**
- * 路由到对应业务表的列表查询。统一返回
- * @param {} params 
- * @returns 
+ * 拉当前登录用户的 session_code 信息（owned code 列表 + 角色等元数据）。
+ * 用于：Workbench 顶部显示用户身份卡片。
+ * @param {string|number} userId
  */
-export function listUserInformation(params) {
-  return api.get(`/api/data${qs(params)}`)
+export function UserInformation(userId) {
+  return api.get(`/api/session-codes/${userId}`)
 }
 
 /**

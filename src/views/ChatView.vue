@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi, DataApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
@@ -51,26 +51,22 @@ function resetAgentThreads() {
   ruleThreadId.value = ''
 }
 const taskJobs = ref([])
-// 最近会话接口
+// 最近会话接口：走统一查询 /api/data?scope=message，根据登录用户的
+// nickname / postNames（http.js 自动以 header 注入）绑定「最近会话」。
+// UI 只关心 user 提问，这里过滤 role === 'user'。
 async function startFreshConver() {
-  console.log('sendMessage', session.user?.nickname, session.user?.postNames[0])
   try {
-    const response = await VisitApi.listHistory({
-      nickname: session.user?.nickname,
-      postName: session.user?.postNames?.[0]
-    })
-    recentSessions.value = response.messages.filter(item => item.role === 'user')
+    const messages = await DataApi.listMessages()
+    recentSessions.value = messages.filter((item) => item.role === 'user')
   } finally {
   }
 }
-// 待办事项接口
+// 待办事项接口（scope=todo，按登录用户 visible_codes 隔离）
 const loadLoading = ref(false)
 async function loadTaskJobs() {
   loadLoading.value = true
   try {
-    const response = await VisitApi.listTasks()
-    taskJobs.value = response.tasks || []
-    console.log('待办事项接口', response)
+    taskJobs.value = await DataApi.listTodos()
   } finally {
     loadLoading.value = false
   }
@@ -741,9 +737,8 @@ async function switchSession(item) {
       visitThreadId.value = threadId
     }
     try {
-      // 拉取完整历史消息
-      const resp = await VisitApi.listHistory({ thread_id: threadId, limit: 200 })
-      const all = Array.isArray(resp?.messages) ? resp.messages : []
+      // 拉取完整历史消息：通过统一接口 /api/data?scope=message&thread_id=...
+      const all = await DataApi.listMessages({ thread_id: threadId, limit: 200 })
       // 后端按 created_at ASC 返回；前端只关心 role + content 字段。
       // assistant 端的 JSON 卡片留给气泡渲染层自己 try-parse。
       messages.value = all.map((m) => ({

@@ -17,6 +17,7 @@
  *   - ruleKb         : 规则知识库（读 + 管理员写）
  *   - admin          : 银行产品 / 企业画像 / 行业动态
  *   - auth           : AI 侧登录态 + 健康检查
+ *   - data           : 统一查询入口 GET /api/data?scope=xxx（按 code 隔离的聚合查询）
  *
  * 底层（http）一般不用直接 import：
  *   - api / request / streamRequest 见 `./http.js`
@@ -33,6 +34,7 @@ export * as HabitsApi from './habits'
 export * as RuleKbApi from './ruleKb'
 export * as AdminApi from './admin'
 export * as AuthApi from './auth'
+export * as DataApi from './data'
 
 // 底层工具
 export { api, request, streamRequest, qs, asBool } from './_request'
