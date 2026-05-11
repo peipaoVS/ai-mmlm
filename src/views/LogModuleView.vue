@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSelect from '../components/AppSelect.vue'
 import { api } from '../api/http'
+import { BadcasesApi } from '../api'
 import { formatDateTime } from '../utils/format'
 
 const route = useRoute()
@@ -412,6 +413,111 @@ function getBadcaseStatusLabel(status) {
 
 function getRepairTargetLabel(target) {
   return REPAIR_TARGET_LABELS[target] || toDisplayText(target)
+}
+
+function getBadcaseTagList(item) {
+  if (Array.isArray(item?.tags_list) && item.tags_list.length) {
+    return item.tags_list
+  }
+
+  if (Array.isArray(item?.tags) && item.tags.length) {
+    return item.tags
+  }
+
+  return []
+}
+
+function getBadcaseAttribution(item) {
+  return isPlainObject(item?.attribution) ? item.attribution : null
+}
+
+function getBadcasePrimaryCause(item) {
+  const attribution = getBadcaseAttribution(item)
+  const primary = attribution?.primary_cause
+  return isPlainObject(primary) ? primary : null
+}
+
+function getBadcaseFindings(item) {
+  const attribution = getBadcaseAttribution(item)
+  return asArray(attribution?.findings)
+    .filter((entry) => isPlainObject(entry))
+}
+
+function getBadcaseRecommendations(item) {
+  const attribution = getBadcaseAttribution(item)
+  return asArray(attribution?.recommendations)
+    .map((entry) => getTextOrEmpty(entry))
+    .filter(Boolean)
+}
+
+function getBadcaseRepairPlan(item) {
+  const attribution = getBadcaseAttribution(item)
+  return isPlainObject(attribution?.repair_plan) ? attribution.repair_plan : null
+}
+
+function getBadcaseRepairItems(item) {
+  return asArray(getBadcaseRepairPlan(item)?.items)
+    .filter((entry) => isPlainObject(entry))
+}
+
+function getBadcaseMemoryWriteback(item) {
+  const memory = getBadcaseRepairPlan(item)?.memory_writeback
+  return isPlainObject(memory) ? memory : null
+}
+
+function getBadcaseTraceSteps(item) {
+  return asArray(item?.react_trace_steps)
+    .filter((entry) => isPlainObject(entry))
+}
+
+function getBadcaseTraceRows(step) {
+  const rows = []
+
+  if (getTextOrEmpty(step?.question)) {
+    rows.push({ label: 'Question', value: step.question })
+  }
+  if (getTextOrEmpty(step?.thought)) {
+    rows.push({ label: 'Thought', value: step.thought })
+  }
+  if (getTextOrEmpty(step?.action)) {
+    rows.push({ label: 'Action', value: step.action })
+  }
+  if (getTextOrEmpty(step?.action_input)) {
+    rows.push({ label: 'Input', value: step.action_input })
+  }
+  if (getTextOrEmpty(step?.observation)) {
+    rows.push({ label: 'Observation', value: step.observation })
+  }
+  if (getTextOrEmpty(step?.final_answer)) {
+    rows.push({ label: 'Final', value: step.final_answer })
+  }
+
+  return rows
+}
+
+function getBadcaseStatusActionOptions(status) {
+  return Object.entries(BADCASE_STATUS_LABELS)
+    .filter(([value]) => value !== (status || 'open'))
+    .map(([value, label]) => ({ value, label }))
+}
+
+async function updateBadcaseStatus(item, status) {
+  try {
+    await BadcasesApi.updateBadcase(item.id, { status })
+    await loadBadcases()
+  } catch (error) {
+    window.alert(`更新失败：${error.message}`)
+    console.log(`更新失败：${error.message}`)
+  }
+}
+
+async function deleteBadcase(item) {
+  try {
+    await BadcasesApi.deleteBadcase(item.id)
+    await loadBadcases()
+  } catch (error) {
+    window.alert(`删除失败：${error.message}`)
+  }
 }
 
 function isPlainObject(value) {
@@ -1670,8 +1776,8 @@ async function loadRuleLibrary() {
               <span class="status-chip warning">{{ getBadcaseStatusLabel(item.status) }}</span>
             </div>
 
-            <div v-if="asArray(item.tags_list).length" class="tag-row">
-              <span v-for="tag in item.tags_list" :key="tag" class="info-tag">{{ tag }}</span>
+            <div v-if="getBadcaseTagList(item).length" class="tag-row">
+              <span v-for="tag in getBadcaseTagList(item)" :key="tag" class="info-tag">{{ tag }}</span>
             </div>
 
             <div v-if="item.reason" class="content-block">
@@ -1679,14 +1785,131 @@ async function loadRuleLibrary() {
               <p>{{ item.reason }}</p>
             </div>
 
+            <div
+              v-if="getBadcasePrimaryCause(item) || getTextOrEmpty(getBadcaseAttribution(item)?.summary) || getBadcaseFindings(item).length || getBadcaseRecommendations(item).length"
+              class="badcase-panel badcase-panel-attribution"
+            >
+              <div class="badcase-panel-head">
+                <strong>自动归因</strong>
+                <span v-if="getBadcasePrimaryCause(item)?.label" class="info-tag brand">
+                  {{ getBadcasePrimaryCause(item).label }}
+                </span>
+              </div>
+
+              <p v-if="getTextOrEmpty(getBadcaseAttribution(item)?.summary)" class="badcase-panel-summary">
+                {{ getBadcaseAttribution(item).summary }}
+              </p>
+
+              <ul v-if="getBadcaseFindings(item).length" class="badcase-finding-list">
+                <li
+                  v-for="(finding, findingIndex) in getBadcaseFindings(item).slice(0, 3)"
+                  :key="`${item.id}-finding-${findingIndex}`"
+                >
+                  {{ finding.label || '未命名发现' }}
+                  <template v-if="finding.stage"> · {{ finding.stage }}</template>
+                  <template v-if="finding.confidence !== undefined && finding.confidence !== null">
+                    · 置信度 {{ finding.confidence }}
+                  </template>
+                </li>
+              </ul>
+
+              <div v-if="getBadcaseRecommendations(item).length" class="badcase-inline-note">
+                <strong>建议：</strong>{{ getBadcaseRecommendations(item)[0] }}
+              </div>
+            </div>
+
+            <div
+              v-if="getBadcaseRepairPlan(item)"
+              class="badcase-panel badcase-panel-repair"
+            >
+              <div class="badcase-panel-head">
+                <strong>修复计划</strong>
+                <span class="info-tag soft">
+                  {{ getRepairTargetLabel(getBadcaseRepairPlan(item)?.primary_target) }}
+                </span>
+              </div>
+
+              <p class="badcase-panel-summary">
+                负责人：{{ toDisplayText(getBadcaseRepairPlan(item)?.owner, '-') }} ·
+                状态：{{ toDisplayText(getBadcaseRepairPlan(item)?.status, '-') }}
+              </p>
+
+              <ul v-if="getBadcaseRepairItems(item).length" class="badcase-finding-list">
+                <li
+                  v-for="(repairItem, repairIndex) in getBadcaseRepairItems(item).slice(0, 4)"
+                  :key="`${item.id}-repair-${repairIndex}`"
+                >
+                  {{ getRepairTargetLabel(repairItem.target) }} /
+                  {{ toDisplayText(repairItem.action, '-') }} /
+                  {{ toDisplayText(repairItem.priority, '-') }}
+                  <template v-if="repairItem.recommendation">
+                    · {{ repairItem.recommendation }}
+                  </template>
+                </li>
+              </ul>
+
+              <div v-else class="empty-inline">暂无自动修复项</div>
+
+              <div
+                v-if="getBadcaseMemoryWriteback(item)?.enabled"
+                class="badcase-inline-note"
+              >
+                <strong>记忆回写：</strong>
+                {{ toDisplayText(getBadcaseMemoryWriteback(item)?.key, '-') }}
+                <template v-if="getBadcaseMemoryWriteback(item)?.summary">
+                  · {{ getBadcaseMemoryWriteback(item).summary }}
+                </template>
+              </div>
+            </div>
+
             <div v-if="item.user_input" class="content-block">
               <strong>用户输入</strong>
-              <p>{{ trimText(item.user_input, 420) }}</p>
+              <p>{{ trimText(item.user_input, 500) }}</p>
             </div>
 
             <div v-if="item.agent_output" class="content-block">
               <strong>Agent 输出</strong>
-              <p>{{ trimText(item.agent_output, 520) }}</p>
+              <p>{{ trimText(item.agent_output, 800) }}</p>
+            </div>
+
+            <details v-if="getBadcaseTraceSteps(item).length" class="entry-details" open>
+              <summary class="badcase-trace-title">推理轨迹 · {{ getBadcaseTraceSteps(item).length }} 步</summary>
+              <div class="detail-stack compact">
+                <article
+                  v-for="(step, stepIndex) in getBadcaseTraceSteps(item)"
+                  :key="`${item.id}-trace-${stepIndex}`"
+                  class="detail-card badcase-trace-card"
+                >
+                  <div class="detail-card-head">
+                    <strong>Step {{ step.step || stepIndex + 1 }}</strong>
+                  </div>
+
+                  <div class="badcase-trace-rows">
+                    <div
+                      v-for="row in getBadcaseTraceRows(step)"
+                      :key="`${item.id}-trace-${stepIndex}-${row.label}`"
+                      class="badcase-trace-row"
+                    >
+                      <span class="badcase-trace-label">{{ row.label }}</span>
+                      <p>{{ row.value }}</p>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </details>
+
+            <div class="entry-actions badcase-actions">
+              <button
+                v-for="action in getBadcaseStatusActionOptions(item.status)"
+                :key="`${item.id}-${action.value}`"
+                class="pill-button ghost"
+                @click="updateBadcaseStatus(item, action.value)"
+              >
+                标记为 {{ action.label }}
+              </button>
+              <button class="pill-button danger-button" @click="deleteBadcase(item)">
+                删除
+              </button>
             </div>
           </template>
 
@@ -2275,6 +2498,101 @@ async function loadRuleLibrary() {
   color: var(--text-main);
 }
 
+.info-tag.brand {
+  background: var(--surface-accent);
+  color: var(--text-main);
+}
+
+.badcase-panel {
+  margin-top: 0.875rem;
+  padding: 0.875rem 1rem;
+  border-radius: 1.125rem;
+  border: 1px solid var(--panel-card-border);
+  box-shadow: inset 0 1px 0 var(--surface-inset);
+}
+
+.badcase-panel-attribution {
+  background: linear-gradient(135deg, var(--panel-card-bg-soft), var(--panel-card-bg));
+}
+
+.badcase-panel-repair {
+  background: linear-gradient(135deg, var(--surface-accent), var(--panel-card-bg-soft));
+}
+
+.badcase-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+
+.badcase-panel-head strong {
+  color: var(--text-main);
+}
+
+.badcase-panel-summary {
+  margin: 0.625rem 0 0;
+  color: var(--text-muted);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.badcase-finding-list {
+  margin: 0.625rem 0 0;
+  padding-left: 1.125rem;
+  display: grid;
+  gap: 0.375rem;
+  color: var(--text-main);
+  line-height: 1.7;
+}
+
+.badcase-inline-note {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.badcase-inline-note strong {
+  color: var(--text-main);
+}
+
+.badcase-trace-title {
+  display: block;
+}
+
+.badcase-trace-card {
+  border-left: 3px solid rgba(99, 102, 241, 0.55);
+}
+
+.badcase-trace-rows {
+  display: grid;
+  gap: 0.625rem;
+  margin-top: 0.625rem;
+}
+
+.badcase-trace-row {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.badcase-trace-label {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--brand-alt);
+}
+
+.badcase-trace-row p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .structured-answer {
   display: grid;
   gap: 0.625rem;
@@ -2407,6 +2725,18 @@ async function loadRuleLibrary() {
   margin-top: 1rem;
   display: flex;
   justify-content: flex-end;
+}
+
+.badcase-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.badcase-actions .danger-button {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
 }
 
 .rule-meta-row {

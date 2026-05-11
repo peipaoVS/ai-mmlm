@@ -294,6 +294,9 @@ export const api = {
   post(url, body) {
     return request(url, { method: 'POST', body: JSON.stringify(body) })
   },
+  patch(url, body) {
+    return request(url, { method: 'PATCH', body: JSON.stringify(body) })
+  },
   put(url, body) {
     return request(url, { method: 'PUT', body: JSON.stringify(body) })
   },

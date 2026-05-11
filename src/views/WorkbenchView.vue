@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
 // 统一接口注册中心：所有后端调用都通过 SDK，避免硬编码 URL
-import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi } from '../api'
+import { VisitApi, RuleQaApi, ReportsApi, PushMessagesApi, HabitsApi, BadcasesApi } from '../api'
 import { API_PATHS } from '../config/aiApi';
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import deepseekLogo from '../assets/providers/deepseek-logo.svg'
@@ -28,6 +28,7 @@ const recentSessions = ref([])
 const visitThreadId = ref('')
 const ruleThreadId = ref('')
 const thread = ref('')
+const ASSISTANT_PENDING_TEXT = '正在整理回复...'
 
 function genThreadId(prefix) {
   const rand = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -618,6 +619,11 @@ async function sendMessage(preset) {
   }
 
   const currentModel = selectedModel.value
+  const isRuleQa = currentModel === defaultModelLabel
+  const currentThreadId = isRuleQa ? ensureRuleThreadId() : ensureVisitThreadId()
+  const currentRunId = genRunId()
+  const currentAgentName = isRuleQa ? 'rule_qa_agent' : 'visit_assistant_agent'
+  thread.value = currentThreadId
 
   messages.value.push({
     role: 'user',
@@ -635,15 +641,18 @@ async function sendMessage(preset) {
     // 先添加一个空的助手消息，用于流式填充
     const assistantMessage = {
       role: 'assistant',
-      content: '正在整理回复...',
+      content: ASSISTANT_PENDING_TEXT,
       model: currentModel,
+      thread_id: currentThreadId,
+      run_id: currentRunId,
+      agent_name: currentAgentName,
       ...buildAssistantAiMeta()
     }
     messages.value.push(assistantMessage)
-    if(selectedModel.value === '规则答疑') {
+    if (isRuleQa) {
       const stream = RuleQaApi.ruleQaStream({
-        threadId: ensureRuleThreadId(),
-          runId: genRunId(),
+        threadId: currentThreadId,
+          runId: currentRunId,
           parentRunId: "",
           variant: 'both',
           state: {
@@ -657,7 +666,7 @@ async function sendMessage(preset) {
             sys_session_code:userCode.value
           },
           messages: [
-            { id: "m1", thread_id: thread.value || '', role: "user", content: content }
+            { id: "m1", thread_id: currentThreadId, role: "user", content: content }
           ],
           tools: [],
           context: [],
@@ -667,6 +676,9 @@ async function sendMessage(preset) {
 
       let jsonContent = ''
       for await (const eventData of stream) {
+        if (eventData?.messageId && assistantMessage.message_id == null) {
+          assistantMessage.message_id = eventData.messageId
+        }
         if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
           jsonContent += eventData.delta
         }
@@ -689,8 +701,8 @@ async function sendMessage(preset) {
     // 访客辅助
     else {
       const stream = VisitApi.startStream({
-        threadId: ensureVisitThreadId(),
-        runId: genRunId(),
+        threadId: currentThreadId,
+        runId: currentRunId,
         parentRunId: "",
         variant: 'both',
         state: {
@@ -702,7 +714,7 @@ async function sendMessage(preset) {
           provider: provider.value, //选择AI
           sys_session_code: userCode.value
         },
-        messages: [{ id: "m1", thread_id: thread.value || '', role: "user", content: content }],
+        messages: [{ id: "m1", thread_id: currentThreadId, role: "user", content: content }],
         tools: [],
         context: [],
         forwardedProps: {},
@@ -712,6 +724,9 @@ async function sendMessage(preset) {
       let jsonContent = ''
       for await (const eventData of stream) {
         // 收集 TEXT_MESSAGE_CONTENT 的内容
+        if (eventData?.messageId && assistantMessage.message_id == null) {
+          assistantMessage.message_id = eventData.messageId
+        }
         if (eventData.type === 'TEXT_MESSAGE_CONTENT' && eventData.delta) {
           jsonContent += eventData.delta
         }
@@ -881,6 +896,181 @@ function resolveAssistantAvatar(item) {
   }
 }
 
+function updateMessageAt(messageIndex, patch) {
+  const current = messages.value[messageIndex]
+  if (!current) {
+    return
+  }
+
+  messages.value[messageIndex] = {
+    ...current,
+    ...patch
+  }
+
+  if (activeSessionId.value) {
+    syncActiveSession(activeSessionId.value)
+  }
+}
+
+function resolveFeedbackMessageId(message) {
+  const rawId = message?.message_id ?? message?.messageId ?? message?.id
+  if (rawId === '' || rawId == null) {
+    return undefined
+  }
+
+  if (typeof rawId === 'string' && /^\d+$/.test(rawId)) {
+    return Number(rawId)
+  }
+
+  return rawId
+}
+
+function resolveMessageSourceAgent(message) {
+  if (message?.agent_name) {
+    return message.agent_name
+  }
+
+  if (isVisitAssistantPayload(message?.rawPayload)) {
+    return 'visit_assistant_agent'
+  }
+
+  if (isRuleQaPayload(message?.rawPayload)) {
+    return 'rule_qa_agent'
+  }
+
+  if (message?.model === defaultModelLabel) {
+    return 'rule_qa_agent'
+  }
+
+  return 'visit_assistant_agent'
+}
+
+function resolveMessageThreadId(message) {
+  if (message?.thread_id) {
+    return message.thread_id
+  }
+
+  const agentName = resolveMessageSourceAgent(message)
+  if (agentName === 'rule_qa_agent') {
+    return ruleThreadId.value || thread.value || ''
+  }
+
+  return visitThreadId.value || thread.value || ''
+}
+
+function findPreviousUserMessageContent(messageIndex) {
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const item = messages.value[index]
+    if (item?.role === 'user') {
+      return String(item.content || '')
+    }
+  }
+
+  return ''
+}
+
+function isPendingAssistantMessage(message) {
+  return String(message?.content || '').trim() === ASSISTANT_PENDING_TEXT
+}
+
+function canShowMessageFeedback(message) {
+  return message?.role === 'assistant'
+    && !!String(message?.content || '').trim()
+    && !isPendingAssistantMessage(message)
+    && !!(message?.model || message?.rawPayload || message?.agent_name || message?.message_id != null)
+}
+
+function getLikeButtonLabel(message) {
+  return message?.feedbackType === 'like' ? '已点赞' : '点赞'
+}
+
+function getDislikeButtonLabel(message) {
+  if (message?.feedbackType === 'dislike') {
+    switch (message.feedbackStatus) {
+      case 'submitting':
+        return '提交中...'
+      case 'submitted':
+        return '已点踩'
+      case 'failed':
+        return '重试点踩'
+      default:
+        return '点踩'
+    }
+  }
+
+  return '点踩'
+}
+
+function getBadcaseAgentOutput(message) {
+  if (message?.rawPayload) {
+    try {
+      return JSON.stringify(message.rawPayload)
+    } catch (error) {
+      console.warn('serialize badcase payload failed', error)
+    }
+  }
+
+  return String(message?.content || '')
+}
+
+function setMessageLike(messageIndex) {
+  const current = messages.value[messageIndex]
+  if (!canShowMessageFeedback(current) || current?.feedbackStatus === 'submitting') {
+    return
+  }
+
+  if (current?.feedbackType === 'dislike' && current?.feedbackStatus === 'submitted') {
+    return
+  }
+
+  updateMessageAt(messageIndex, {
+    feedbackType: 'like',
+    feedbackStatus: 'submitted',
+    feedbackError: ''
+  })
+}
+
+async function submitMessageDislike(messageIndex) {
+  const current = messages.value[messageIndex]
+  if (!canShowMessageFeedback(current) || current?.feedbackStatus === 'submitting') {
+    return
+  }
+
+  updateMessageAt(messageIndex, {
+    feedbackType: 'dislike',
+    feedbackStatus: 'submitting',
+    feedbackError: ''
+  })
+
+  const payload = {
+    source_agent: resolveMessageSourceAgent(current),
+    thread_id: resolveMessageThreadId(current),
+    run_id: current?.run_id || '',
+    agent_output: getBadcaseAgentOutput(current),
+    reason: 'Workbench dislike',
+    tags: ['workbench', 'dislike']
+  }
+
+  const body = Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== '' && value !== undefined && value !== null)
+  )
+
+  try {
+    await BadcasesApi.createBadcase(body)
+    updateMessageAt(messageIndex, {
+      feedbackType: 'dislike',
+      feedbackStatus: 'submitted',
+      feedbackError: ''
+    })
+  } catch (error) {
+    updateMessageAt(messageIndex, {
+      feedbackType: 'dislike',
+      feedbackStatus: 'failed',
+      feedbackError: error?.message || '提交失败，请重试'
+    })
+  }
+}
+
 function cloneMessages(source) {
   return source.map((item) => ({
     role: item.role,
@@ -890,7 +1080,14 @@ function cloneMessages(source) {
     ...(item.aiId ? { aiId: item.aiId } : {}),
     ...(item.aiName ? { aiName: item.aiName } : {}),
     ...(item.aiProviderCode ? { aiProviderCode: item.aiProviderCode } : {}),
-    ...(item.aiProviderName ? { aiProviderName: item.aiProviderName } : {})
+    ...(item.aiProviderName ? { aiProviderName: item.aiProviderName } : {}),
+    ...(item.message_id != null ? { message_id: item.message_id } : {}),
+    ...(item.thread_id ? { thread_id: item.thread_id } : {}),
+    ...(item.run_id ? { run_id: item.run_id } : {}),
+    ...(item.agent_name ? { agent_name: item.agent_name } : {}),
+    ...(item.feedbackType ? { feedbackType: item.feedbackType } : {}),
+    ...(item.feedbackStatus ? { feedbackStatus: item.feedbackStatus } : {}),
+    ...(item.feedbackError ? { feedbackError: item.feedbackError } : {})
   }))
 }
 
@@ -2860,14 +3057,23 @@ function formatConversationMessage(message) {
     ...(message?.aiId ? { aiId: String(message.aiId) } : {}),
     ...(message?.aiName ? { aiName: message.aiName } : {}),
     ...(message?.aiProviderCode ? { aiProviderCode: message.aiProviderCode } : {}),
-    ...(message?.aiProviderName ? { aiProviderName: message.aiProviderName } : {})
+    ...(message?.aiProviderName ? { aiProviderName: message.aiProviderName } : {}),
+    ...(message?.message_id != null ? { message_id: message.message_id } : {}),
+    ...(message?.messageId != null && message?.message_id == null ? { message_id: message.messageId } : {}),
+    ...(message?.id != null && message?.message_id == null && message?.messageId == null ? { message_id: message.id } : {}),
+    ...(message?.thread_id ? { thread_id: message.thread_id } : {}),
+    ...(message?.run_id ? { run_id: message.run_id } : {}),
+    ...(message?.agent_name ? { agent_name: message.agent_name } : {}),
+    ...(message?.feedbackType ? { feedbackType: message.feedbackType } : {}),
+    ...(message?.feedbackStatus ? { feedbackStatus: message.feedbackStatus } : {}),
+    ...(message?.feedbackError ? { feedbackError: message.feedbackError } : {})
   }
 
   if (normalized.role !== 'assistant') {
     return normalized
   }
 
-  const payload = tryParseAssistantPayload(normalized.content)
+  const payload = message?.rawPayload || tryParseAssistantPayload(normalized.content)
   if (!payload) {
     return normalized
   }
@@ -2877,7 +3083,8 @@ function formatConversationMessage(message) {
       ...normalized,
       content: formatToFriendlyMarkdown(payload),
       model: shouldShowVisitActions(payload) ? modelOptions[1].label : (normalized.model || ''),
-      rawPayload: payload
+      rawPayload: payload,
+      agent_name: normalized.agent_name || 'visit_assistant_agent'
     }
   }
 
@@ -2886,7 +3093,8 @@ function formatConversationMessage(message) {
       ...normalized,
       content: formatRuleQaResponse(payload),
       model: normalized.model || defaultModelLabel,
-      rawPayload: payload
+      rawPayload: payload,
+      agent_name: normalized.agent_name || 'rule_qa_agent'
     }
   }
 
@@ -2938,14 +3146,25 @@ function syncVisitTaskPayloadFromMessages(source) {
 
 async function handleConfirm(message) {
   loading.value = true
-  const assistantMessage = { role: 'assistant', content: '正在整理回复...', model: '', ...buildAssistantAiMeta() }
+  const threadId = ensureVisitThreadId()
+  const runId = genRunId()
+  thread.value = threadId
+  const assistantMessage = {
+    role: 'assistant',
+    content: ASSISTANT_PENDING_TEXT,
+    model: modelOptions[1].label,
+    thread_id: threadId,
+    run_id: runId,
+    agent_name: 'visit_assistant_agent',
+    ...buildAssistantAiMeta()
+  }
   messages.value.push(assistantMessage)
   const taskPayload = message?.rawPayload || visitTaskPayload.value || {}
   visitTaskPayload.value = taskPayload
   console.log('确认拜访安排:', message)
   const stream = VisitApi.startStream({
-    threadId: ensureVisitThreadId(),
-    runId: genRunId(),
+    threadId,
+    runId,
     parentRunId: "",
     state: { 
       agent: "visit_assistant_agent",
@@ -2957,7 +3176,7 @@ async function handleConfirm(message) {
       postName: session.user?.postNames?.[0],
       provider: provider.value, //选择AI
     },
-    messages: [{ id: "m1", role: "user", content: '确认' }],
+    messages: [{ id: "m1", thread_id: threadId, role: "user", content: '确认' }],
     tools: [],
     context: [],
     forwardedProps: {},
@@ -2981,6 +3200,9 @@ async function handleConfirm(message) {
   // 第一条 = 主报告 JSON；后续（如存在）= 定时任务警告或其他附加消息
   const [mainId, ...extraIds] = messageOrder
   const mainContent = mainId ? messageBuckets.get(mainId) : ''
+  if (mainId) {
+    assistantMessage.message_id = mainId
+  }
   try {
     const data = JSON.parse(mainContent)
     assistantMessage.content = formatToFriendlyMarkdown(data)
@@ -2993,12 +3215,24 @@ async function handleConfirm(message) {
   for (const extraId of extraIds) {
     const warnText = messageBuckets.get(extraId)
     if (warnText && warnText.trim()) {
-      messages.value.push({ role: 'assistant', content: warnText, model: '', ...buildAssistantAiMeta() })
+      messages.value.push({
+        role: 'assistant',
+        content: warnText,
+        model: modelOptions[1].label,
+        thread_id: threadId,
+        run_id: runId,
+        agent_name: 'visit_assistant_agent',
+        message_id: extraId,
+        ...buildAssistantAiMeta()
+      })
     }
   }
 
   loadTaskJobs()
   loading.value = false
+  if (activeSessionId.value) {
+    syncActiveSession(activeSessionId.value)
+  }
   await scrollMessagesToBottom()
 }
 // 取消拜访安排
@@ -3829,7 +4063,36 @@ onBeforeUnmount(() => {
               </div>
             </template>
             <p v-else>{{ item.content }}</p>
-            <div v-if="item.role === 'assistant' && item.model === '访客辅助'" style="margin-top: 12px;">
+            <div v-if="canShowMessageFeedback(item)" class="message-feedback-actions">
+              <button
+                type="button"
+                class="message-feedback-button"
+                :class="{ active: item.feedbackType === 'like' }"
+                :disabled="item.feedbackStatus === 'submitting'"
+                @click="setMessageLike(index)"
+              >
+                {{ getLikeButtonLabel(item) }}
+              </button>
+              <button
+                type="button"
+                class="message-feedback-button"
+                :class="{
+                  active: item.feedbackType === 'dislike' && item.feedbackStatus === 'submitted',
+                  failed: item.feedbackType === 'dislike' && item.feedbackStatus === 'failed'
+                }"
+                :disabled="item.feedbackType === 'dislike' && item.feedbackStatus === 'submitting'"
+                @click="submitMessageDislike(index)"
+              >
+                {{ getDislikeButtonLabel(item) }}
+              </button>
+              <span
+                v-if="item.feedbackType === 'dislike' && item.feedbackStatus === 'failed'"
+                class="message-feedback-hint error"
+              >
+                {{ item.feedbackError || '提交失败，请重试' }}
+              </span>
+            </div>
+            <div v-if="item.role === 'assistant' && item.model === '访客辅助'" class="message-confirm-actions">
               <button
                 class="tiny-button primary"
                 @click="handleConfirm(item)"
@@ -6140,6 +6403,59 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 0.625rem;
   margin-top: 0.75rem;
+}
+
+.message-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.message-feedback-button {
+  border: 1px solid var(--panel-card-border);
+  border-radius: 999px;
+  background: var(--panel-card-bg-soft);
+  color: var(--text-secondary);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.message-feedback-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-main);
+}
+
+.message-feedback-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.message-feedback-button.active {
+  border-color: rgba(47, 131, 116, 0.3);
+  background: rgba(47, 131, 116, 0.12);
+  color: #2f8374;
+}
+
+.message-feedback-button.failed {
+  border-color: rgba(214, 91, 79, 0.28);
+  background: rgba(214, 91, 79, 0.1);
+  color: #d65b4f;
+}
+
+.message-feedback-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.message-feedback-hint.error {
+  color: #d65b4f;
 }
 
 /* 规则答疑推理过程样式 */

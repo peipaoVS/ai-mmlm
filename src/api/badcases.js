@@ -16,19 +16,13 @@ import { api, qs } from './_request'
 
 /**
  * 创建一条 badcase 记录。
- * 推荐传 `message_id`（让后端自己回查 agent_output + ReAct 轨迹）；
- * 兜底也支持手动传 agent_output。
- *
  * @param {{
- *   thread_id?: string,
- *   message_id?: number,
+ *   thread_id: string,
+ *   run_id?: string,
  *   source_agent?: 'visit_assistant_agent'|'rule_qa_agent'|'admin_rule_qa_agent',
  *   agent_output?: string,
- *   tags?: string[],
  *   reason?: string,
- *   user_input?: string,
- *   run_id?: string,
- *   reporter?: string
+ *   tags?: string[]
  * }} body
  */
 export function createBadcase(body) {
