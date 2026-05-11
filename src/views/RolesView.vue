@@ -233,27 +233,25 @@ async function confirmRemove() {
           </div>
 
           <div class="form-grid">
-            <div class="form-scroll-area">
-              <label class="field">
-                <span>角色名称</span>
-                <input v-model="form.name" placeholder="请输入角色名称" />
-              </label>
-              <label class="field">
-                <span>角色编码</span>
-                <input v-model="form.code" placeholder="例如 ADMIN" />
-              </label>
-              <label class="field">
-                <span>状态</span>
-                <AppSelect v-model="form.status" :options="statusOptions" placeholder="请选择状态" />
-              </label>
-              <label class="field full">
-                <span>备注</span>
-                <textarea v-model="form.remark" placeholder="补充角色说明"></textarea>
-              </label>
-            </div>
-            <label class="field full">
+            <label class="field">
+              <span>角色名称</span>
+              <input v-model="form.name" placeholder="请输入角色名称" />
+            </label>
+            <label class="field">
+              <span>角色编码</span>
+              <input v-model="form.code" placeholder="例如 ADMIN" />
+            </label>
+            <label class="field">
               <span>默认跳转</span>
               <AppSelect v-model="form.defaultPath" :options="menuOptions" placeholder="登录后跳转的页面" />
+            </label>
+            <label class="field">
+              <span>状态</span>
+              <AppSelect v-model="form.status" :options="statusOptions" placeholder="请选择状态" />
+            </label>
+            <label class="field full">
+              <span>备注</span>
+              <textarea v-model="form.remark" placeholder="补充角色说明"></textarea>
             </label>
           </div>
 
@@ -353,13 +351,11 @@ async function confirmRemove() {
   overflow: visible;
 }
 
-.roles-page .form-scroll-area {
-  grid-column: 1 / -1;
-  max-height: calc(100dvh - 16rem);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+.roles-page :global(.modal-mask) {
+  overflow-y: auto;
+  align-items: flex-start;
+  padding-top: clamp(0.875rem, 0.5rem + 1vw, 1.5rem);
+  padding-bottom: clamp(0.875rem, 0.5rem + 1vw, 1.5rem);
 }
 
 .roles-page .action-group .tiny-button {

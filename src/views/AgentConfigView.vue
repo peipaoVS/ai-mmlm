@@ -26,6 +26,12 @@ const PROVIDER_TYPE_OPTIONS = [
   { label: '向量模型', value: 'embedding' }
 ]
 
+const ADDRESS_TYPES = {
+  official: { label: '官方地址', icon: '🏢' },
+  proxy: { label: '代理地址', icon: '🔁' },
+  custom: { label: '自定义', icon: '✏️' }
+}
+
 const PROVIDERS = [
   {
     code: 'deepseek',
@@ -40,7 +46,11 @@ const PROVIDERS = [
     icon: deepseekLogo,
     background: deepseekLogo,
     backgroundSize: '70%',
-    backgroundPosition: 'right -1rem bottom -1.2rem'
+    backgroundPosition: 'right -1rem bottom -1.2rem',
+    domains: {
+      official: 'https://api.deepseek.com',
+      custom: ''
+    }
   },
   {
     code: 'ollama',
@@ -55,7 +65,11 @@ const PROVIDERS = [
     icon: ollamaLogo,
     background: ollamaLogo,
     backgroundSize: '58%',
-    backgroundPosition: 'right -0.4rem bottom -1rem'
+    backgroundPosition: 'right -0.4rem bottom -1rem',
+    domains: {
+      official: PROVIDER_CONFIG.OLLAMA_DOMAIN,
+      custom: ''
+    }
   },
   {
     code: 'openai',
@@ -70,7 +84,11 @@ const PROVIDERS = [
     icon: openaiSymbol,
     background: openaiSymbol,
     backgroundSize: '44%',
-    backgroundPosition: 'right 1.25rem bottom 1rem'
+    backgroundPosition: 'right 1.25rem bottom 1rem',
+    domains: {
+      official: 'https://api.openai.com/v1',
+      custom: ''
+    }
   },
   {
     code: 'tongyi',
@@ -85,7 +103,11 @@ const PROVIDERS = [
     icon: qwenLogo,
     background: qwenBackground,
     backgroundSize: '150%',
-    backgroundPosition: 'center center'
+    backgroundPosition: 'center center',
+    domains: {
+      official: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      custom: ''
+    }
   },
   {
     code: 'qianfan',
@@ -100,7 +122,11 @@ const PROVIDERS = [
     icon: qianfanLogo,
     background: qianfanLogo,
     backgroundSize: '74%',
-    backgroundPosition: 'right 0.25rem bottom 1.1rem'
+    backgroundPosition: 'right 0.25rem bottom 1.1rem',
+    domains: {
+      official: 'https://qianfan.baidubce.com/v2',
+      custom: ''
+    }
   },
   {
     code: 'zhipu',
@@ -115,7 +141,11 @@ const PROVIDERS = [
     icon: zhipuLogo,
     background: zhipuBackground,
     backgroundSize: 'cover',
-    backgroundPosition: 'center center'
+    backgroundPosition: 'center center',
+    domains: {
+      official: 'https://open.bigmodel.cn/api/paas/v4',
+      custom: ''
+    }
   }
 ]
 
@@ -157,6 +187,12 @@ const filteredProviders = computed(() => {
   return PROVIDERS.filter((provider) => provider.types.includes(providerFilter.value))
 })
 
+const availableAddressTypes = computed(() => {
+  const prov = selectedProvider.value
+  if (!prov?.domains) return [{ key: 'custom', ...ADDRESS_TYPES.custom }]
+  return Object.keys(prov.domains).map((key) => ({ key, ...(ADDRESS_TYPES[key] || { label: key, icon: '🔗' }) }))
+})
+
 const deleteMessage = computed(() => {
   const row = pendingDeleteRow.value
   return row ? `确认删除大模型“${row.name}”吗？` : ''
@@ -175,7 +211,25 @@ function createEmptyForm() {
     apiDomain: '',
     apiKey: '',
     remark: '',
-    roleIds: []
+    roleIds: [],
+    addressType: 'custom'
+  }
+}
+
+function resolveAddressType(provider, domain) {
+  if (!provider || !provider.domains) return 'custom'
+  for (const [type, url] of Object.entries(provider.domains)) {
+    if (url && domain === url) return type
+  }
+  return 'custom'
+}
+
+function applyAddressType(provider, type) {
+  if (!provider || !provider.domains) return
+  const url = provider.domains[type]
+  if (url !== undefined) {
+    form.apiDomain = url
+    form.addressType = type
   }
 }
 
@@ -268,6 +322,7 @@ function openCreate() {
 function openEdit(row) {
   resetForm()
   editingId.value = row.id
+  const provider = resolveProvider(row.providerCode)
   Object.assign(form, {
     name: row.name || '',
     providerCode: row.providerCode || '',
@@ -276,7 +331,8 @@ function openEdit(row) {
     apiDomain: row.apiDomain || '',
     apiKey: row.apiKey || '',
     remark: row.remark || '',
-    roleIds: [...(row.roleIds || [])]
+    roleIds: [...(row.roleIds || [])],
+    addressType: resolveAddressType(provider, row.apiDomain || '')
   })
   dialogVisible.value = true
 }
@@ -285,12 +341,21 @@ function openProviderPicker() {
   providerDialogVisible.value = true
 }
 
+function syncAddressType() {
+  const prov = selectedProvider.value
+  if (!prov?.domains) return
+  const newType = resolveAddressType(prov, form.apiDomain)
+  if (newType !== form.addressType) {
+    form.addressType = newType
+  }
+}
+
 function selectProvider(provider) {
   form.providerCode = provider.code
   if (!provider.types.includes(form.moduleType)) {
     form.moduleType = provider.types[0]
   }
-  form.apiDomain = provider.defaultDomain
+  applyAddressType(provider, 'official')
   providerDialogVisible.value = false
 }
 
@@ -517,9 +582,30 @@ async function confirmRemove() {
               <input v-model="form.baseModel" placeholder="例如 deepseek-chat / text-embedding-3-small" />
             </label>
 
+            <div class="field full">
+              <span>地址类型</span>
+              <div class="address-type-group">
+                <button
+                  v-for="item in availableAddressTypes"
+                  :key="item.key"
+                  type="button"
+                  class="address-type-chip"
+                  :class="{ active: form.addressType === item.key }"
+                  @click="applyAddressType(selectedProvider, item.key)"
+                >
+                  <span class="address-type-icon">{{ item.icon }}</span>
+                  <span>{{ item.label }}</span>
+                </button>
+              </div>
+            </div>
+
             <label class="field full">
               <span>API 域名</span>
-              <input v-model="form.apiDomain" placeholder="请输入 API 域名" />
+              <input
+                v-model="form.apiDomain"
+                placeholder="请输入 API 域名"
+                @input="syncAddressType"
+              />
             </label>
 
             <div class="field full">
@@ -633,7 +719,10 @@ async function confirmRemove() {
 .agent-panel {
   border-radius: var(--radius-xl);
 }
-
+.data-panel {
+  border-radius: var(--radius-xl);
+  padding: clamp(1.125rem, 0rem + 0.9vw, 1.625rem);
+}
 .module-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -723,7 +812,7 @@ async function confirmRemove() {
 
 .module-provider-icon img {
   width: 100%;
-  height: 100%;
+  height: 98%;
   object-fit: contain;
 }
 
@@ -804,6 +893,44 @@ async function confirmRemove() {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.address-type-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+
+.address-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  border: 1px solid var(--panel-card-border);
+  border-radius: 2rem;
+  background: var(--panel-card-bg-soft);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.address-type-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--text-main);
+  background: var(--surface-accent-alt);
+}
+
+.address-type-chip.active {
+  border-color: var(--brand-alt);
+  color: var(--brand-alt);
+  background: var(--surface-accent-alt);
+}
+
+.address-type-icon {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .agent-modal-panel {
