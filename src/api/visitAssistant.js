@@ -93,6 +93,9 @@ export function listHistory(params) {
 export function UserInformation(params) {
   return api.get(`/api/session-codes/${params}`)
 }
+export function listUserInformation(params) {
+  return api.get(`/api/data${qs(params)}`)
+}
 
 /**
  * 拉所有 thread id（按时间倒序）。

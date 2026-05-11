@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '../api/http'
 import { useSession, getToken, getAiToken } from '../stores/session'
@@ -65,12 +65,14 @@ async function information() {
 }
 // 最近会话接口
 async function startFreshConver() {
-  console.log('加载最近会话列表，用户：', session)
   try {
-    const response = await VisitApi.listHistory({
-      thread_id: session.user?.id,
+    const response = await VisitApi.listUserInformation({
+      scope: 'task',
+      X_Aibank_User_Id: session.user?.id,
     })
     recentSessions.value = response.messages.filter(item => item.role === 'user')
+    console.log('最近会话接口', recentSessions.value)
+
   } finally {
   }
 }
