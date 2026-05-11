@@ -93,6 +93,11 @@ export function listHistory(params) {
 export function UserInformation(params) {
   return api.get(`/api/session-codes/${params}`)
 }
+/**
+ * 路由到对应业务表的列表查询。统一返回
+ * @param {} params 
+ * @returns 
+ */
 export function listUserInformation(params) {
   return api.get(`/api/data${qs(params)}`)
 }

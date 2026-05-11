@@ -70,8 +70,8 @@ async function startFreshConver() {
       scope: 'task',
       X_Aibank_User_Id: session.user?.id,
     })
-    recentSessions.value = response.messages.filter(item => item.role === 'user')
-    console.log('最近会话接口', recentSessions.value)
+    console.log('最近会话接口', response)
+    recentSessions.value = response.items
 
   } finally {
   }
@@ -81,8 +81,9 @@ const loadLoading = ref(false)
 async function loadTaskJobs() {
   loadLoading.value = true
   try {
-    const response = await VisitApi.listTasks({
-      id: session.user?.id,
+    const response = await VisitApi.listUserInformation({
+      scope: 'todo',
+      X_Aibank_User_Id: session.user?.id,
     })
     taskJobs.value = response.tasks || []
     console.log('待办事项接口', response)
@@ -797,7 +798,7 @@ async function switchSession(item) {
     }
     try {
       // 拉取完整历史消息
-      const resp = await VisitApi.listHistory({ thread_id: threadId, limit: 200 })
+      const resp = await VisitApi.listUserInformation({ thread_id: threadId, limit: 200 })
       const all = Array.isArray(resp?.messages) ? resp.messages : []
       // 后端按 created_at ASC 返回；前端只关心 role + content 字段。
       // assistant 端的 JSON 卡片留给气泡渲染层自己 try-parse。
@@ -1133,11 +1134,14 @@ const postVisitSupplement = ref('')
 async function loadReports() {
   reportLoading.value = true
   try {
-    const params = { id: session.user?.id }
+    const params = {
+      scope: 'report',
+      X_Aibank_User_Id: session.user?.id,
+    }
     const filter = reportCompanyFilter.value.trim()
     if (filter) params.company_name = filter
     // 后端 /api/reports 直接返回数组
-    const resp = await ReportsApi.listReports(params)
+    const resp = await VisitApi.listUserInformation(params)
     reportList.value = Array.isArray(resp) ? resp : (resp?.reports || [])
   } catch (error) {
     reportList.value = []
@@ -1446,9 +1450,9 @@ const postSummaryVersions = ref([])
 async function loadPostSummaries() {
   postSummaryLoading.value = true
   try {
-    const resp = await ReportsApi.listAllPostVisitSummaries({ 
-      limit: 50,
-      id:session.user?.id
+    const resp = await VisitApi.listUserInformation({ 
+      scope: 'summary',
+      X_Aibank_User_Id: session.user?.id,
     })
     postSummaryList.value = Array.isArray(resp) ? resp : (resp?.summaries || [])
     console.log('访后纪要列表:', postSummaryList.value)
@@ -1465,8 +1469,11 @@ async function loadPostSummaries() {
 async function loadTodos() {
   todoLoading.value = true
   try {
-    const params = { status: todoStatusFilter.value, id:session.user?.id }
-    const resp = await ReportsApi.listTodos(params)
+    const params = { 
+      scope: 'todo',
+      X_Aibank_User_Id: session.user?.id,
+    }
+    const resp = await VisitApi.listUserInformation(params)
     todoList.value = Array.isArray(resp) ? resp : (resp?.items || resp?.todos || [])
   } catch (error) {
     todoList.value = []
@@ -3299,7 +3306,7 @@ onBeforeUnmount(() => {
             @click="switchSession(item)"
           >
             <div class="topic-title-row">
-              <strong :title="item.content">{{ item.content }}</strong>
+              <strong :title="item.title">{{ item.title }}</strong>
               <span v-if="item.active" class="active-badge">当前</span>
             </div>
           </button>

@@ -17,6 +17,7 @@ const SYSTEM_PROXY_PREFIXES = [
 
 const AI_PROXY_PREFIXES = [
   '/api/visit-assistant',
+  '/api/data',
   '/api/rule-qa',
   '/api/admin-rule-qa',
   '/api/admin-rule-kb',
